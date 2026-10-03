@@ -54,6 +54,10 @@ inconsistency.
 - **Kotlin/Native** links the static library (`libwebgpu_dawn.a`) plus the platform
   system libraries: the Apple frameworks (`Metal`, `Foundation`, `CoreGraphics`,
   `QuartzCore`, `IOKit`, `IOSurface`) or Linux `-lpthread -ldl -lm`.
+- **Android/JVM** uses kffi's Android engine; the verified shared libraries are
+  bundled under `dawn4k-native/src/androidMain/jniLibs/<abi>/` (`arm64-v8a`,
+  `x86_64`). Signatures outside kffi-android's fixed-shape baseline ride the
+  generic `callGeneric` path.
 
 ## ABI verification
 
@@ -83,4 +87,6 @@ Verified on macOS ARM64 (Metal): the JVM and the static Kotlin/Native executable
 both report `status: passed`, `callbackCount: 2`, `bufferSize: 16`. The Linux tasks
 must run on a Linux x64 host with a Vulkan driver; a Linux Kotlin/Native executable
 cannot be produced by the macOS toolchain because its sysroot predates the glibc
-symbols the Linux Dawn archive references.
+symbols the Linux Dawn archive references. The Android/JVM target is verified by
+compilation (`:dawn4k-native:compileAndroidMain`); an Android runtime smoke needs an
+emulator or device and is not part of CI.

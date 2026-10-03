@@ -55,7 +55,7 @@ Contributions are welcome! See:
 
 ## 🏗️ Project Architecture
 
-- **`:dawn4k-native`** — generated low-level Dawn (WebGPU) bindings for desktop (JVM, macOS ARM64, Linux x64), the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
+- **`:dawn4k-native`** — generated low-level Dawn (WebGPU) bindings for JVM, Android, macOS ARM64 and Linux x64, the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
 - **`:native-smoke`** — a real consumer that creates a Dawn instance, adapter, device and a mapped buffer on JVM and Kotlin/Native.
 
 The generated sources live in `dawn4k-native/generated/src` and are produced by the pinned kextract; ordinary compilation never runs the generator. See [Native Dawn binding](docs/docs/native-binding.md).
