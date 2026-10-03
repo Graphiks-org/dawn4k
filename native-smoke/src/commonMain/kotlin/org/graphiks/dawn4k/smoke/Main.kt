@@ -195,6 +195,7 @@ private fun runSmoke(): SmokeResult {
             wgpuDeviceCreateBuffer(deviceHandle, descriptor)
         } ?: return failed(target, backendName, "wgpuDeviceCreateBuffer returned null", callbackCount, adapterDescription)
 
+        // Release the device on every path, including the early failures below.
         try {
             val size = wgpuBufferGetSize(buffer)
             val mapState = wgpuBufferGetMapState(buffer)
@@ -216,9 +217,8 @@ private fun runSmoke(): SmokeResult {
             wgpuBufferDestroy(buffer)
             wgpuBufferRelease(buffer)
         }
-
-        wgpuDeviceRelease(deviceHandle)
     } finally {
+        device?.let { wgpuDeviceRelease(it) }
         requestDeviceRegistration.close()
         uncapturedRegistration.close()
         deviceLostRegistration.close()
