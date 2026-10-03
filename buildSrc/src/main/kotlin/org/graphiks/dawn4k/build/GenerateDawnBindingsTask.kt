@@ -52,6 +52,10 @@ abstract class GenerateDawnBindingsTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val callbackBindings: RegularFileProperty
 
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val kextractVersion: RegularFileProperty
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val jvmNativeResourcesDir: DirectoryProperty
@@ -128,7 +132,7 @@ abstract class GenerateDawnBindingsTask : DefaultTask() {
 
     private fun writeManifest(output: Path) {
         val lock = DawnArtifacts.parseLock(dawnLockFile().toFile().readText())
-        val kextractCommit = kextractVersionFile().toFile().readText().trim()
+        val kextractCommit = kextractVersion.get().asFile.readText().trim()
 
         val files = Files.walk(output).use { stream ->
             stream.filter(Files::isRegularFile)
@@ -216,11 +220,6 @@ abstract class GenerateDawnBindingsTask : DefaultTask() {
             val path = process.inputStream.bufferedReader().readText().trim()
             if (process.waitFor() == 0) path.takeIf { it.isNotBlank() } else null
         }.getOrNull()
-    }
-
-    private fun kextractVersionFile(): Path {
-        val root = project.rootProject.layout.projectDirectory.asFile.toPath()
-        return root.resolve("bindings/kextract.version")
     }
 
     private fun sha256(file: Path): String {

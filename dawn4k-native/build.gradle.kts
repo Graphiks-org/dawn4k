@@ -62,6 +62,7 @@ val generateBindingsFromHeader = tasks.register<GenerateDawnBindingsTask>("gener
     headerFile.set(layout.buildDirectory.file("native/macosArm64/shared/include/dawn/webgpu.h"))
     includeDir.set(layout.buildDirectory.dir("native/macosArm64/shared/include"))
     callbackBindings.set(rootProject.layout.projectDirectory.file("bindings/callback-bindings.yml"))
+    kextractVersion.set(rootProject.layout.projectDirectory.file("bindings/kextract.version"))
     jvmNativeResourcesDir.set(layout.buildDirectory.dir("generated/nativeResources"))
     targetPackage.set("org.graphiks.dawn4k.raw")
     libraryName.set("webgpu_dawn")
@@ -141,6 +142,7 @@ kotlin {
     sourceSets.getByName("commonMain").kotlin.srcDir("generated/src/commonMain/kotlin")
     sourceSets.getByName("nativeMain").kotlin.srcDir("generated/src/nativeMain/kotlin")
     sourceSets.getByName("jvmMain").kotlin.srcDir("generated/src/jvmMain/kotlin")
+    sourceSets.getByName("androidMain").kotlin.srcDir("generated/src/androidMain/kotlin")
     // The generated JVM bootstrap loads `darwin-aarch64/libwebgpu_dawn.dylib` and
     // `linux-x86-64/libwebgpu_dawn.so` from the classpath; stage them into the jar.
     sourceSets.getByName("jvmMain").resources.srcDir(layout.buildDirectory.dir("generated/nativeResources"))

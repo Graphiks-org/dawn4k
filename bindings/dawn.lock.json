@@ -6,6 +6,8 @@
     {"target":"macosArm64","linkage":"shared","name":"dawn-chromium-8077-macosArm64-shared.tar.gz","sha256":"5ec6b21e1012a1b7596c1c5563c0f2f7ed3ebe8eee83c3a91a715051208eae30"},
     {"target":"macosArm64","linkage":"static","name":"dawn-chromium-8077-macosArm64-static.tar.gz","sha256":"23333b72888860d87982edea0a637cac9b10c1b8737582eb65f79bc2abd3fbc2"},
     {"target":"linuxX64","linkage":"shared","name":"dawn-chromium-8077-linuxX64-shared.tar.gz","sha256":"942074e2fc77858786b38ebe5661a9f21593fd3a8084eb15a0481a3e369e32a5"},
-    {"target":"linuxX64","linkage":"static","name":"dawn-chromium-8077-linuxX64-static.tar.gz","sha256":"047a2c9d88dce11beab42bb5365f1c9d03ee7d249f32217380782095bd260a39"}
+    {"target":"linuxX64","linkage":"static","name":"dawn-chromium-8077-linuxX64-static.tar.gz","sha256":"047a2c9d88dce11beab42bb5365f1c9d03ee7d249f32217380782095bd260a39"},
+    {"target":"androidNativeArm64","linkage":"shared","name":"dawn-chromium-8077-androidNativeArm64-shared.tar.gz","sha256":"a6b4db2083bee888ce374fea644c062e6678f320280dcfc43f1bece62c44cfc0"},
+    {"target":"androidNativeX64","linkage":"shared","name":"dawn-chromium-8077-androidNativeX64-shared.tar.gz","sha256":"9c564de53f239e396be352ebd5b4645aefa26b54b4a427fa64c49f5373f83c82"}
   ]
 }

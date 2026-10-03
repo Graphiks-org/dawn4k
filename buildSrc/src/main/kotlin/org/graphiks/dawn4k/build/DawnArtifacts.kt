@@ -22,8 +22,9 @@ data class DawnLock(
     val archives: List<DawnArchive>,
 ) {
     /**
-     * Select the shared and static archives for every requested target.
-     * An unknown target is rejected by name; a target missing a variant is rejected too.
+     * Select every archive for the requested targets. A target may ship a single linkage
+     * (for example Android, which is only consumed as a shared library); desktop targets
+     * ship both. An unknown target is rejected by name.
      */
     fun selectArchives(targets: Set<String>): List<DawnArchive> {
         require(targets.isNotEmpty()) { "No dawn.targets requested" }
@@ -32,8 +33,7 @@ data class DawnLock(
         require(unknown.isEmpty()) { "Unknown dawn target(s): ${unknown.sorted().joinToString(", ")}" }
         return targets.sorted().flatMap { target ->
             val targetArchives = archives.filter { it.target == target }
-            val missing = setOf("shared", "static") - targetArchives.map { it.linkage }.toSet()
-            require(missing.isEmpty()) { "Target $target has no archive for linkage(s): ${missing.sorted()}" }
+            require(targetArchives.isNotEmpty()) { "Target $target has no archive" }
             targetArchives.sortedBy { it.linkage }
         }
     }
