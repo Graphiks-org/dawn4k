@@ -9,3 +9,7 @@ local.properties
 .worktrees/
 _site/
 docs/docs/api/
+# Dawn prebuild scratch
+/.dawn/
+# buildSrc sources live in package org/graphiks/dawn4k/build/, which the `build/` rule would otherwise ignore
+!buildSrc/src/main/kotlin/org/graphiks/dawn4k/build/
