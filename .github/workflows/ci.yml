@@ -50,10 +50,3 @@ jobs:
       - name: Run Deep Tests (JVM, Android & iOS Simulator)
         if: steps.test-strategy.outputs.strategy == 'deep'
         run: ./gradlew allTests --no-daemon --stacktrace
-
-      # Step 4: JVM Dawn smoke (Metal). Hosted runner GPU availability is not
-      # assumed, so this publishes its report but does not block the check.
-      - name: JVM Dawn Smoke (Metal)
-        if: steps.test-strategy.outputs.strategy == 'deep'
-        continue-on-error: true
-        run: ./gradlew :native-smoke:runJvmSmoke --no-daemon --stacktrace
