@@ -1,6 +1,6 @@
 [versions]
 # Core Tooling
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 agp = "9.0.0"
 compose-multiplatform = "1.11.1"
 dokka = "2.2.0"

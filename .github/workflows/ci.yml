@@ -43,7 +43,7 @@ jobs:
       # Runs when neither the PR base nor the current branch is 'master'
       - name: Run JVM Fast-Track Tests
         if: steps.test-strategy.outputs.strategy == 'fast-track'
-        run: ./gradlew :shared:jvmTest --no-daemon --stacktrace
+        run: ./gradlew :dawn4k-native:jvmTest --no-daemon --stacktrace
 
       # Step 3: Run Deep tests (JVM, Android, and iOS Simulator/Link)
       # Runs only for pushes to or pull requests targeting 'master'
