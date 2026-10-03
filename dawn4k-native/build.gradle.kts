@@ -4,6 +4,7 @@ import org.graphiks.dawn4k.build.GenerateDawnBindingsTask
 import org.graphiks.dawn4k.build.VerifyDawnAbiTask
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.testing.Test
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
@@ -14,7 +15,15 @@ val dawnTargets: List<String> =
         ?.split(',')
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }
-        ?: listOf("macosArm64", "linuxX64", "androidNativeArm64", "androidNativeX64")
+        ?: listOf(
+            "macosArm64",
+            "linuxX64",
+            "androidNativeArm64",
+            "androidNativeX64",
+            "iosArm64",
+            "iosSimulatorArm64",
+            "iosX64",
+        )
 
 val nativeDir = layout.buildDirectory.dir("native")
 val dawnLockFile = rootProject.layout.projectDirectory.file("bindings/dawn.lock.json")
@@ -173,21 +182,25 @@ kotlin {
     // `linux-x86-64/libwebgpu_dawn.so` from the classpath; stage them into the jar.
     sourceSets.getByName("jvmMain").resources.srcDir(layout.buildDirectory.dir("generated/nativeResources"))
 
-    macosArm64 {
-        compilations.getByName("main").cinterops.create("dawn") {
-            defFile(project.file("src/nativeInterop/cinterop/dawn.def"))
-            includeDirs(includeDir("macosArm64"))
-        }
-        binaries.all {
-            linkerOpts("-L${libDir("macosArm64").get().asFile.absolutePath}", "-lwebgpu_dawn")
-            linkerOpts(
-                "-framework", "Metal",
-                "-framework", "Foundation",
-                "-framework", "CoreGraphics",
-                "-framework", "QuartzCore",
-                "-framework", "IOKit",
-                "-framework", "IOSurface",
-            )
+    listOf(
+        "macosArm64", "iosArm64", "iosSimulatorArm64", "iosX64",
+    ).forEach { appleTarget ->
+        (targets.getByName(appleTarget) as KotlinNativeTarget).apply {
+            compilations.getByName("main").cinterops.create("dawn") {
+                defFile(project.file("src/nativeInterop/cinterop/dawn.def"))
+                includeDirs(includeDir(appleTarget))
+            }
+            binaries.all {
+                linkerOpts("-L${libDir(appleTarget).get().asFile.absolutePath}", "-lwebgpu_dawn")
+                linkerOpts(
+                    "-framework", "Metal",
+                    "-framework", "Foundation",
+                    "-framework", "CoreGraphics",
+                    "-framework", "QuartzCore",
+                    "-framework", "IOKit",
+                    "-framework", "IOSurface",
+                )
+            }
         }
     }
 

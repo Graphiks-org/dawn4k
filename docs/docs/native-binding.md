@@ -53,12 +53,21 @@ inconsistency.
   Run with `--enable-native-access=ALL-UNNAMED`.
 - **Kotlin/Native** links the static library (`libwebgpu_dawn.a`) plus the platform
   system libraries: the Apple frameworks (`Metal`, `Foundation`, `CoreGraphics`,
-  `QuartzCore`, `IOKit`, `IOSurface`) or Linux `-lpthread -ldl -lm`.
+  `QuartzCore`, `IOKit`, `IOSurface`) for macOS and iOS (device + simulator), or
+  Linux `-lpthread -ldl -lm`.
 - **Android/JVM** uses kffi's Android engine; `:dawn4k-native:extractAndroidNativeLibs`
   extracts the verified shared libraries into the git-ignored
   `dawn4k-native/src/androidMain/jniLibs/<abi>/` (`arm64-v8a`, `x86_64`) before
   Android packaging. Signatures outside kffi-android's fixed-shape baseline ride
   the generic `callGeneric` path.
+
+Not yet available, pending upstream work:
+
+- **tvOS** — `org.graphiks:kffi` publishes no `tvosArm64`/`tvosSimulatorArm64`
+  variant.
+- **Kotlin/Native `androidNative*`** — the dawn-packer Android archives are built
+  with a newer libc++ than Kotlin/Native links, so the K/N Android targets do not
+  link (see dawn-packer's `docs/spikes/android.md`).
 
 ## ABI verification
 

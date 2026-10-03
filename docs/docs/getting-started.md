@@ -26,6 +26,7 @@ See [Native Dawn binding](native-binding.md) for generation, linkage and smoke s
 ./gradlew :dawn4k-native:jvmTest        # fast JVM tests
 ./gradlew allTests                      # host targets
 ./gradlew :dawn4k-native:compileAndroidMain  # Android/JVM target compiles
+./gradlew :dawn4k-native:compileKotlinIosArm64  # iOS target compiles
 ./gradlew :dawn4k-native:verifyDawnAbi  # C ABI oracle vs generated layout
 ./gradlew :native-smoke:runJvmSmoke     # real GPU smoke (JVM)
 ./gradlew :native-smoke:runSmokeMacosArm64

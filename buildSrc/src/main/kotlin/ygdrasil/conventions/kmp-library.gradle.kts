@@ -14,6 +14,9 @@ kotlin {
     jvm()
     android {}
     macosArm64()
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
     linuxX64()
 
     applyDefaultHierarchyTemplate()
@@ -29,4 +32,13 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
             minSdk = 24
         }
     )
+}
+
+// iOS/tvOS tests require a device or a booted simulator; this project compiles those
+// targets but runs its host-native tests on macOS/Linux. The targets stay, the test
+// binaries are skipped.
+tasks.matching {
+    it.name.contains("Test") && (it.name.contains("Ios") || it.name.contains("Tvos"))
+}.configureEach {
+    enabled = false
 }
