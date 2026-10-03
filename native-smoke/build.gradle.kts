@@ -2,7 +2,7 @@ import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.JavaExec
 
 plugins {
-    id("ygdrasil.conventions.dawn-desktop")
+    id("ygdrasil.conventions.kmp-library")
 }
 
 kotlin {

@@ -6,7 +6,7 @@ import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.testing.Test
 
 plugins {
-    id("ygdrasil.conventions.dawn-desktop")
+    id("ygdrasil.conventions.kmp-library")
 }
 
 val dawnTargets: List<String> =
