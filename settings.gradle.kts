@@ -31,4 +31,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "dawn4k"
 include(":dawn4k-native")
+include(":native-smoke")
 include(":docs")
