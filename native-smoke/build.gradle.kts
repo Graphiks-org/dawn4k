@@ -68,3 +68,10 @@ val runSmokeLinuxX64 = tasks.register<Exec>("runSmokeLinuxX64") {
     executable = layout.buildDirectory
         .file("bin/linuxX64/debugExecutable/native-smoke.kexe").get().asFile.absolutePath
 }
+
+// The Linux K/N binary can only be linked on a Linux host (Dawn's Linux archive
+// predates the Kotlin/Native macOS sysroot); keep the cross-compiled klib usable.
+if (!System.getProperty("os.name").lowercase().contains("linux")) {
+    tasks.matching { it.name == "linkDebugTestLinuxX64" || it.name == "linuxX64Test" }
+        .configureEach { enabled = false }
+}

@@ -186,3 +186,11 @@ tasks.named("jvmProcessResources") {
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
+
+// The Dawn Linux archives are built against a newer glibc/libstdc++ than the
+// Kotlin/Native macOS sysroot, so the Linux test binary can only be linked on a
+// Linux host. The Linux klib is still compiled everywhere.
+if (!abiHost.startsWith("linux")) {
+    tasks.matching { it.name == "linkDebugTestLinuxX64" || it.name == "linuxX64Test" }
+        .configureEach { enabled = false }
+}
