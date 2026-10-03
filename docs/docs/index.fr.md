@@ -1,33 +1,23 @@
-# Bienvenue sur la Documentation du KMP Starter Pack
+# Bienvenue sur la Documentation de dawn4k
 
-Ce site regroupe l'ensemble des documentations techniques, des guides d'architecture et de la référence API du **Starter Pack Kotlin Multiplatform (KMP)**.
+Ce site regroupe la documentation technique et les références d'API de **dawn4k**, un binding Kotlin Multiplatform vers l'API C de Google Dawn (WebGPU).
 
 ---
 
 ## 🚀 Fonctionnalités Clés
 
-*   **Multiplateforme Complet** : Partage de code ciblant **Android**, **iOS** et **Desktop (JVM)**.
-*   **Architecture Guidée (Clean Architecture / DDD)** : Séparation stricte de la logique métier (Domaine), de l'infrastructure (Données) et de l'interface (Présentation).
-*   **Pile Technique Moderne** : **Kotlin 2.4.0**, **Gradle 9.5.0**, **AGP 9.0.0** et **Java 25**.
-*   **Intégration Continue Conditionnelle** : Un workflow CI/CD à double-vitesse (JVM Fast-Track de 10 secondes vs Deep-Testing complet avant merge sur `master`).
-*   **Moteur de Documentation API** : Génération automatisée de la documentation d'API via **Dokka v2** et rendu via **MkDocs Material**.
+*   **Binding Dawn desktop** : API C WebGPU brute générée par kextract pour **JVM**, **macOS ARM64** et **Linux x64**.
+*   **Natif vérifié** : prébuilds Dawn vérifiés (checksums/manifeste), oracle ABI C et smoke réel instance/adapter/device/buffer.
+*   **Runtime** : kffi côté JVM (bibliothèque partagée chargée par un bootstrap généré) et Kotlin/Native (liaison statique).
 
 ---
 
-## 🧱 Organisation Architecturales du Projet
+## 🧱 Organisation du Projet
 
-Le module partagé `:shared` suit les directives fournies par le skill **Architecte Kotlin** :
+*   **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.raw`), oracle ABI et configuration de liaison.
+*   **`:native-smoke`** — consommateur réel créant une instance, un adapter, un device et un buffer mappé.
 
-1.  **Couche Domaine (Domain)** :
-    *   Écrite en Kotlin pur (sans dépendance).
-    *   Contient les UseCases autonomes modélisant les cas d'utilisation métier.
-    *   Modèles de données robustes auto-validés (utilisation de `value class` inline).
-2.  **Couche Données (Data)** :
-    *   Implémentation des dépôts et communication de bas niveau (réseau via Ktor, persistance).
-    *   Gestion d'exceptions Flow transparente (garantissant que `AbortFlowException` n'est pas intercepté accidentellement).
-3.  **Couche Présentation (Presentation)** :
-    *   Interface réactive basée sur des `StateFlow` immuables.
-    *   Scopes coroutines proprement gérés et ViewModels autonomes.
+Voir [Native Dawn binding](native-binding.md) pour la génération, la liaison et le statut du smoke.
 
 ---
 
@@ -35,17 +25,23 @@ Le module partagé `:shared` suit les directives fournies par le skill **Archite
 
 ### Exécuter la suite de tests (Fast-Track JVM)
 ```bash
-./gradlew :shared:jvmTest
+./gradlew :dawn4k-native:jvmTest
 ```
 
-### Lancer tous les tests (Toutes cibles)
+### Lancer tous les tests (cibles de l'hôte)
 ```bash
 ./gradlew allTests
 ```
 
-### Générer et intégrer localement la documentation de l'API (Dokka → MkDocs)
+### Vérifier l'oracle ABI C
 ```bash
-./gradlew :docs:embedDokkaIntoMkDocs
+./gradlew :dawn4k-native:verifyDawnAbi
+```
+
+### Lancer le smoke réel (JVM / macOS ARM64)
+```bash
+./gradlew :native-smoke:runJvmSmoke
+./gradlew :native-smoke:runSmokeMacosArm64
 ```
 
 ### Compiler localement le site MkDocs
