@@ -14,7 +14,7 @@ val dawnTargets: List<String> =
         ?.split(',')
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }
-        ?: listOf("macosArm64", "linuxX64")
+        ?: listOf("macosArm64", "linuxX64", "androidNativeArm64", "androidNativeX64")
 
 val nativeDir = layout.buildDirectory.dir("native")
 val dawnLockFile = rootProject.layout.projectDirectory.file("bindings/dawn.lock.json")
@@ -54,6 +54,32 @@ val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
  * independent from ordinary compilation: review the diff, then promote the output into
  * the versioned `generated/src`.
  */
+/**
+ * Extract the Android shared libraries from the verified archives into the Android
+ * `jniLibs` source directory. The directory is git-ignored: the libraries are always
+ * produced from the downloaded/verified archives, never versioned.
+ */
+val extractAndroidNativeLibs = tasks.register<Sync>("extractAndroidNativeLibs") {
+    group = "dawn"
+    description = "Extract the verified Dawn Android shared libraries into the Android jniLibs."
+    dependsOn(prepareDawn)
+    into(layout.projectDirectory.dir("src/androidMain/jniLibs"))
+    from(layout.buildDirectory.dir("native/androidNativeArm64/shared/lib")) {
+        include("libwebgpu_dawn.so")
+        into("arm64-v8a")
+    }
+    from(layout.buildDirectory.dir("native/androidNativeX64/shared/lib")) {
+        include("libwebgpu_dawn.so")
+        into("x86_64")
+    }
+}
+
+tasks.matching {
+    it.name in setOf("mergeAndroidMainJniLibFolders", "bundleAndroidMainAar", "assembleAndroidMain")
+}.configureEach {
+    dependsOn(extractAndroidNativeLibs)
+}
+
 val generateBindingsFromHeader = tasks.register<GenerateDawnBindingsTask>("generateBindingsFromHeader") {
     group = "dawn"
     description = "Regenerate raw Dawn bindings with the pinned kextract tool into build/regenerated/src."
