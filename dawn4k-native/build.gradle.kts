@@ -141,6 +141,9 @@ kotlin {
     sourceSets.getByName("commonMain").kotlin.srcDir("generated/src/commonMain/kotlin")
     sourceSets.getByName("nativeMain").kotlin.srcDir("generated/src/nativeMain/kotlin")
     sourceSets.getByName("jvmMain").kotlin.srcDir("generated/src/jvmMain/kotlin")
+    // The generated JVM bootstrap loads `darwin-aarch64/libwebgpu_dawn.dylib` and
+    // `linux-x86-64/libwebgpu_dawn.so` from the classpath; stage them into the jar.
+    sourceSets.getByName("jvmMain").resources.srcDir(layout.buildDirectory.dir("generated/nativeResources"))
 
     macosArm64 {
         compilations.getByName("main").cinterops.create("dawn") {
@@ -174,6 +177,10 @@ kotlin {
 
 tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach {
     dependsOn(prepareDawn)
+}
+
+tasks.named("jvmProcessResources") {
+    dependsOn(stageJvmNativeResources)
 }
 
 tasks.withType<Test>().configureEach {
