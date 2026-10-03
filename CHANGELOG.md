@@ -25,9 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code of Conduct, CONTRIBUTING, SECURITY, SUPPORT, CHANGELOG
 
 ### Removed
-- Template `shared` module (sample Android/iOS/desktop layers) and the `kmp-library`, `kmp-publish`, `kmp-dokka` build conventions.
-- Template publish workflow (`.github/workflows/publish.yml`) and `scripts/test-publish-version.sh`.
-- Template "Getting Started" documentation page.
+- Template `shared` module (sample Android/iOS/desktop layers).
 
 ### Changed
 - Replaced the Dokka GFM and Python post-processing pipeline with Dokka for Material for MkDocs.
