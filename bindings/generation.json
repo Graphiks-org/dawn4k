@@ -5,7 +5,7 @@
     "revision": "531028367c60ce07251ec0231c1b95bedb4495bc"
   },
   "kextract": {
-    "commit": "2fd8f45a5d7fc41c3242f71a2355158e46f0cda0"
+    "commit": "39180d535e5477b451ad3be82a104d2876584ab8"
   },
   "targetPackage": "org.graphiks.dawn4k.raw",
   "library": "webgpu_dawn",

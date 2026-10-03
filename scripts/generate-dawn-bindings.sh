@@ -33,13 +33,13 @@ mkdir -p "$tool_root"
 if [ ! -d "$checkout/.git" ]; then
     git clone --filter=blob:none https://github.com/klang-toolkit/kextract.git "$checkout"
 fi
-# The pinned commit can be an as-yet-unmerged upstream PR, published on the fork;
-# fall back to upstream once it lands there.
+# The pinned commit is fetched from upstream first; if it is not yet on upstream
+# (for example an unmerged PR branch), fall back to the fork.
 if ! git -C "$checkout" remote get-url fork >/dev/null 2>&1; then
     git -C "$checkout" remote add fork https://github.com/ygdrasil-io/kextract.git
 fi
-if ! git -C "$checkout" fetch --quiet fork "$commit" 2>/dev/null; then
-    git -C "$checkout" fetch --quiet origin "$commit"
+if ! git -C "$checkout" fetch --quiet origin "$commit" 2>/dev/null; then
+    git -C "$checkout" fetch --quiet fork "$commit"
 fi
 git -C "$checkout" checkout --quiet --detach "$commit"
 if [ "$(git -C "$checkout" rev-parse HEAD)" != "$commit" ]; then
