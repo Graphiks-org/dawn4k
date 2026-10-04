@@ -15,3 +15,6 @@ docs/docs/api/
 /dawn4k-native/src/androidMain/jniLibs/
 # buildSrc sources live in package org/graphiks/dawn4k/build/, which the `build/` rule would otherwise ignore
 !buildSrc/src/main/kotlin/org/graphiks/dawn4k/build/
+# Planning artifacts (superpowers plans/specs, cadrage) stay out of the repository
+docs/superpowers/
+docs/planning/
