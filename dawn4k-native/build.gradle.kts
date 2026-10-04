@@ -23,6 +23,8 @@ val dawnTargets: List<String> =
             "iosArm64",
             "iosSimulatorArm64",
             "iosX64",
+            "tvosArm64",
+            "tvosSimulatorArm64",
         )
 
 val nativeDir = layout.buildDirectory.dir("native")
@@ -183,7 +185,7 @@ kotlin {
     sourceSets.getByName("jvmMain").resources.srcDir(layout.buildDirectory.dir("generated/nativeResources"))
 
     listOf(
-        "macosArm64", "iosArm64", "iosSimulatorArm64", "iosX64",
+        "macosArm64", "iosArm64", "iosSimulatorArm64", "iosX64", "tvosArm64", "tvosSimulatorArm64",
     ).forEach { appleTarget ->
         (targets.getByName(appleTarget) as KotlinNativeTarget).apply {
             compilations.getByName("main").cinterops.create("dawn") {

@@ -6,7 +6,7 @@ Ce site regroupe la documentation technique et les références d'API de **dawn4
 
 ## 🚀 Fonctionnalités Clés
 
-*   **Dawn desktop, Android et iOS** : API C WebGPU brute générée par kextract pour **JVM**, **Android**, **iOS (device + simulateur)**, **macOS ARM64** et **Linux x64**.
+*   **Dawn desktop, Android, iOS et tvOS** : API C WebGPU brute générée par kextract pour **JVM**, **Android**, **iOS/tvOS (device + simulateur)**, **macOS ARM64** et **Linux x64**.
 *   **Natif vérifié** : prébuilds Dawn vérifiés (checksums/manifeste), oracle ABI C et smoke réel instance/adapter/device/buffer.
 *   **Runtime** : kffi côté JVM (bibliothèque partagée chargée par un bootstrap généré) et Kotlin/Native (liaison statique).
 

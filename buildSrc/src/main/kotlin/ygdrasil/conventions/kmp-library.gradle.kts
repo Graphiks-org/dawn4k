@@ -17,6 +17,8 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     iosX64()
+    tvosArm64()
+    tvosSimulatorArm64()
     linuxX64()
 
     applyDefaultHierarchyTemplate()
