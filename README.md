@@ -1,7 +1,7 @@
 # dawn4k — Dawn (WebGPU) desktop bindings
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-purple?logo=kotlin)](https://kotlinlang.org)
-[![Gradle](https://img.shields.io/badge/Gradle-9.6.1-blue?logo=gradle)](https://gradle.org)
+[![Gradle](https://img.shields.io/badge/Gradle-9.8.0-blue?logo=gradle)](https://gradle.org)
 [![Dawn](https://img.shields.io/badge/Dawn-chromium%2F8077-purple)](https://dawn.googlesource.com/dawn)
 [![Java](https://img.shields.io/badge/Java-25-red?logo=openjdk)](https://openjdk.org)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue?logo=github-actions)](https://github.com/features/actions)

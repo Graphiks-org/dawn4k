@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Kotlin 2.4.0 → 2.4.10
-- Gradle 9.5.0 → 9.6.1
+- Gradle 9.5.0 → 9.6.1 → 9.8.0
 - Added blocking pull request policy checks aligned with `CONTRIBUTING.md`.
 - The template `shared` module is replaced by `:dawn4k-native`.
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
@@ -36,5 +36,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default snapshot publication version when no workflow version is provided.
 
 ### Built with
-- Kotlin 2.4.10, Gradle 9.6.1, AGP 9.0.0
+- Kotlin 2.4.10, Gradle 9.8.0, AGP 9.0.0
 - Koin 4.0.0, Ktor 3.0.3, Compose Multiplatform 1.11.1

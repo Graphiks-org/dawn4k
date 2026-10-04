@@ -5,7 +5,7 @@ Google Dawn (WebGPU) pour le desktop (JVM, macOS ARM64, Linux x64).
 
 ## Prérequis
 
-- JDK 25 et le wrapper Gradle du dépôt (`9.6.1`).
+- JDK 25 et le wrapper Gradle du dépôt (`9.8.0`).
 - Un hôte macOS ARM64 ou Linux x64.
 - Une toolchain C (`cc`) pour l'oracle ABI et le helper de callbacks.
 - Optionnel : LLVM (`brew --prefix llvm`) si vous devez reconstruire le générateur
