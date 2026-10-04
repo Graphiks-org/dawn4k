@@ -98,6 +98,31 @@ alors le marqueur terminal de perte de la session se complète. Le callback
 d'erreur non capturée du descripteur de device est routé par le sink de la
 session avec la même chorégraphie ordonnée par le dispatcher.
 
+## Couverture des cibles face à `:dawn4k-native`
+
+`:dawn4k-native` publie des bindings pour une large matrice (JVM, Android,
+macOS, Linux x64, Android NDK, iOS et tvOS). Le backend `:dawn4k` déclare
+aujourd'hui, délibérément, une matrice **desktop uniquement** — JVM,
+`macosArm64` et `linuxX64` — et cette divergence est bornée par les snapshots
+Graphiks WebGPU publiées, pas seulement par un choix de périmètre :
+
+| Cible | `:dawn4k-native` | `:dawn4k` | Ce qui borne le backend |
+| --- | --- | --- | --- |
+| JVM | oui | oui (validée) | — |
+| `macosArm64` | oui | oui (validée, Metal) | — |
+| `linuxX64` | oui | oui (un hôte Linux avec GPU est requis pour valider) | — |
+| Android | oui | non | `suite-acid-tests` (dépendance de `commonTest`) ne publie pas de variante Android ; la `ArrayBuffer` empruntée exige en outre un actual `androidMain` (la voie du `ByteBuffer` direct de `ArrayBuffer.wrap` de `webgpu-api-android`) |
+| iOS (`arm64`/`x64`/simulateur) | oui | non | `suite-acid-tests` ne publie pas de variante iOS ; les actuals `nativeMain` couvrent déjà le code du backend |
+| tvOS | oui | non | `webgpu-api` ne publie aucune variante tvOS |
+
+Le code du backend est écrit de façon portable (expect/actual, aucun
+JVM-isme dans `commonMain`) : élargir la matrice est un incrément plutôt qu'une
+réécriture — publier les variantes `suite-acid-tests` manquantes (ou déplacer
+cette dépendance vers un source set de test desktop uniquement), déclarer les
+cibles supplémentaires, et pour Android écrire les actuals `androidMain` (le
+dispatcher mono-thread compile déjà sur Android ; la plage mappée empruntée
+envelopperait un `ByteBuffer` direct).
+
 ## Règles de possession pour l'appelant
 
 - fermez les **sessions avant leur runtime**, et les adapters/devices en ordre

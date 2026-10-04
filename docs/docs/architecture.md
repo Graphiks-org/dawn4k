@@ -91,6 +91,30 @@ session's terminal loss marker complete. The uncaptured-error callback of the
 device descriptor is routed through the session's sink with the same
 dispatcher-ordered choreography.
 
+## Target coverage versus `:dawn4k-native`
+
+`:dawn4k-native` publishes bindings for a wide matrix (JVM, Android, macOS,
+Linux x64, Android NDK, iOS and tvOS). The `:dawn4k` backend deliberately
+declares a **desktop-only** matrix today — JVM, `macosArm64` and `linuxX64` —
+and this divergence is bounded by the published Graphiks WebGPU snapshots, not
+only by scope choice:
+
+| Target | `:dawn4k-native` | `:dawn4k` | What bounds the backend |
+| --- | --- | --- | --- |
+| JVM | yes | yes (validated) | — |
+| `macosArm64` | yes | yes (validated, Metal) | — |
+| `linuxX64` | yes | yes (a Linux host with a GPU is required to validate) | — |
+| Android | yes | no | `suite-acid-tests` (a `commonTest` dependency) publishes no Android variant; the borrowed `ArrayBuffer` also needs an `androidMain` actual (the direct `ByteBuffer` route of `webgpu-api-android`'s `ArrayBuffer.wrap`) |
+| iOS (`arm64`/`x64`/simulator) | yes | no | `suite-acid-tests` publishes no iOS variant; the `nativeMain` actuals already cover the backend code |
+| tvOS | yes | no | `webgpu-api` publishes no tvOS variant at all |
+
+The backend code is written portably (expect/actual, no JVM-isms in
+`commonMain`), so widening the matrix is an increment rather than a rewrite:
+publish the missing `suite-acid-tests` variants (or move that dependency into a
+desktop-only test source set), declare the extra targets, and for Android write
+the `androidMain` actuals — the single-thread dispatcher already compiles on
+Android, and the borrowed mapped range would wrap a direct `ByteBuffer`.
+
 ## Ownership rules for callers
 
 - close **sessions before their runtime**, and adapters/devices in reverse
