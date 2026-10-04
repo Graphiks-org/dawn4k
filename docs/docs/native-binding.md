@@ -27,7 +27,6 @@ Inputs are pinned:
   revision `531028367c60ce07251ec0231c1b95bedb4495bc` and the SHA-256 of each archive.
 - `bindings/kextract.version` — the kextract commit used to generate.
 - `bindings/callback-bindings.yml` — the validated callback contracts.
-- `bindings/generation.json` — provenance (hashes, JVM bundles, callback inventory).
 
 Reproduce the generated sources with:
 

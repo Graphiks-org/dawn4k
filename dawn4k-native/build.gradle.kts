@@ -104,7 +104,6 @@ val generateBindingsFromHeader = tasks.register<GenerateDawnBindingsTask>("gener
     targetPackage.set("org.graphiks.dawn4k.raw")
     libraryName.set("webgpu_dawn")
     outputDir.set(layout.buildDirectory.dir("regenerated/src"))
-    generationManifest.set(rootProject.layout.projectDirectory.file("bindings/generation.json"))
 }
 
 val generatedJvmFile =
