@@ -82,7 +82,3 @@ class DawnQueue internal constructor(
         }
     }
 }
-
-/** The session's owned queue, wrapped once and cached for the session's lifetime. */
-internal val DeviceSession.queue: DawnQueue
-    get() = DawnQueue(this, queueHandle)

@@ -45,7 +45,10 @@ internal expect fun createNativeDispatcher(): NativeDispatcher
 /**
  * Per-thread identity of the worker currently executing a task; null outside of
  * the worker. Backed by a `ThreadLocal` on the JVM and a `@ThreadLocal` global
- * on Kotlin/Native, whose worker may hop between pool threads.
+ * on Kotlin/Native. Both platform actuals pin ONE dedicated worker thread (a
+ * single-thread executor on the JVM, a dedicated `Worker` on Kotlin/Native), so
+ * the identity only ever matches on that thread and the reentrant fast path
+ * never triggers on a foreign thread.
  */
 internal interface WorkerSlot {
     fun set(owner: Any?)

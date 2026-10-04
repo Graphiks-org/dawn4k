@@ -50,6 +50,8 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Native binding: native-binding.md
+  - Architecture: architecture.md
+  - Dependency updates: dependency-updates.md
 
 # !!! EMBEDDED DOKKA START, DO NOT COMMIT !!! #
 # !!! EMBEDDED DOKKA END, DO NOT COMMIT !!! #

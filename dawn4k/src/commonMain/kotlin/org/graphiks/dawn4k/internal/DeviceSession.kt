@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.internal
 
 import kotlinx.coroutines.CompletableDeferred
+import org.graphiks.dawn4k.DawnQueue
 import org.graphiks.dawn4k.native.WGPUAdapter
 import org.graphiks.dawn4k.native.WGPUDevice
 import org.graphiks.dawn4k.native.WGPUDeviceLostCallback
@@ -34,6 +35,15 @@ internal class DeviceSession internal constructor(
 
     internal val resources: ResourceRegistry = ResourceRegistry(runtime.dispatcher)
 
+    /**
+     * The session's owned queue, wrapped once and cached for the session's
+     * lifetime: the wrapper only borrows the already-owned [queueHandle] (it
+     * never releases it), so caching is cheap and ownership-safe. A
+     * [DawnDevice] captures the same instance, so its label stays stable
+     * across [DawnDevice.queue] accesses.
+     */
+    internal val queue: DawnQueue by lazy { DawnQueue(this, queueHandle) }
+
     init {
         resources.own(queueHandle, destroy = null, release = { wgpuQueueRelease(queueHandle) })
     }
@@ -66,8 +76,9 @@ internal class DeviceSession internal constructor(
  *
  * Every handler runs on the runtime's dispatcher (posted by the callbacks,
  * which copy their borrowed data first). All mutable state is worker-confined
- * except the loss marker, a thread-safe primitive completed by the
- * quiescence proof — which may fire on any thread.
+ * except the loss marker — a thread-safe primitive completed by the quiescence
+ * proof, which may fire on any thread — and [uncapturedErrorSink], which is
+ * installed on the caller thread and read only on the worker.
  */
 internal class DeviceCallbacks internal constructor() {
 
@@ -78,9 +89,15 @@ internal class DeviceCallbacks internal constructor() {
     internal val uncapturedErrors = mutableListOf<DawnNativeError>()
 
     /**
-     * Worker-confined sink the public device routes its descriptor's
-     * uncaptured-error callback into; installed once the public device wraps
-     * the session. The stored list above stays the runtime's own record.
+     * Sink the public device routes its descriptor's uncaptured-error callback
+     * into; the stored [uncapturedErrors] list above stays the runtime's own
+     * record. Not worker-confined: it is installed on the CALLER thread when
+     * the public device wraps the session (the thread that requested the
+     * device). Its safety is the dispatcher-ordered error routing — the write
+     * completes before the device is handed back to the caller, and the only
+     * reader, [handleUncapturedError], always runs on the dispatcher worker,
+     * ordered after that write by the queue the caller's subsequent operations
+     * and the error callback's post both pass through.
      */
     internal var uncapturedErrorSink: ((GPUError) -> Unit)? = null
 

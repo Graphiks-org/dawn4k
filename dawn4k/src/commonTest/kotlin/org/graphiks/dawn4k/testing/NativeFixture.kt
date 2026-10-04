@@ -25,7 +25,6 @@ import org.graphiks.dawn4k.createTexture
 import org.graphiks.dawn4k.internal.DawnRuntime
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.onSubmittedWorkDone
-import org.graphiks.dawn4k.queue
 import org.graphiks.webgpu.GPUBufferDescriptor
 import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUComputePipelineDescriptor
