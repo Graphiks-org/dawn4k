@@ -14,7 +14,6 @@ le package `org.graphiks.dawn4k.raw` et ne dépend que de
 | Bootstrap JVM | `KextractNativeBootstrap` généré | extrait et charge la bibliothèque partagée embarquée |
 | cinterop Kotlin/Native | `dawn4k-native/src/nativeInterop/cinterop/dawn.def` | package interne `webgpu.native` lié à la bibliothèque statique |
 | Oracle ABI | `tests/abi/dawn_abi.c` | mesure la disposition C réelle |
-| Smoke | `native-smoke` | crée un vrai adapter, device et buffer |
 
 Les sources générées sont versionnées. La compilation ordinaire les consomme et
 n'exécute jamais kextract.
@@ -77,26 +76,3 @@ compile `tests/abi/dawn_abi.c` contre l'en-tête d'origine, l'exécute, puis com
 les tailles, les alignements et les offsets de champs avec la disposition inscrite
 dans les bindings JVM générés. `dumpGeneratedAbi` écrit le même schéma depuis les
 sources générées. Les rapports atterrissent dans `dawn4k-native/build/reports/abi/`.
-
-## Statut du smoke
-
-```bash
-./gradlew :native-smoke:runJvmSmoke
-./gradlew :native-smoke:runSmokeMacosArm64
-./gradlew :native-smoke:runSmokeLinuxX64
-```
-
-Chaque tâche crée une vraie instance, demande un adapter et un device via les
-enregistrements `AllowProcessEvents`, crée un buffer mappé de 16 octets, écrit quatre
-valeurs `uint32` et libère le tout. Le processus sort en erreur en cas
-d'adapter/device manquant, de timeout ou de résultat invalide ; un timeout n'est
-jamais un skip.
-
-Vérifié sur macOS ARM64 (Metal) : les exécutables JVM et Kotlin/Native statique
-rapportent tous deux `status: passed`, `callbackCount: 2`, `bufferSize: 16`. Les
-tâches Linux doivent s'exécuter sur un hôte Linux x64 avec un pilote Vulkan ; un
-exécutable Kotlin/Native Linux ne peut pas être produit par la toolchain macOS car
-son sysroot précède les symboles glibc référencés par l'archive Linux de Dawn. La
-cible Android/JVM est vérifiée par compilation (`:dawn4k-native:compileAndroidMain`) ;
-un smoke runtime Android nécessite un émulateur ou un device et ne fait pas partie
-de la CI.

@@ -15,10 +15,7 @@ How to work on **dawn4k**, the Kotlin Multiplatform binding to Google's Dawn
 
 - **`:dawn4k-native`** — generated low-level Dawn bindings (`org.graphiks.dawn4k.raw`),
   the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
-- **`:native-smoke`** — real consumer creating an instance, adapter, device and a
-  mapped buffer on JVM and Kotlin/Native.
-
-See [Native Dawn binding](native-binding.md) for generation, linkage and smoke status.
+See [Native Dawn binding](native-binding.md) for generation and linkage.
 
 ## Common commands
 
@@ -28,9 +25,6 @@ See [Native Dawn binding](native-binding.md) for generation, linkage and smoke s
 ./gradlew :dawn4k-native:compileAndroidMain  # Android/JVM target compiles
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # iOS target compiles
 ./gradlew :dawn4k-native:verifyDawnAbi  # C ABI oracle vs generated layout
-./gradlew :native-smoke:runJvmSmoke     # real GPU smoke (JVM)
-./gradlew :native-smoke:runSmokeMacosArm64
-./gradlew :native-smoke:runSmokeLinuxX64  # on a Linux + Vulkan host
 ```
 
 ## Regenerating the bindings
@@ -58,5 +52,4 @@ never runs the generator.
 
 - [ ] `./gradlew allTests` succeeds.
 - [ ] `./gradlew :dawn4k-native:verifyDawnAbi` succeeds.
-- [ ] `./gradlew :native-smoke:runJvmSmoke` (and the K/N smoke on the host) passes.
 - [ ] `mkdocs build -f docs/mkdocs.yml` works.

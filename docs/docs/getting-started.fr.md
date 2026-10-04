@@ -15,11 +15,7 @@ Google Dawn (WebGPU) pour le desktop (JVM, macOS ARM64, Linux x64).
 
 - **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.raw`),
   l'oracle ABI C et la configuration cinterop/linkage. Ne dépend que de kffi.
-- **`:native-smoke`** — consommateur réel créant une instance, un adapter, un device
-  et un buffer mappé sur JVM et Kotlin/Native.
-
-Voir [Binding natif Dawn](native-binding.md) pour la génération, la liaison et le
-statut du smoke.
+Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 
 ## Commandes courantes
 
@@ -29,9 +25,6 @@ statut du smoke.
 ./gradlew :dawn4k-native:compileAndroidMain  # la cible Android/JVM compile
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # la cible iOS compile
 ./gradlew :dawn4k-native:verifyDawnAbi  # oracle ABI C vs disposition générée
-./gradlew :native-smoke:runJvmSmoke     # vrai smoke GPU (JVM)
-./gradlew :native-smoke:runSmokeMacosArm64
-./gradlew :native-smoke:runSmokeLinuxX64  # sur un hôte Linux + Vulkan
 ```
 
 ## Régénérer les bindings
@@ -59,5 +52,4 @@ n'exécute jamais le générateur.
 
 - [ ] `./gradlew allTests` réussit.
 - [ ] `./gradlew :dawn4k-native:verifyDawnAbi` réussit.
-- [ ] `./gradlew :native-smoke:runJvmSmoke` (et le smoke K/N sur l'hôte) passe.
 - [ ] `mkdocs build -f docs/mkdocs.yml` fonctionne.
