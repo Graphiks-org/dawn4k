@@ -97,5 +97,5 @@ dispatcher-ordered choreography.
   creation order (`DawnContext.close()` is idempotent, as is every `close()`);
 - a resource belongs to exactly one device session — passing it to another
   device is refused before any handle is read;
-- command buffers cannot be re-submitted, and a submitted encoder must not be
+- command buffers cannot be re-submitted, and a finished encoder must not be
   finished again (Dawn observes both as uncaptured validation errors).

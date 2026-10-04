@@ -952,7 +952,7 @@
       "implementationFile": ["mapper/BindGroupDescriptor.kt"],
       "nativeSymbol": ["WGPUBindGroupEntry"],
       "testIds": ["ComputeResourcesGpuTest.bufferBindingOffsetAndSizeAreApplied"],
-      "limitations": "The resource switch accepts buffer bindings, buffers, samplers, textures and texture views; every resource must belong to the session.",
+      "limitations": "The resource switch accepts buffer bindings, buffers, samplers and texture views; a bare GPUTexture is refused with an IllegalArgumentException (Dawn's entry struct has no texture member — bind a GPUTextureView instead); every resource must belong to the session.",
       "members": [
         { "symbol": "GPUBindGroupEntry.binding", "kind": "property", "implementationFile": ["mapper/BindGroupDescriptor.kt"], "nativeSymbol": ["WGPUBindGroupEntry.binding"], "testIds": ["ComputeResourcesGpuTest.bufferBindingOffsetAndSizeAreApplied"], "limitations": "" },
         { "symbol": "GPUBindGroupEntry.resource", "kind": "property", "implementationFile": ["mapper/BindGroupDescriptor.kt"], "nativeSymbol": ["WGPUBindGroupEntry.buffer/sampler/textureView"], "testIds": ["ComputeResourcesGpuTest.bufferBindingOffsetAndSizeAreApplied", "ComputeResourcesGpuTest.foreignBufferFromAnotherSessionIsRefused"], "limitations": "GPUExternalTexture does not exist in this snapshot — nothing to refuse." }

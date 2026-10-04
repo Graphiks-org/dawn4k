@@ -3,6 +3,7 @@ package org.graphiks.dawn4k.internal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 /**
  * Ownership bookkeeping of [ResourceRegistry], without any GPU: destruction is
@@ -44,5 +45,27 @@ class ResourceRegistryTest {
         registry.destroy(key)
         registry.close()
         assertEquals(listOf("release"), calls)
+    }
+
+    @Test fun routedBlockReturningNullRunsExactlyOnce() {
+        // A null result from a routed block is the block's own result: it must
+        // run exactly once and never be re-run inline off the worker.
+        var calls = 0
+        val inline = ResourceRegistry()
+        assertNull(inline.routed {
+            calls += 1
+            null
+        })
+        assertEquals(1, calls)
+
+        calls = 0
+        createNativeDispatcher().use { dispatcher ->
+            val serialized = ResourceRegistry(dispatcher)
+            assertNull(serialized.routed {
+                calls += 1
+                null
+            })
+            assertEquals(1, calls)
+        }
     }
 }

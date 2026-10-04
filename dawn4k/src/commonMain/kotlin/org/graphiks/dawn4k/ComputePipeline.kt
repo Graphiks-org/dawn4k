@@ -1,5 +1,6 @@
 package org.graphiks.dawn4k
 
+import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.internal.copyToString
@@ -78,9 +79,22 @@ internal fun GPUComputePipeline.requireDawnComputePipeline(owner: DeviceSession)
  * Creates a [DawnComputePipeline] asynchronously, resolving the returned [Result]
  * once the native callback fires (progressed by the runtime's event pump — no
  * fixed sleep). A rejected creation returns [Result.failure] with a
- * [DawnPipelineException].
+ * [DawnPipelineException]; a wait abandoned by a runtime close — or a creation
+ * issued against a closed runtime — is a [Result.failure] too, and only a
+ * cancellation stays a cancellation.
  */
 internal suspend fun DeviceSession.createComputePipelineAsync(
+    descriptor: GPUComputePipelineDescriptor,
+): Result<DawnComputePipeline> = try {
+    createComputePipelineAsyncOnSession(descriptor)
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (failure: Throwable) {
+    Result.failure(failure)
+}
+
+/** Issues the native creation and maps its settled outcome onto the contract. */
+private suspend fun DeviceSession.createComputePipelineAsyncOnSession(
     descriptor: GPUComputePipelineDescriptor,
 ): Result<DawnComputePipeline> {
     val operation = PendingOperation<ComputePipelineOutcome> { outcome ->

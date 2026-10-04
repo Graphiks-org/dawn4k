@@ -61,8 +61,15 @@ internal class ResourceRegistry(private val dispatcher: NativeDispatcher? = null
     internal fun debugRemainingRefs(): Int =
         if (closed) owned.size else routed { owned.size }
 
-    private fun <R> routed(block: () -> R): R =
-        dispatcher?.call { block() } ?: block()
+    /**
+     * Routes [block] through the dispatcher when one exists, inline otherwise —
+     * exactly once either way: a null result from a routed block belongs to the
+     * block and must never be mistaken for absent routing and re-run inline off
+     * the worker. Internal so the tests can pin that exactly-once contract
+     * directly, the way [debugRemainingRefs] exposes the ref bookkeeping.
+     */
+    internal fun <R> routed(block: () -> R): R =
+        if (dispatcher != null) dispatcher.call(block) else block()
 
     private fun ownOnOwner(key: Any, destroy: (() -> Unit)?, release: () -> Unit) {
         check(!closed) { "the resource registry is closed; a closed owner refuses new acquisitions" }
