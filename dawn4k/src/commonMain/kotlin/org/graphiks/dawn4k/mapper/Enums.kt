@@ -54,6 +54,10 @@ import org.graphiks.dawn4k.native.WGPUCullMode
 import org.graphiks.dawn4k.native.WGPUCullMode_Back
 import org.graphiks.dawn4k.native.WGPUCullMode_Front
 import org.graphiks.dawn4k.native.WGPUCullMode_None
+import org.graphiks.dawn4k.native.WGPUErrorFilter
+import org.graphiks.dawn4k.native.WGPUErrorFilter_Internal
+import org.graphiks.dawn4k.native.WGPUErrorFilter_OutOfMemory
+import org.graphiks.dawn4k.native.WGPUErrorFilter_Validation
 import org.graphiks.dawn4k.native.WGPUFilterMode
 import org.graphiks.dawn4k.native.WGPUFilterMode_Linear
 import org.graphiks.dawn4k.native.WGPUFilterMode_Nearest
@@ -290,6 +294,7 @@ import org.graphiks.webgpu.GPUBlendOperation
 import org.graphiks.webgpu.GPUColorWrite
 import org.graphiks.webgpu.GPUCompareFunction
 import org.graphiks.webgpu.GPUCullMode
+import org.graphiks.webgpu.GPUErrorFilter
 import org.graphiks.webgpu.GPUFilterMode
 import org.graphiks.webgpu.GPUFrontFace
 import org.graphiks.webgpu.GPUIndexFormat
@@ -687,6 +692,13 @@ internal fun GPULoadOp.toNativeLoadOp(): WGPULoadOp = when (this) {
 internal fun GPUStoreOp.toNativeStoreOp(): WGPUStoreOp = when (this) {
     GPUStoreOp.Store -> WGPUStoreOp_Store
     GPUStoreOp.Discard -> WGPUStoreOp_Discard
+}
+
+/** Explicit conversion table Kotlin `GPUErrorFilter` -> native `WGPUErrorFilter`. */
+internal fun GPUErrorFilter.toNativeErrorFilter(): WGPUErrorFilter = when (this) {
+    GPUErrorFilter.Validation -> WGPUErrorFilter_Validation
+    GPUErrorFilter.OutOfMemory -> WGPUErrorFilter_OutOfMemory
+    GPUErrorFilter.Internal -> WGPUErrorFilter_Internal
 }
 
 /** The native "no explicit load op" value (C `WGPU_LOAD_OP_INIT`). */

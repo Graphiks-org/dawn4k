@@ -9,24 +9,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
+import org.graphiks.dawn4k.mapper.allocateRequestAdapterOptions
 import org.graphiks.dawn4k.native.WGPUAdapter
-import org.graphiks.dawn4k.native.WGPUBackendType_Metal
-import org.graphiks.dawn4k.native.WGPUBackendType_Undefined
-import org.graphiks.dawn4k.native.WGPUBackendType_Vulkan
 import org.graphiks.dawn4k.native.WGPUCallbackMode_AllowProcessEvents
 import org.graphiks.dawn4k.native.WGPUDevice
 import org.graphiks.dawn4k.native.WGPUDeviceDescriptor
 import org.graphiks.dawn4k.native.WGPUDeviceLostCallback
 import org.graphiks.dawn4k.native.WGPUDeviceLostCallbackInfo
-import org.graphiks.dawn4k.native.WGPUFeatureLevel_Undefined
 import org.graphiks.dawn4k.native.WGPUInstance
 import org.graphiks.dawn4k.native.WGPUInstanceDescriptor
-import org.graphiks.dawn4k.native.WGPUPowerPreference_Undefined
 import org.graphiks.dawn4k.native.WGPURequestAdapterCallback
 import org.graphiks.dawn4k.native.WGPURequestAdapterCallbackInfo
-import org.graphiks.dawn4k.native.WGPURequestAdapterOptions
 import org.graphiks.dawn4k.native.WGPURequestAdapterStatus
 import org.graphiks.dawn4k.native.WGPURequestAdapterStatus_Success
 import org.graphiks.dawn4k.native.WGPURequestDeviceCallback
@@ -38,6 +32,7 @@ import org.graphiks.dawn4k.native.WGPUUncapturedErrorCallback
 import org.graphiks.dawn4k.native.WGPUUncapturedErrorCallbackInfo
 import org.graphiks.dawn4k.native.allocate
 import org.graphiks.dawn4k.native.register
+import org.graphiks.dawn4k.native.wgpuAdapterAddRef
 import org.graphiks.dawn4k.native.wgpuAdapterRelease
 import org.graphiks.dawn4k.native.wgpuAdapterRequestDevice
 import org.graphiks.dawn4k.native.wgpuCreateInstance
@@ -49,7 +44,9 @@ import org.graphiks.dawn4k.native.wgpuInstanceRequestAdapter
 import org.graphiks.dawn4k.native.wgpuQueueRelease
 import org.graphiks.kffi.CallbackPolicy
 import org.graphiks.kffi.CallbackRegistration
+import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.kffi.memoryScope
+import org.graphiks.webgpu.GPURequestAdapterOptions
 
 /**
  * The raw Dawn runtime of one context: it owns the WGPUInstance and the native
@@ -104,9 +101,9 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     /** Opens one device session: adapter request, device request, queue fetch. */
     suspend fun openSession(): DeviceSession {
         if (closedMarker.isCompleted) throw DawnRuntimeClosedException()
-        val adapter = awaitAdapter()
+        val adapter = requestAdapter(null)
         return try {
-            val outcome = awaitDevice(adapter)
+            val outcome = awaitDevice(adapter) { _, _ -> }
             dispatcher.call { buildSessionOnWorker(adapter, outcome) }
         } catch (failure: Throwable) {
             // No session will own this adapter after all. If the runtime's
@@ -118,6 +115,46 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
                 // Nothing left to release through.
             }
             throw failure
+        }
+    }
+
+    /**
+     * Requests one adapter reference on the instance, constrained by the public
+     * options (feature level, power preference, fallback) merged with the
+     * configured backend. Every call requests a FRESH reference the caller
+     * owns; there is no shared cache.
+     */
+    internal suspend fun requestAdapter(options: GPURequestAdapterOptions?): WGPUAdapter {
+        val operation = dispatcher.call { issueAdapterRequest(options) }
+        val outcome = operation.await().getOrThrow()
+        return outcome.adapter ?: throw DawnRequestAdapterException(outcome.status, outcome.message)
+    }
+
+    /**
+     * Opens one device session on a CALLER-OWNED adapter reference: the session
+     * acquires its own reference (`wgpuAdapterAddRef`) and releases it at
+     * close, so the caller's reference stays theirs and the ownership model is
+     * unchanged. [configure] applies the public descriptor's capabilities
+     * inside the request's allocator scope, after the C defaults.
+     *
+     * The adapter is never released on this path — not on failure either: the
+     * runtime does not own it here.
+     */
+    internal suspend fun openSessionOnAdapter(
+        adapter: WGPUAdapter,
+        configure: (WGPUDeviceDescriptor, MemoryAllocator) -> Unit,
+    ): DeviceSession {
+        if (closedMarker.isCompleted) throw DawnRuntimeClosedException()
+        val outcome = awaitDevice(adapter, configure)
+        return dispatcher.call {
+            wgpuAdapterAddRef(adapter)
+            try {
+                buildSessionOnWorker(adapter, outcome)
+            } catch (failure: Throwable) {
+                wgpuAdapterRelease(adapter)
+                releaseDeviceOutcome(outcome)
+                throw failure
+            }
         }
     }
 
@@ -216,14 +253,8 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
 
     // --- Adapter discovery -------------------------------------------------
 
-    private suspend fun awaitAdapter(): WGPUAdapter {
-        val operation = dispatcher.call { issueAdapterRequest() }
-        val outcome = operation.await().getOrThrow()
-        return outcome.adapter ?: throw DawnRequestAdapterException(outcome.status, outcome.message)
-    }
-
     /** Worker: registers the callback, issues the native request, arms the pump. */
-    private fun issueAdapterRequest(): PendingOperation<AdapterOutcome> {
+    private fun issueAdapterRequest(publicOptions: GPURequestAdapterOptions?): PendingOperation<AdapterOutcome> {
         if (closed) throw DawnRuntimeClosedException()
         val operation = PendingOperation<AdapterOutcome> { outcome ->
             // Runs on the worker: every completion is posted there.
@@ -244,8 +275,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         outstandingCallbacks += 1
         try {
             memoryScope { allocator ->
-                val options = WGPURequestAdapterOptions.allocate(allocator)
-                initRequestAdapterOptions(options)
+                val options = allocator.allocateRequestAdapterOptions(publicOptions, config.backend)
                 val callbackInfo = WGPURequestAdapterCallbackInfo.allocate(
                     allocator = allocator,
                     mode = WGPUCallbackMode_AllowProcessEvents,
@@ -280,8 +310,11 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
 
     // --- Device request ----------------------------------------------------
 
-    private suspend fun awaitDevice(adapter: WGPUAdapter): DeviceOutcome {
-        val operation = dispatcher.call { issueDeviceRequest(adapter) }
+    private suspend fun awaitDevice(
+        adapter: WGPUAdapter,
+        configure: (WGPUDeviceDescriptor, MemoryAllocator) -> Unit,
+    ): DeviceOutcome {
+        val operation = dispatcher.call { issueDeviceRequest(adapter, configure) }
         val outcome = operation.await().getOrThrow()
         if (outcome.status != WGPURequestDeviceStatus_Success || outcome.device == null) {
             dispatcher.call { releaseDeviceOutcome(outcome) }
@@ -291,7 +324,10 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     }
 
     /** Worker: installs the device callbacks, issues the request, arms the pump. */
-    private fun issueDeviceRequest(adapter: WGPUAdapter): PendingOperation<DeviceOutcome> {
+    private fun issueDeviceRequest(
+        adapter: WGPUAdapter,
+        configure: (WGPUDeviceDescriptor, MemoryAllocator) -> Unit,
+    ): PendingOperation<DeviceOutcome> {
         if (closed) throw DawnRuntimeClosedException()
         val callbacks = DeviceCallbacks()
         val operation = PendingOperation<DeviceOutcome> { outcome ->
@@ -345,6 +381,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
                 ).also { it.nextInChain = null }
                 val descriptor = WGPUDeviceDescriptor.allocate(allocator)
                 initDeviceDescriptorDefaults(descriptor, lostInfo, uncapturedInfo)
+                configure(descriptor, allocator)
                 val callbackInfo = WGPURequestDeviceCallbackInfo.allocate(
                     allocator = allocator,
                     mode = WGPUCallbackMode_AllowProcessEvents,
@@ -490,20 +527,6 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     }
 
     // --- Descriptor defaults (C *_INIT macro equivalents) --------------------
-
-    /** WGPU_REQUEST_ADAPTER_OPTIONS_INIT equivalent, plus the requested backend. */
-    private fun initRequestAdapterOptions(options: WGPURequestAdapterOptions) {
-        options.nextInChain = null
-        options.featureLevel = WGPUFeatureLevel_Undefined
-        options.powerPreference = WGPUPowerPreference_Undefined
-        options.forceFallbackAdapter = 0u
-        options.backendType = when (config.backend) {
-            null -> WGPUBackendType_Undefined
-            DawnBackend.Metal -> WGPUBackendType_Metal
-            DawnBackend.Vulkan -> WGPUBackendType_Vulkan
-        }
-        options.compatibleSurface = null
-    }
 
     /** WGPU_DEVICE_DESCRIPTOR_INIT equivalent, with the two callback infos installed. */
     private fun initDeviceDescriptorDefaults(

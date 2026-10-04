@@ -10,6 +10,7 @@ import org.graphiks.dawn4k.native.wgpuAdapterRelease
 import org.graphiks.dawn4k.native.wgpuDeviceRelease
 import org.graphiks.dawn4k.native.wgpuQueueRelease
 import org.graphiks.kffi.CallbackRegistration
+import org.graphiks.webgpu.GPUError
 
 /**
  * One raw device session: it owns the adapter, device and queue references it
@@ -27,7 +28,7 @@ internal class DeviceSession internal constructor(
     internal val runtime: DawnRuntime,
     internal val handle: WGPUDevice,
     internal val queueHandle: WGPUQueue,
-    private val adapter: WGPUAdapter,
+    internal val adapter: WGPUAdapter,
     internal val callbacks: DeviceCallbacks,
 ) : AutoCloseable {
 
@@ -76,6 +77,13 @@ internal class DeviceCallbacks internal constructor() {
     /** Uncaptured errors observed so far, in arrival order. */
     internal val uncapturedErrors = mutableListOf<DawnNativeError>()
 
+    /**
+     * Worker-confined sink the public device routes its descriptor's
+     * uncaptured-error callback into; installed once the public device wraps
+     * the session. The stored list above stays the runtime's own record.
+     */
+    internal var uncapturedErrorSink: ((GPUError) -> Unit)? = null
+
     internal var deviceLostRegistration: CallbackRegistration<WGPUDeviceLostCallback>? = null
     internal var uncapturedErrorRegistration: CallbackRegistration<WGPUUncapturedErrorCallback>? = null
 
@@ -107,9 +115,17 @@ internal class DeviceCallbacks internal constructor() {
         }
     }
 
-    /** Worker: stores an observed uncaptured error. */
+    /** Worker: stores an observed uncaptured error, then hands it to the public sink. */
     internal fun handleUncapturedError(error: DawnNativeError) {
         uncapturedErrors += error
+        uncapturedErrorSink?.let { sink ->
+            try {
+                sink(error.gpuError)
+            } catch (failure: Throwable) {
+                // The error is already recorded above; a user callback failure
+                // must not take down the dispatch loop.
+            }
+        }
     }
 
     /** Worker: revokes both callback routes; idempotent. */

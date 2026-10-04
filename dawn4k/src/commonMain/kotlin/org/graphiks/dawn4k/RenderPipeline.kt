@@ -1,11 +1,23 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.PendingOperation
+import org.graphiks.dawn4k.internal.copyToString
 import org.graphiks.dawn4k.mapper.allocateRenderPipelineDescriptor
+import org.graphiks.dawn4k.native.WGPUCallbackMode_AllowProcessEvents
+import org.graphiks.dawn4k.native.WGPUCreatePipelineAsyncStatus
+import org.graphiks.dawn4k.native.WGPUCreatePipelineAsyncStatus_Success
+import org.graphiks.dawn4k.native.WGPUCreateRenderPipelineAsyncCallback
+import org.graphiks.dawn4k.native.WGPUCreateRenderPipelineAsyncCallbackInfo
 import org.graphiks.dawn4k.native.WGPURenderPipeline
+import org.graphiks.dawn4k.native.allocate
+import org.graphiks.dawn4k.native.register
 import org.graphiks.dawn4k.native.wgpuDeviceCreateRenderPipeline
+import org.graphiks.dawn4k.native.wgpuDeviceCreateRenderPipelineAsync
 import org.graphiks.dawn4k.native.wgpuRenderPipelineGetBindGroupLayout
 import org.graphiks.dawn4k.native.wgpuRenderPipelineRelease
+import org.graphiks.kffi.CallbackPolicy
+import org.graphiks.kffi.CallbackRegistration
 import org.graphiks.kffi.memoryScope
 import org.graphiks.webgpu.GPUBindGroupLayout
 import org.graphiks.webgpu.GPURenderPipeline
@@ -61,3 +73,60 @@ internal fun DeviceSession.createRenderPipeline(descriptor: GPURenderPipelineDes
             DawnRenderPipeline(this, handle, descriptor.label)
         }
     }
+
+/**
+ * Creates a [DawnRenderPipeline] asynchronously, resolving the returned [Result]
+ * once the native callback fires (progressed by the runtime's event pump — no
+ * fixed sleep). A rejected creation returns [Result.failure] with a
+ * [DawnPipelineException].
+ */
+internal suspend fun DeviceSession.createRenderPipelineAsync(
+    descriptor: GPURenderPipelineDescriptor,
+): Result<DawnRenderPipeline> {
+    val operation = PendingOperation<RenderPipelineOutcome> { outcome ->
+        // Runs on the worker: a late delivery nobody consumed releases its pipeline.
+        outcome.pipeline?.let { wgpuRenderPipelineRelease(it) }
+    }
+    runtime.dispatcher.call {
+        var registration: CallbackRegistration<WGPUCreateRenderPipelineAsyncCallback>? = null
+        runtime.beginSubdeviceOperation(
+            operation = operation,
+            issue = {
+                registration = WGPUCreateRenderPipelineAsyncCallback.register(
+                    policy = CallbackPolicy.ONCE,
+                    callback = { status, pipeline, message, _ ->
+                        // Callback thread: copy the borrowed message before returning.
+                        val outcome = RenderPipelineOutcome(status, pipeline, message.copyToString())
+                        runtime.dispatcher.post {
+                            runtime.finishSubdeviceOperation(operation, registration!!, Result.success(outcome))
+                        }
+                    },
+                )
+                memoryScope { allocator ->
+                    val native = allocator.allocateRenderPipelineDescriptor(descriptor, this)
+                    val callbackInfo = WGPUCreateRenderPipelineAsyncCallbackInfo.allocate(
+                        allocator = allocator,
+                        mode = WGPUCallbackMode_AllowProcessEvents,
+                        registration = registration,
+                    ).also { it.nextInChain = null }
+                    wgpuDeviceCreateRenderPipelineAsync(allocator, this.handle, native, callbackInfo)
+                }
+            },
+            closeRegistration = { registration?.close() },
+        )
+    }
+    val outcome = operation.await().getOrThrow()
+    val handle = outcome.pipeline
+    if (outcome.status != WGPUCreatePipelineAsyncStatus_Success || handle == null) {
+        handle?.let { runtime.dispatcher.call { wgpuRenderPipelineRelease(it) } }
+        return Result.failure(DawnPipelineException(outcome.status, outcome.message))
+    }
+    return Result.success(DawnRenderPipeline(this, handle, descriptor.label))
+}
+
+/** The settled outcome of a native async render pipeline creation; owns its pipeline. */
+private class RenderPipelineOutcome(
+    val status: WGPUCreatePipelineAsyncStatus,
+    val pipeline: WGPURenderPipeline?,
+    val message: String,
+)
