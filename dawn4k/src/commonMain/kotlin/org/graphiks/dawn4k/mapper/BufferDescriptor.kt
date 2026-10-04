@@ -23,7 +23,7 @@ import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUMapMode
 
 /** webgpu.h `WGPU_STRLEN` (SIZE_MAX): the NUL-terminated length sentinel. */
-private const val WGPU_STRLEN: ULong = ULong.MAX_VALUE
+internal const val WGPU_STRLEN: ULong = ULong.MAX_VALUE
 
 /**
  * Explicit conversion table Kotlin `GPUBufferUsage` -> native `WGPUBufferUsage`.

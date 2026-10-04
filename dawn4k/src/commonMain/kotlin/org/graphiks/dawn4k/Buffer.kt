@@ -57,7 +57,7 @@ import org.graphiks.webgpu.GPUSize64Out
  * and close must not race one another.
  */
 class DawnBuffer internal constructor(
-    private val session: DeviceSession,
+    internal val session: DeviceSession,
     internal val handle: WGPUBuffer,
     descriptor: GPUBufferDescriptor,
 ) : GPUBuffer {
@@ -204,6 +204,14 @@ private fun mapStateOf(state: WGPUBufferMapState): GPUBufferMapState = when (sta
     WGPUBufferMapState_Pending -> GPUBufferMapState.Pending
     WGPUBufferMapState_Mapped -> GPUBufferMapState.Mapped
     else -> GPUBufferMapState.Unmapped
+}
+
+/** Refuses a foreign or foreign-session buffer before its handle is read. */
+internal fun GPUBuffer.requireDawnBuffer(owner: DeviceSession): DawnBuffer {
+    val dawn = this as? DawnBuffer
+        ?: throw IllegalArgumentException("the buffer does not belong to this Dawn backend: $this")
+    require(dawn.session === owner) { "the buffer belongs to a different device session" }
+    return dawn
 }
 
 /**
