@@ -50,6 +50,12 @@ import org.graphiks.webgpu.GPUStencilValue
  * no [close]: the pass handle is released when [end] is called (together with the
  * temporary attachment views created for [GPUTexture] attachments), or by the
  * session teardown if the pass is never ended.
+ *
+ * [end] releases the native handle, so any command after it would dereference a
+ * freed handle. A Kotlin [ended] flag refuses both a second [end] and any later
+ * command with an [IllegalStateException] before a downcall — unlike the command
+ * encoder's [DawnCommandEncoder.finish], whose "finish twice" validation error is
+ * deliberately left to Dawn (the encoder handle is only released by [close]).
  */
 class DawnRenderPassEncoder internal constructor(
     internal val session: DeviceSession,
@@ -59,16 +65,25 @@ class DawnRenderPassEncoder internal constructor(
 
     override var label: String = ""
 
+    /** Set once by [end]; a command after it would use a released native handle. */
+    private var ended = false
+
     init {
         session.resources.own(key = this, destroy = null, release = { wgpuRenderPassEncoderRelease(handle) })
     }
 
+    private fun requireOpen() {
+        check(!ended) { "the render pass encoder has already been ended" }
+    }
+
     override fun setPipeline(pipeline: GPURenderPipeline) {
+        requireOpen()
         val dawn = pipeline.requireDawnRenderPipeline(session)
         session.runtime.dispatcher.call { wgpuRenderPassEncoderSetPipeline(handle, dawn.handle) }
     }
 
     override fun setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset: GPUSize64, size: GPUSize64?) {
+        requireOpen()
         val dawn = buffer.requireDawnBuffer(session)
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
@@ -76,6 +91,7 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun setVertexBuffer(slot: GPUIndex32, buffer: GPUBuffer?, offset: GPUSize64, size: GPUSize64?) {
+        requireOpen()
         val dawn = buffer?.requireDawnBuffer(session)
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderSetVertexBuffer(handle, slot, dawn?.handle, offset, size ?: WGPU_WHOLE_SIZE)
@@ -83,6 +99,7 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun draw(vertexCount: GPUSize32, instanceCount: GPUSize32, firstVertex: GPUSize32, firstInstance: GPUSize32) {
+        requireOpen()
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderDraw(handle, vertexCount, instanceCount, firstVertex, firstInstance)
         }
@@ -95,22 +112,26 @@ class DawnRenderPassEncoder internal constructor(
         baseVertex: GPUSignedOffset32,
         firstInstance: GPUSize32,
     ) {
+        requireOpen()
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderDrawIndexed(handle, indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
         }
     }
 
     override fun drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
+        requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
         session.runtime.dispatcher.call { wgpuRenderPassEncoderDrawIndirect(handle, dawn.handle, indirectOffset) }
     }
 
     override fun drawIndexedIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
+        requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
         session.runtime.dispatcher.call { wgpuRenderPassEncoderDrawIndexedIndirect(handle, dawn.handle, indirectOffset) }
     }
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
+        requireOpen()
         val dawn = bindGroup?.requireDawnBindGroup(session)
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
@@ -126,6 +147,7 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun setImmediates(rangeOffset: GPUSize32, data: ArrayBuffer, dataOffset: GPUSize64, dataSize: GPUSize64?) {
+        requireOpen()
         val slice = dataSlice(data.size, dataOffset, dataSize)
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
@@ -136,18 +158,21 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun setViewport(x: Float, y: Float, width: Float, height: Float, minDepth: Float, maxDepth: Float) {
+        requireOpen()
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderSetViewport(handle, x, y, width, height, minDepth, maxDepth)
         }
     }
 
     override fun setScissorRect(x: GPUIntegerCoordinate, y: GPUIntegerCoordinate, width: GPUIntegerCoordinate, height: GPUIntegerCoordinate) {
+        requireOpen()
         session.runtime.dispatcher.call {
             wgpuRenderPassEncoderSetScissorRect(handle, x, y, width, height)
         }
     }
 
     override fun setBlendConstant(color: GPUColor) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
                 wgpuRenderPassEncoderSetBlendConstant(handle, allocator.allocateColor(color))
@@ -156,18 +181,22 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun setStencilReference(reference: GPUStencilValue) {
+        requireOpen()
         session.runtime.dispatcher.call { wgpuRenderPassEncoderSetStencilReference(handle, reference) }
     }
 
     override fun beginOcclusionQuery(queryIndex: GPUSize32) {
+        requireOpen()
         session.runtime.dispatcher.call { wgpuRenderPassEncoderBeginOcclusionQuery(handle, queryIndex) }
     }
 
     override fun endOcclusionQuery() {
+        requireOpen()
         session.runtime.dispatcher.call { wgpuRenderPassEncoderEndOcclusionQuery(handle) }
     }
 
     override fun executeBundles(bundles: List<GPURenderBundle>) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
                 val handles = bundles.map { it.requireDawnRenderBundle(session).handle }
@@ -178,22 +207,27 @@ class DawnRenderPassEncoder internal constructor(
     }
 
     override fun pushDebugGroup(groupLabel: String) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator -> wgpuRenderPassEncoderPushDebugGroup(handle, allocator.allocateLabel(groupLabel)) }
         }
     }
 
     override fun popDebugGroup() {
+        requireOpen()
         session.runtime.dispatcher.call { wgpuRenderPassEncoderPopDebugGroup(handle) }
     }
 
     override fun insertDebugMarker(markerLabel: String) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator -> wgpuRenderPassEncoderInsertDebugMarker(handle, allocator.allocateLabel(markerLabel)) }
         }
     }
 
     override fun end() {
+        requireOpen()
+        ended = true
         session.runtime.dispatcher.call { wgpuRenderPassEncoderEnd(handle) }
         session.resources.release(this)
         temporaryViews.forEach { it.close() }

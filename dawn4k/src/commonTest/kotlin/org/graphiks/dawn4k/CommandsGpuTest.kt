@@ -43,6 +43,7 @@ import org.graphiks.webgpu.descriptors.VertexBufferLayout
 import org.graphiks.webgpu.descriptors.VertexState
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -288,6 +289,96 @@ class CommandsGpuTest {
             assertTrue(fixture.uncapturedErrorCount() > before)
 
             commandBuffer.close()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    // --- pass handle released on end(): no command may follow -----------------
+
+    @Test
+    fun endingAPassTwiceIsRefusedWithoutANativeCall() = runTest {
+        val fixture = NativeFixture.open()
+        try {
+            // Compute pass.
+            fixture.createEncoder().use { encoder ->
+                encoder.beginComputePass().let { pass ->
+                    pass.end()
+                    assertFailsWith<IllegalStateException> { pass.end() }
+                }
+            }
+            // Render pass.
+            val texture = fixture.createTexture(
+                TextureDescriptor(
+                    size = Extent3D(width = 1u, height = 1u),
+                    format = GPUTextureFormat.RGBA8Unorm,
+                    usage = GPUTextureUsage.RenderAttachment,
+                ),
+            )
+            try {
+                fixture.createEncoder().use { encoder ->
+                    encoder.beginRenderPass(
+                        RenderPassDescriptor(
+                            colorAttachments = listOf(
+                                RenderPassColorAttachment(
+                                    view = texture,
+                                    loadOp = GPULoadOp.Clear,
+                                    storeOp = GPUStoreOp.Store,
+                                ),
+                            ),
+                        ),
+                    ).let { pass ->
+                        pass.end()
+                        assertFailsWith<IllegalStateException> { pass.end() }
+                    }
+                }
+            } finally {
+                texture.close()
+            }
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun aCommandAfterEndingAPassIsRefusedWithoutANativeCall() = runTest {
+        val fixture = NativeFixture.open()
+        try {
+            // Compute pass.
+            fixture.createEncoder().use { encoder ->
+                encoder.beginComputePass().let { pass ->
+                    pass.end()
+                    assertFailsWith<IllegalStateException> { pass.dispatchWorkgroups(1u) }
+                }
+            }
+            // Render pass.
+            val texture = fixture.createTexture(
+                TextureDescriptor(
+                    size = Extent3D(width = 1u, height = 1u),
+                    format = GPUTextureFormat.RGBA8Unorm,
+                    usage = GPUTextureUsage.RenderAttachment,
+                ),
+            )
+            try {
+                fixture.createEncoder().use { encoder ->
+                    encoder.beginRenderPass(
+                        RenderPassDescriptor(
+                            colorAttachments = listOf(
+                                RenderPassColorAttachment(
+                                    view = texture,
+                                    loadOp = GPULoadOp.Clear,
+                                    storeOp = GPUStoreOp.Store,
+                                ),
+                            ),
+                        ),
+                    ).let { pass ->
+                        pass.end()
+                        assertFailsWith<IllegalStateException> { pass.draw(1u) }
+                    }
+                }
+            } finally {
+                texture.close()
+            }
         } finally {
             fixture.close()
         }

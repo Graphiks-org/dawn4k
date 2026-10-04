@@ -32,6 +32,12 @@ import org.graphiks.webgpu.GPUSize64
  * A raw [GPUComputePassEncoder] borrowed from its owning command encoder. It has
  * no [close]: the pass handle is released when [end] is called, or by the session
  * teardown if the pass is never ended.
+ *
+ * [end] releases the native handle, so any command after it would dereference a
+ * freed handle. A Kotlin [ended] flag refuses both a second [end] and any later
+ * command with an [IllegalStateException] before a downcall — unlike the command
+ * encoder's [DawnCommandEncoder.finish], whose "finish twice" validation error is
+ * deliberately left to Dawn (the encoder handle is only released by [close]).
  */
 class DawnComputePassEncoder internal constructor(
     internal val session: DeviceSession,
@@ -40,22 +46,32 @@ class DawnComputePassEncoder internal constructor(
 
     override var label: String = ""
 
+    /** Set once by [end]; a command after it would use a released native handle. */
+    private var ended = false
+
     init {
         session.resources.own(key = this, destroy = null, release = { wgpuComputePassEncoderRelease(handle) })
     }
 
+    private fun requireOpen() {
+        check(!ended) { "the compute pass encoder has already been ended" }
+    }
+
     override fun setPipeline(pipeline: GPUComputePipeline) {
+        requireOpen()
         val dawn = pipeline.requireDawnComputePipeline(session)
         session.runtime.dispatcher.call { wgpuComputePassEncoderSetPipeline(handle, dawn.handle) }
     }
 
     override fun dispatchWorkgroups(workgroupCountX: GPUSize32, workgroupCountY: GPUSize32, workgroupCountZ: GPUSize32) {
+        requireOpen()
         session.runtime.dispatcher.call {
             wgpuComputePassEncoderDispatchWorkgroups(handle, workgroupCountX, workgroupCountY, workgroupCountZ)
         }
     }
 
     override fun dispatchWorkgroupsIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
+        requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
         session.runtime.dispatcher.call {
             wgpuComputePassEncoderDispatchWorkgroupsIndirect(handle, dawn.handle, indirectOffset)
@@ -63,6 +79,7 @@ class DawnComputePassEncoder internal constructor(
     }
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
+        requireOpen()
         val dawn = bindGroup?.requireDawnBindGroup(session)
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
@@ -80,6 +97,7 @@ class DawnComputePassEncoder internal constructor(
     override fun setImmediates(rangeOffset: GPUSize32, data: ArrayBuffer, dataOffset: GPUSize64, dataSize: GPUSize64?) {
         // A real SetImmediates downcall; Dawn validates the range against the
         // pipeline layout's immediate size and the device's maxImmediateSize.
+        requireOpen()
         val slice = dataSlice(data.size, dataOffset, dataSize)
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
@@ -90,6 +108,7 @@ class DawnComputePassEncoder internal constructor(
     }
 
     override fun pushDebugGroup(groupLabel: String) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
                 wgpuComputePassEncoderPushDebugGroup(handle, allocator.allocateLabel(groupLabel))
@@ -98,10 +117,12 @@ class DawnComputePassEncoder internal constructor(
     }
 
     override fun popDebugGroup() {
+        requireOpen()
         session.runtime.dispatcher.call { wgpuComputePassEncoderPopDebugGroup(handle) }
     }
 
     override fun insertDebugMarker(markerLabel: String) {
+        requireOpen()
         session.runtime.dispatcher.call {
             memoryScope { allocator ->
                 wgpuComputePassEncoderInsertDebugMarker(handle, allocator.allocateLabel(markerLabel))
@@ -110,6 +131,8 @@ class DawnComputePassEncoder internal constructor(
     }
 
     override fun end() {
+        requireOpen()
+        ended = true
         session.runtime.dispatcher.call { wgpuComputePassEncoderEnd(handle) }
         session.resources.release(this)
     }
