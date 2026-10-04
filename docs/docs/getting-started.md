@@ -1,46 +1,55 @@
-# Getting Started — From Template to Your Project
+# Getting Started — dawn4k
 
-Checklist of files to modify when starting a new project from this template.
+How to work on **dawn4k**, the Kotlin Multiplatform binding to Google's Dawn
+(WebGPU) C API for desktop (JVM, macOS ARM64, Linux x64).
 
-## Project Identity
+## Prerequisites
 
-- [ ] `settings.gradle.kts:23` — set `rootProject.name`
-- [ ] `build.gradle.kts:1` — set `group`
-- [ ] `buildSrc/.../kmp-library.gradle.kts:25` — set Android `namespace`
-- [ ] `buildSrc/.../kmp-library.gradle.kts:13` — set `jvmToolchain` version
-- [ ] `buildSrc/.../kmp-library.gradle.kts:26-27` — set `compileSdk` / `minSdk`
-- [ ] `buildSrc/.../kmp-publish.gradle.kts` — update `group`, `coordinates`, and all POM fields (name, description, url, licenses, developers, scm)
-- [ ] `buildSrc/.../kmp-dokka.gradle.kts` — update `moduleName` and source link `remoteUrl`
+- JDK 25 and the repository Gradle wrapper (`9.6.1`).
+- A macOS ARM64 or Linux x64 host.
+- A C toolchain (`cc`) for the ABI oracle and the callback helper.
+- Optional: LLVM (`brew --prefix llvm`) if you need to rebuild the pinned
+  kextract generator.
 
-## Source Code
+## Modules
 
-- [ ] Rename package `io.ygdrasil` to your own across all source sets (`commonMain`, `androidMain`, `iosMain`, `jvmMain`)
-- [ ] Move source files to match the new package directory layout
-- [ ] Update imports in `Koin.kt` if module/package names changed
-- [ ] Update `commonTest` package references if applicable
+- **`:dawn4k-native`** — generated low-level Dawn bindings (`org.graphiks.dawn4k.native`),
+  the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
+See [Native Dawn binding](native-binding.md) for generation and linkage.
 
-## CI / GitHub
+## Common commands
 
-- [ ] Review/update `.github/workflows/` CI files (repo references, badges)
-- [ ] Update `README.md` badges (status, repo URLs)
-- [ ] Update `README.md` content and description
+```bash
+./gradlew :dawn4k-native:jvmTest        # fast JVM tests
+./gradlew allTests                      # host targets
+./gradlew :dawn4k-native:compileAndroidMain  # Android/JVM target compiles
+./gradlew :dawn4k-native:compileKotlinIosArm64  # iOS target compiles
+./gradlew :dawn4k-native:verifyDawnAbi  # C ABI oracle vs generated layout
+```
 
-## Documentation
+## Regenerating the bindings
 
-- [ ] `docs/mkdocs.yml` — update `site_name`, `site_url`, `repo_url`, `repo_name`
-- [ ] `docs/docs/index.md` — rewrite for your project
-- [ ] `docs/docs/index.fr.md` — rewrite for your project (or delete if not needed)
+```bash
+bash scripts/generate-dawn-bindings.sh
+```
 
-## License
+The script builds the pinned kextract in a dedicated, git-ignored checkout and
+regenerates into `dawn4k-native/build/regenerated/src`. Review that diff, then
+promote it into the versioned `dawn4k-native/generated/src`. Ordinary compilation
+never runs the generator.
 
-- [ ] `LICENSE` — update copyright holder
+## Customizing the build
 
-## Dependencies
+- `settings.gradle.kts` — `rootProject.name`.
+- `build.gradle.kts` — `group` and version.
+- `buildSrc/.../kmp-library.gradle.kts` — desktop targets and toolchain.
+- `buildSrc/.../kmp-publish.gradle.kts` — publication coordinates and POM fields.
+- `buildSrc/.../kmp-dokka.gradle.kts` — Dokka module name and source link.
+- `docs/mkdocs.yml` — site metadata.
+- `LICENSE` — copyright holder.
 
-- [ ] `gradle/libs.versions.toml` — review/update library versions as needed
+## Final verification
 
-## Final Verification
-
-- [ ] `./gradlew build` succeeds
-- [ ] `./gradlew :shared:jvmTest` passes
-- [ ] `mkdocs build -f docs/mkdocs.yml` works
+- [ ] `./gradlew allTests` succeeds.
+- [ ] `./gradlew :dawn4k-native:verifyDawnAbi` succeeds.
+- [ ] `mkdocs build -f docs/mkdocs.yml` works.

@@ -1,8 +1,8 @@
-site_name: KMP Starter Pack
-site_description: API & Technical Documentation for KMP Starter Pack
-site_url: https://ygdrasil-io.github.io/project-template/
-repo_url: https://github.com/ygdrasil-io/project-template
-repo_name: ygdrasil-io/project-template
+site_name: dawn4k
+site_description: API & Technical Documentation for dawn4k (Dawn/WebGPU desktop bindings)
+site_url: https://graphiks-org.github.io/dawn4k/
+repo_url: https://github.com/Graphiks-org/dawn4k
+repo_name: Graphiks-org/dawn4k
 
 docs_dir: docs
 site_dir: ../_site
@@ -49,6 +49,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Native binding: native-binding.md
 
 # !!! EMBEDDED DOKKA START, DO NOT COMMIT !!! #
 # !!! EMBEDDED DOKKA END, DO NOT COMMIT !!! #
@@ -56,6 +57,7 @@ nav:
 plugins:
   - search
   - i18n:
+      docs_structure: suffix
       languages:
         - locale: en
           name: English
@@ -64,5 +66,5 @@ plugins:
         - locale: fr
           name: Français
           build: true
-          site_name: Starter Pack KMP
-          site_description: Documentation Technique pour KMP Starter Pack
+          site_name: dawn4k
+          site_description: Documentation technique de dawn4k (bindings Dawn/WebGPU desktop)

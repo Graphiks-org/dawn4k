@@ -4,7 +4,6 @@ on:
   push:
     branches: [master, init] # Trigger on master or init for testing
     paths:
-      - 'shared/src/commonMain/**'
       - 'docs/**'
       - 'docs/mkdocs.yml'
       - '.github/workflows/docs.yml'

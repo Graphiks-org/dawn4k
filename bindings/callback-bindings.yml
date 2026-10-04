@@ -1,0 +1,173 @@
+callbackInfoBindings:
+  - struct: struct:WGPUBufferMapCallbackInfo
+    owner:
+      function: function:wgpuBufferMapAsync
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUBufferMapCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPURequestAdapterCallbackInfo
+    owner:
+      function: function:wgpuInstanceRequestAdapter
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPURequestAdapterCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPURequestDeviceCallbackInfo
+    owner:
+      function: function:wgpuAdapterRequestDevice
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPURequestDeviceCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUCompilationInfoCallbackInfo
+    owner:
+      function: function:wgpuShaderModuleGetCompilationInfo
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUCompilationInfoCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUCreateComputePipelineAsyncCallbackInfo
+    owner:
+      function: function:wgpuDeviceCreateComputePipelineAsync
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUCreateComputePipelineAsyncCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUCreateRenderPipelineAsyncCallbackInfo
+    owner:
+      function: function:wgpuDeviceCreateRenderPipelineAsync
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUCreateRenderPipelineAsyncCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUQueueWorkDoneCallbackInfo
+    owner:
+      function: function:wgpuQueueOnSubmittedWorkDone
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUQueueWorkDoneCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUPopErrorScopeCallbackInfo
+    owner:
+      function: function:wgpuDevicePopErrorScope
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUPopErrorScopeCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUDeviceLostCallbackInfo
+    owner:
+      function: function:wgpuAdapterRequestDevice
+      parameterPath: descriptor.deviceLostCallbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUDeviceLostCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+    mode:
+      field: mode
+      type: typedef:WGPUCallbackMode
+      allowedConstants:
+        - constant:WGPUCallbackMode_WaitAnyOnly
+        - constant:WGPUCallbackMode_AllowProcessEvents
+        - constant:WGPUCallbackMode_AllowSpontaneous
+
+  - struct: struct:WGPUUncapturedErrorCallbackInfo
+    owner:
+      function: function:wgpuAdapterRequestDevice
+      parameterPath: descriptor.uncapturedErrorCallbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPUUncapturedErrorCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
+
+  - struct: struct:WGPULoggingCallbackInfo
+    owner:
+      function: function:wgpuDeviceSetLoggingCallback
+      parameterPath: callbackInfo
+      lifetime: CONSUMED_DURING_CALL
+    callbackField: callback
+    callbackType: typedef:WGPULoggingCallback
+    routingUserdataField: userdata2
+    applicationUserdataFields: [userdata1]
