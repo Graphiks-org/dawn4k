@@ -71,15 +71,12 @@ internal fun MemoryAllocator.allocateBindGroupLayoutDescriptor(
 }
 
 /**
- * `WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT` equivalent. Only the buffer sub-layout is
- * supported by this backend so far; the sampler/texture/storage-texture members
- * are refused rather than silently dropped, and the unset sub-layouts are left at
- * BindingNotUsed so Dawn sees exactly one resource type.
+ * `WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT` equivalent. Every one of the four
+ * sub-layouts (buffer, sampler, texture, storage texture) is set from its
+ * corresponding nullable Kotlin field, and an absent sub-layout is left at
+ * BindingNotUsed/Undefined so Dawn sees exactly one resource type.
  */
 private fun initBindGroupLayoutEntry(entry: WGPUBindGroupLayoutEntry, layout: GPUBindGroupLayoutEntry) {
-    require(layout.sampler == null && layout.texture == null && layout.storageTexture == null) {
-        "only buffer bindings are supported by this backend so far"
-    }
     entry.nextInChain = null
     entry.binding = layout.binding
     entry.visibility = layout.visibility.toNativeShaderStage()
@@ -91,15 +88,20 @@ private fun initBindGroupLayoutEntry(entry: WGPUBindGroupLayoutEntry, layout: GP
     entry.buffer.minBindingSize = layout.buffer?.minBindingSize ?: 0uL
 
     entry.sampler.nextInChain = null
-    entry.sampler.type = WGPUSamplerBindingType_BindingNotUsed
+    entry.sampler.type = layout.sampler?.type?.toNativeSamplerBindingType() ?: WGPUSamplerBindingType_BindingNotUsed
 
     entry.texture.nextInChain = null
-    entry.texture.sampleType = WGPUTextureSampleType_BindingNotUsed
-    entry.texture.viewDimension = WGPUTextureViewDimension_Undefined
-    entry.texture.multisampled = 0u
+    entry.texture.sampleType = layout.texture?.sampleType?.toNativeTextureSampleType()
+        ?: WGPUTextureSampleType_BindingNotUsed
+    entry.texture.viewDimension = layout.texture?.viewDimension?.toNativeTextureViewDimension()
+        ?: WGPUTextureViewDimension_Undefined
+    entry.texture.multisampled = if (layout.texture?.multisampled == true) 1u else 0u
 
     entry.storageTexture.nextInChain = null
-    entry.storageTexture.access = WGPUStorageTextureAccess_BindingNotUsed
-    entry.storageTexture.format = WGPUTextureFormat_Undefined
-    entry.storageTexture.viewDimension = WGPUTextureViewDimension_Undefined
+    entry.storageTexture.access = layout.storageTexture?.access?.toNativeStorageTextureAccess()
+        ?: WGPUStorageTextureAccess_BindingNotUsed
+    entry.storageTexture.format = layout.storageTexture?.format?.toNativeTextureFormat()
+        ?: WGPUTextureFormat_Undefined
+    entry.storageTexture.viewDimension = layout.storageTexture?.viewDimension?.toNativeTextureViewDimension()
+        ?: WGPUTextureViewDimension_Undefined
 }
