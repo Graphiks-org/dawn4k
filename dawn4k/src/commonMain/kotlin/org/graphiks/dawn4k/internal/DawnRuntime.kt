@@ -366,12 +366,25 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     /** Worker: one pump iteration; true when another tick is needed. */
     private fun pumpOnce(): Boolean {
         // The instance is null only after the teardown released it.
-        val current = instance ?: return false
-        if (outstandingCallbacks == 0) return false
+        val current = instance ?: return exitPumpOnWorker()
+        if (outstandingCallbacks == 0) return exitPumpOnWorker()
         wgpuInstanceProcessEvents(current)
         // Keep ticking through a close while deliveries are still outstanding:
         // their settles are what releases the instance and finishes the teardown.
-        return outstandingCallbacks > 0
+        return if (outstandingCallbacks > 0) true else exitPumpOnWorker()
+    }
+
+    /**
+     * Worker: this pump has decided not to tick again. The job reference is
+     * cleared here, inside the deciding worker task, before the pump coroutine
+     * completes on its own Default thread — a settle→re-arm adjacency must
+     * never observe a stale-active pump through [ensurePump]'s active-job
+     * check, skip the launch, and leave a fresh request without a
+     * ProcessEvents source.
+     */
+    private fun exitPumpOnWorker(): Boolean {
+        pumpJob = null
+        return false
     }
 
     // --- Close choreography --------------------------------------------------
