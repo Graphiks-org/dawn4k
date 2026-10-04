@@ -5,7 +5,7 @@ How to work on **dawn4k**, the Kotlin Multiplatform binding to Google's Dawn
 
 ## Prerequisites
 
-- JDK 25 and the repository Gradle wrapper (`9.6.1`).
+- JDK 25 and the repository Gradle wrapper (`9.8.0`).
 - A macOS ARM64 or Linux x64 host.
 - A C toolchain (`cc`) for the ABI oracle and the callback helper.
 - Optional: LLVM (`brew --prefix llvm`) if you need to rebuild the pinned
