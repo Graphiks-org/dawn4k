@@ -164,6 +164,47 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         if (teardownSettled.isCompleted) outstandingCallbacks
         else dispatcher.call { outstandingCallbacks }
 
+    // --- Sub-device callback operations ------------------------------------
+
+    /**
+     * Worker: arms a callback-bearing sub-device operation (buffer map, queue
+     * work-done). [issue] registers the ONCE callback and makes the native
+     * call; that callback must post a settle that runs [finishSubdeviceOperation].
+     * The operation counts as an outstanding callback so the event pump keeps
+     * progressing the instance while it is in flight, and it is abandoned if
+     * the runtime closes mid-flight.
+     */
+    internal fun <T> beginSubdeviceOperation(operation: PendingOperation<T>, issue: () -> Unit) {
+        if (closed) throw DawnRuntimeClosedException()
+        openOperations += operation
+        outstandingCallbacks += 1
+        try {
+            issue()
+        } catch (failure: Throwable) {
+            openOperations.remove(operation)
+            outstandingCallbacks -= 1
+            throw failure
+        }
+        ensurePump()
+    }
+
+    /**
+     * Worker: settles a sub-device operation whose callback fired: closes the
+     * registration, completes the operation with its result, and decrements the
+     * outstanding count (finishing the teardown when it reaches zero).
+     */
+    internal fun <T> finishSubdeviceOperation(
+        operation: PendingOperation<T>,
+        registration: CallbackRegistration<*>,
+        result: Result<T>,
+    ) {
+        openOperations.remove(operation)
+        outstandingCallbacks -= 1
+        registration.close()
+        operation.complete(result)
+        settleTeardownIfClosing()
+    }
+
     // --- Adapter discovery -------------------------------------------------
 
     private suspend fun awaitAdapter(): WGPUAdapter {
@@ -510,7 +551,7 @@ private const val WGPU_STRLEN: ULong = ULong.MAX_VALUE
  * Copies the borrowed native string into a Kotlin string. Must be called
  * inside the callback, before returning to native code.
  */
-private fun WGPUStringView.copyToString(): String {
+internal fun WGPUStringView.copyToString(): String {
     val data = this.data ?: return ""
     return if (length == WGPU_STRLEN) {
         data.toKString() ?: ""
