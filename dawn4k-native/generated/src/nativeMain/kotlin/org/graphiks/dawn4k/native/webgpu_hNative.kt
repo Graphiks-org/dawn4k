@@ -1,6 +1,6 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
-package org.graphiks.dawn4k.raw
+package org.graphiks.dawn4k.native
 
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.CallbackExceptionHandler

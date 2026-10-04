@@ -13,7 +13,7 @@ How to work on **dawn4k**, the Kotlin Multiplatform binding to Google's Dawn
 
 ## Modules
 
-- **`:dawn4k-native`** — generated low-level Dawn bindings (`org.graphiks.dawn4k.raw`),
+- **`:dawn4k-native`** — generated low-level Dawn bindings (`org.graphiks.dawn4k.native`),
   the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
 See [Native Dawn binding](native-binding.md) for generation and linkage.
 

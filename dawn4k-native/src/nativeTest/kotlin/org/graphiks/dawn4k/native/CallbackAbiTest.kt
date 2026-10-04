@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.raw
+package org.graphiks.dawn4k.native
 
 import org.graphiks.kffi.CallbackPolicy
 import org.graphiks.kffi.NativeAddress

@@ -14,7 +14,7 @@ Ce site regroupe la documentation technique et les références d'API de **dawn4
 
 ## 🧱 Organisation du Projet
 
-*   **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.raw`), oracle ABI et configuration de liaison.
+*   **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.native`), oracle ABI et configuration de liaison.
 
 Voir [Native Dawn binding](native-binding.md) pour la génération et la liaison.
 

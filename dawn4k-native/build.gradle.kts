@@ -101,13 +101,13 @@ val generateBindingsFromHeader = tasks.register<GenerateDawnBindingsTask>("gener
     callbackBindings.set(rootProject.layout.projectDirectory.file("bindings/callback-bindings.yml"))
     kextractVersion.set(rootProject.layout.projectDirectory.file("bindings/kextract.version"))
     jvmNativeResourcesDir.set(layout.buildDirectory.dir("generated/nativeResources"))
-    targetPackage.set("org.graphiks.dawn4k.raw")
+    targetPackage.set("org.graphiks.dawn4k.native")
     libraryName.set("webgpu_dawn")
     outputDir.set(layout.buildDirectory.dir("regenerated/src"))
 }
 
 val generatedJvmFile =
-    layout.projectDirectory.file("generated/src/jvmMain/kotlin/org/graphiks/dawn4k/raw/webgpu_hJvm.kt")
+    layout.projectDirectory.file("generated/src/jvmMain/kotlin/org/graphiks/dawn4k/native/webgpu_hJvm.kt")
 
 val abiHost: String = run {
     val os = System.getProperty("os.name").lowercase()

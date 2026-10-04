@@ -13,7 +13,7 @@ Google Dawn (WebGPU) pour le desktop (JVM, macOS ARM64, Linux x64).
 
 ## Modules
 
-- **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.raw`),
+- **`:dawn4k-native`** — bindings Dawn bas niveau générés (`org.graphiks.dawn4k.native`),
   l'oracle ABI C et la configuration cinterop/linkage. Ne dépend que de kffi.
 Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 
