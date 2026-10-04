@@ -173,8 +173,16 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
      * The operation counts as an outstanding callback so the event pump keeps
      * progressing the instance while it is in flight, and it is abandoned if
      * the runtime closes mid-flight.
+     *
+     * If [issue] throws after registering its callback, [closeRegistration] is
+     * invoked so the registration is never leaked — the registration is created
+     * inside [issue], so only the caller can close it on this path.
      */
-    internal fun <T> beginSubdeviceOperation(operation: PendingOperation<T>, issue: () -> Unit) {
+    internal fun <T> beginSubdeviceOperation(
+        operation: PendingOperation<T>,
+        issue: () -> Unit,
+        closeRegistration: () -> Unit,
+    ) {
         if (closed) throw DawnRuntimeClosedException()
         openOperations += operation
         outstandingCallbacks += 1
@@ -183,6 +191,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         } catch (failure: Throwable) {
             openOperations.remove(operation)
             outstandingCallbacks -= 1
+            closeRegistration()
             throw failure
         }
         ensurePump()

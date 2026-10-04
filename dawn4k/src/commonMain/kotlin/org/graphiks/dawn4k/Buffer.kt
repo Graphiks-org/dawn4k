@@ -104,33 +104,37 @@ class DawnBuffer internal constructor(
         val operation = PendingOperation<Unit> { }
         session.runtime.dispatcher.call {
             var registration: CallbackRegistration<WGPUBufferMapCallback>? = null
-            session.runtime.beginSubdeviceOperation(operation) {
-                registration = WGPUBufferMapCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
-                    val outcome = BufferMapOutcome(status, message.copyToString())
-                    session.runtime.dispatcher.post {
-                        session.runtime.finishSubdeviceOperation(
-                            operation,
-                            registration!!,
-                            outcome.toResult(),
+            session.runtime.beginSubdeviceOperation(
+                operation = operation,
+                issue = {
+                    registration = WGPUBufferMapCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
+                        val outcome = BufferMapOutcome(status, message.copyToString())
+                        session.runtime.dispatcher.post {
+                            session.runtime.finishSubdeviceOperation(
+                                operation,
+                                registration!!,
+                                outcome.toResult(),
+                            )
+                        }
+                    }
+                    memoryScope { allocator ->
+                        val callbackInfo = WGPUBufferMapCallbackInfo.allocate(
+                            allocator = allocator,
+                            mode = WGPUCallbackMode_AllowProcessEvents,
+                            registration = registration,
+                        ).also { it.nextInChain = null }
+                        wgpuBufferMapAsync(
+                            allocator = allocator,
+                            buffer = handle,
+                            mode = mode.toNativeMode(),
+                            offset = range.offset,
+                            size = range.size,
+                            callbackInfo = callbackInfo,
                         )
                     }
-                }
-                memoryScope { allocator ->
-                    val callbackInfo = WGPUBufferMapCallbackInfo.allocate(
-                        allocator = allocator,
-                        mode = WGPUCallbackMode_AllowProcessEvents,
-                        registration = registration,
-                    ).also { it.nextInChain = null }
-                    wgpuBufferMapAsync(
-                        allocator = allocator,
-                        buffer = handle,
-                        mode = mode.toNativeMode(),
-                        offset = range.offset,
-                        size = range.size,
-                        callbackInfo = callbackInfo,
-                    )
-                }
-            }
+                },
+                closeRegistration = { registration?.close() },
+            )
         }
         val result = operation.await()
         if (result.isSuccess) {
@@ -224,22 +228,26 @@ internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
     val operation = PendingOperation<Unit> { }
     runtime.dispatcher.call {
         var registration: CallbackRegistration<WGPUQueueWorkDoneCallback>? = null
-        runtime.beginSubdeviceOperation(operation) {
-            registration = WGPUQueueWorkDoneCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
-                val outcome = WorkDoneOutcome(status, message.copyToString())
-                runtime.dispatcher.post {
-                    runtime.finishSubdeviceOperation(operation, registration!!, outcome.toResult())
+        runtime.beginSubdeviceOperation(
+            operation = operation,
+            issue = {
+                registration = WGPUQueueWorkDoneCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
+                    val outcome = WorkDoneOutcome(status, message.copyToString())
+                    runtime.dispatcher.post {
+                        runtime.finishSubdeviceOperation(operation, registration!!, outcome.toResult())
+                    }
                 }
-            }
-            memoryScope { allocator ->
-                val callbackInfo = WGPUQueueWorkDoneCallbackInfo.allocate(
-                    allocator = allocator,
-                    mode = WGPUCallbackMode_AllowProcessEvents,
-                    registration = registration,
-                ).also { it.nextInChain = null }
-                wgpuQueueOnSubmittedWorkDone(allocator, queueHandle, callbackInfo)
-            }
-        }
+                memoryScope { allocator ->
+                    val callbackInfo = WGPUQueueWorkDoneCallbackInfo.allocate(
+                        allocator = allocator,
+                        mode = WGPUCallbackMode_AllowProcessEvents,
+                        registration = registration,
+                    ).also { it.nextInChain = null }
+                    wgpuQueueOnSubmittedWorkDone(allocator, queueHandle, callbackInfo)
+                }
+            },
+            closeRegistration = { registration?.close() },
+        )
     }
     return operation.await()
 }

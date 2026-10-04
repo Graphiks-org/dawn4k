@@ -6,7 +6,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.graphiks.dawn4k.internal.PendingOperation
+import org.graphiks.dawn4k.native.WGPUBufferMapCallback
+import org.graphiks.dawn4k.native.register
 import org.graphiks.dawn4k.testing.NativeFixture
+import org.graphiks.kffi.CallbackPolicy
+import org.graphiks.kffi.CallbackRegistration
 import org.graphiks.webgpu.GPUBufferMapState
 import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUMapMode
@@ -14,6 +19,8 @@ import org.graphiks.webgpu.descriptors.BufferDescriptor
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -255,6 +262,36 @@ class BufferGpuTest {
             pending.await()
             fixture.runtime.drainEvents()
             assertEquals(0, fixture.runtime.debugOpenCallbacks())
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun subdeviceOperationClosesRegistrationWhenIssueThrows() = runBlocking {
+        val fixture = NativeFixture.open()
+        try {
+            val operation = PendingOperation<Unit> { }
+            var registration: CallbackRegistration<WGPUBufferMapCallback>? = null
+            val runtime = fixture.runtime
+            // A native issue that throws after the callback was registered must
+            // still close the registration: the registered callback never fires,
+            // so nothing else would ever revoke it.
+            assertFailsWith<IllegalStateException> {
+                runtime.dispatcher.call {
+                    runtime.beginSubdeviceOperation(
+                        operation = operation,
+                        issue = {
+                            registration = WGPUBufferMapCallback.register(CallbackPolicy.ONCE) { _, _, _ -> }
+                            throw IllegalStateException("injected failure")
+                        },
+                        closeRegistration = { registration?.close() },
+                    )
+                }
+            }
+            assertNotNull(registration)
+            assertTrue(registration.isClosed)
+            assertEquals(0, runtime.debugOpenCallbacks())
         } finally {
             fixture.close()
         }
