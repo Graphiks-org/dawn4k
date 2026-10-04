@@ -30,5 +30,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "dawn4k"
+include(":dawn4k")
 include(":dawn4k-native")
 include(":docs")
