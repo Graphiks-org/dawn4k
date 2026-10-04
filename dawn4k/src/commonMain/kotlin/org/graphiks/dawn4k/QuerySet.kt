@@ -41,6 +41,14 @@ class DawnQuerySet internal constructor(
     }
 }
 
+/** Refuses a foreign or foreign-session query set before its handle is read. */
+internal fun GPUQuerySet.requireDawnQuerySet(owner: DeviceSession): DawnQuerySet {
+    val dawn = this as? DawnQuerySet
+        ?: throw IllegalArgumentException("the query set does not belong to this Dawn backend: $this")
+    require(dawn.session === owner) { "the query set belongs to a different device session" }
+    return dawn
+}
+
 /** Creates a [DawnQuerySet] on [this] session and registers it with the resource registry. */
 internal fun DeviceSession.createQuerySet(descriptor: GPUQuerySetDescriptor): DawnQuerySet =
     runtime.dispatcher.call {

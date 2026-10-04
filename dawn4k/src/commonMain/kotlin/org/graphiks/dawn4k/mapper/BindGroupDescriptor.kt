@@ -16,9 +16,6 @@ import org.graphiks.webgpu.GPUSampler
 import org.graphiks.webgpu.GPUTexture
 import org.graphiks.webgpu.GPUTextureView
 
-/** webgpu.h `WGPU_WHOLE_SIZE` (UINT64_MAX): the "to the end of the buffer" size sentinel. */
-private const val WGPU_WHOLE_SIZE: ULong = ULong.MAX_VALUE
-
 /**
  * Allocates a [WGPUBindGroupDescriptor] and its entry array. The layout and every
  * binding resource must belong to [session]; a foreign object is refused with a

@@ -66,6 +66,14 @@ internal fun DeviceSession.createComputePipeline(descriptor: GPUComputePipelineD
         }
     }
 
+/** Refuses a foreign or foreign-session compute pipeline before its handle is read. */
+internal fun GPUComputePipeline.requireDawnComputePipeline(owner: DeviceSession): DawnComputePipeline {
+    val dawn = this as? DawnComputePipeline
+        ?: throw IllegalArgumentException("the compute pipeline does not belong to this Dawn backend: $this")
+    require(dawn.session === owner) { "the compute pipeline belongs to a different device session" }
+    return dawn
+}
+
 /**
  * Creates a [DawnComputePipeline] asynchronously, resolving the returned [Result]
  * once the native callback fires (progressed by the runtime's event pump — no

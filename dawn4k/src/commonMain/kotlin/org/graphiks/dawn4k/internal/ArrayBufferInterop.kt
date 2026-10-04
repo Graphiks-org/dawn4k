@@ -1,5 +1,6 @@
 package org.graphiks.dawn4k.internal
 
+import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.webgpu.ArrayBuffer
 
@@ -10,6 +11,15 @@ import org.graphiks.webgpu.ArrayBuffer
  * read it afterwards.
  */
 internal expect fun borrowedArrayBuffer(address: NativeAddress, size: ULong): ArrayBuffer
+
+/**
+ * Returns the native address of [data] at byte [offset] for an upload downcall,
+ * or — when [data] is not directly addressable on this platform (a heap-backed
+ * segment) — copies [size] bytes into an [allocator]-owned temporary buffer and
+ * returns that instead. The returned address is valid for the duration of one
+ * downcall, as long as [data] stays alive.
+ */
+internal expect fun uploadAddress(allocator: MemoryAllocator, data: ArrayBuffer, offset: ULong, size: ULong): NativeAddress
 
 /**
  * A mapped range that does not fit the host's signed address space cannot be

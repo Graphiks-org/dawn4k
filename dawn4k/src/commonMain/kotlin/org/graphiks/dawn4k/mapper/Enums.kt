@@ -64,6 +64,10 @@ import org.graphiks.dawn4k.native.WGPUIndexFormat
 import org.graphiks.dawn4k.native.WGPUIndexFormat_Undefined
 import org.graphiks.dawn4k.native.WGPUIndexFormat_Uint16
 import org.graphiks.dawn4k.native.WGPUIndexFormat_Uint32
+import org.graphiks.dawn4k.native.WGPULoadOp
+import org.graphiks.dawn4k.native.WGPULoadOp_Clear
+import org.graphiks.dawn4k.native.WGPULoadOp_Load
+import org.graphiks.dawn4k.native.WGPULoadOp_Undefined
 import org.graphiks.dawn4k.native.WGPUMipmapFilterMode
 import org.graphiks.dawn4k.native.WGPUMipmapFilterMode_Linear
 import org.graphiks.dawn4k.native.WGPUMipmapFilterMode_Nearest
@@ -95,6 +99,10 @@ import org.graphiks.dawn4k.native.WGPUStencilOperation_Keep
 import org.graphiks.dawn4k.native.WGPUStencilOperation_Replace
 import org.graphiks.dawn4k.native.WGPUStencilOperation_Zero
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess
+import org.graphiks.dawn4k.native.WGPUStoreOp
+import org.graphiks.dawn4k.native.WGPUStoreOp_Discard
+import org.graphiks.dawn4k.native.WGPUStoreOp_Store
+import org.graphiks.dawn4k.native.WGPUStoreOp_Undefined
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_BindingNotUsed
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_ReadOnly
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_ReadWrite
@@ -285,12 +293,14 @@ import org.graphiks.webgpu.GPUCullMode
 import org.graphiks.webgpu.GPUFilterMode
 import org.graphiks.webgpu.GPUFrontFace
 import org.graphiks.webgpu.GPUIndexFormat
+import org.graphiks.webgpu.GPULoadOp
 import org.graphiks.webgpu.GPUMipmapFilterMode
 import org.graphiks.webgpu.GPUPrimitiveTopology
 import org.graphiks.webgpu.GPUQueryType
 import org.graphiks.webgpu.GPUSamplerBindingType
 import org.graphiks.webgpu.GPUStencilOperation
 import org.graphiks.webgpu.GPUStorageTextureAccess
+import org.graphiks.webgpu.GPUStoreOp
 import org.graphiks.webgpu.GPUTextureAspect
 import org.graphiks.webgpu.GPUTextureDimension
 import org.graphiks.webgpu.GPUTextureFormat
@@ -667,6 +677,26 @@ internal fun GPUTextureSwizzleSource.toNativeComponentSwizzle(): WGPUComponentSw
     GPUTextureSwizzleSource.One -> WGPUComponentSwizzle_One
 }
 
+/** Explicit conversion table Kotlin `GPULoadOp` -> native `WGPULoadOp`. */
+internal fun GPULoadOp.toNativeLoadOp(): WGPULoadOp = when (this) {
+    GPULoadOp.Load -> WGPULoadOp_Load
+    GPULoadOp.Clear -> WGPULoadOp_Clear
+}
+
+/** Explicit conversion table Kotlin `GPUStoreOp` -> native `WGPUStoreOp`. */
+internal fun GPUStoreOp.toNativeStoreOp(): WGPUStoreOp = when (this) {
+    GPUStoreOp.Store -> WGPUStoreOp_Store
+    GPUStoreOp.Discard -> WGPUStoreOp_Discard
+}
+
+/** The native "no explicit load op" value (C `WGPU_LOAD_OP_INIT`). */
+internal val GPULoadOp?.toNativeOrUndefined: WGPULoadOp
+    get() = this?.toNativeLoadOp() ?: WGPULoadOp_Undefined
+
+/** The native "no explicit store op" value (C `WGPU_STORE_OP_INIT`). */
+internal val GPUStoreOp?.toNativeOrUndefined: WGPUStoreOp
+    get() = this?.toNativeStoreOp() ?: WGPUStoreOp_Undefined
+
 /** The native "no explicit index format" value (C `WGPU_INDEX_FORMAT_INIT`). */
 internal val GPUIndexFormat?.toNativeOrUndefined: WGPUIndexFormat
     get() = this?.toNativeIndexFormat() ?: WGPUIndexFormat_Undefined
@@ -676,3 +706,15 @@ internal const val WGPU_MIP_LEVEL_COUNT_UNDEFINED: UInt = 0xFFFFFFFFu
 
 /** The native "no explicit array layer count" value. */
 internal const val WGPU_ARRAY_LAYER_COUNT_UNDEFINED: UInt = 0xFFFFFFFFu
+
+/** webgpu.h `WGPU_WHOLE_SIZE` (SIZE_MAX): the "to the end of the buffer" size sentinel. */
+internal const val WGPU_WHOLE_SIZE: ULong = ULong.MAX_VALUE
+
+/** webgpu.h `WGPU_DEPTH_SLICE_UNDEFINED`: only 3D color attachments define a depth slice. */
+internal const val WGPU_DEPTH_SLICE_UNDEFINED: UInt = 0xFFFFFFFFu
+
+/** webgpu.h `WGPU_COPY_STRIDE_UNDEFINED`: an absent bytesPerRow / rowsPerImage stride. */
+internal const val WGPU_COPY_STRIDE_UNDEFINED: UInt = 0xFFFFFFFFu
+
+/** webgpu.h `WGPU_QUERY_SET_INDEX_UNDEFINED`: an absent timestamp write index. */
+internal const val WGPU_QUERY_SET_INDEX_UNDEFINED: UInt = 0xFFFFFFFFu

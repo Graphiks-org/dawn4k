@@ -30,6 +30,14 @@ class DawnBindGroup internal constructor(
     }
 }
 
+/** Refuses a foreign or foreign-session bind group before its handle is read. */
+internal fun GPUBindGroup.requireDawnBindGroup(owner: DeviceSession): DawnBindGroup {
+    val dawn = this as? DawnBindGroup
+        ?: throw IllegalArgumentException("the bind group does not belong to this Dawn backend: $this")
+    require(dawn.session === owner) { "the bind group belongs to a different device session" }
+    return dawn
+}
+
 /**
  * Creates a [DawnBindGroup] on [this] session. Every binding resource must belong
  * to [this] session: a foreign object is refused (in the descriptor mapper) before
