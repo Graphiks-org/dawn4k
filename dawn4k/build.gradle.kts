@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeHostTest
 
 plugins {
-    id("ygdrasil.conventions.kmp-desktop-library")
+    id("ygdrasil.conventions.kmp-backend-library")
 }
 
 val abiHost: String = run {
@@ -36,39 +36,60 @@ kotlin {
     }
     sourceSets.getByName("commonTest").dependencies {
         implementation("org.graphiks:webgpu-descriptors:0.1.0-SNAPSHOT")
-        implementation("org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT")
         implementation(libs.kotlinx.coroutines.test)
+    }
+
+    // The published acid suite ships no iOS variants, so it cannot stay in
+    // commonTest now that the backend declares the iOS targets: it moves to a
+    // desktop-only intermediate test source set shared by the host test
+    // targets. webgpu-descriptors publishes iOS variants and stays common.
+    val desktopTest = sourceSets.create("desktopTest")
+    desktopTest.dependsOn(sourceSets.getByName("commonTest"))
+    desktopTest.dependencies {
+        implementation("org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT")
+    }
+    listOf("jvmTest", "macosArm64Test", "linuxX64Test").forEach { testSetName ->
+        sourceSets.getByName(testSetName).dependsOn(desktopTest)
     }
 
     // The :dawn4k-native klib references `webgpu.native` types, so every native
     // compilation and binary of this module must resolve the same platform
-    // library and link the same shared library, mirroring its build exactly.
-    listOf("macosArm64", "linuxX64").forEach { nativeTarget ->
+    // library and link the same library, mirroring its build exactly. The
+    // desktop targets consume the shared flavor of the Dawn archives; the iOS
+    // archives only publish a static flavor.
+    val appleFrameworks = listOf(
+        "Metal", "Foundation", "CoreGraphics", "QuartzCore", "IOKit", "IOSurface",
+    )
+    listOf(
+        "macosArm64" to "shared",
+        "linuxX64" to "shared",
+        "iosArm64" to "static",
+        "iosSimulatorArm64" to "static",
+        "iosX64" to "static",
+    ).forEach { (nativeTarget, linkage) ->
         (targets.getByName(nativeTarget) as KotlinNativeTarget).apply {
             compilations.getByName("main").cinterops.create("dawn") {
                 defFile(dawnNativeProject.file("src/nativeInterop/cinterop/dawn.def"))
                 includeDirs(
-                    dawnNativeProject.layout.buildDirectory.dir("native/$nativeTarget/shared/include"),
+                    dawnNativeProject.layout.buildDirectory.dir("native/$nativeTarget/$linkage/include"),
                 )
             }
             binaries.all {
                 val dawnLibDir = dawnNativeProject.layout.buildDirectory
-                    .dir("native/$nativeTarget/shared/lib").get().asFile.absolutePath
+                    .dir("native/$nativeTarget/$linkage/lib").get().asFile.absolutePath
                 linkerOpts("-L$dawnLibDir", "-lwebgpu_dawn")
-                // The test binary references Dawn symbols, so its runtime
-                // loader must find the shared library next to its build path.
-                linkerOpts("-rpath", dawnLibDir)
-                if (nativeTarget == "macosArm64") {
-                    linkerOpts(
-                        "-framework", "Metal",
-                        "-framework", "Foundation",
-                        "-framework", "CoreGraphics",
-                        "-framework", "QuartzCore",
-                        "-framework", "IOKit",
-                        "-framework", "IOSurface",
-                    )
-                } else {
-                    linkerOpts("-lpthread", "-ldl", "-lm")
+                when (nativeTarget) {
+                    "macosArm64" -> {
+                        // The test binary references Dawn symbols, so its runtime
+                        // loader must find the shared library next to its build path.
+                        linkerOpts("-rpath", dawnLibDir)
+                        appleFrameworks.forEach { linkerOpts("-framework", it) }
+                    }
+                    "linuxX64" -> linkerOpts("-lpthread", "-ldl", "-lm")
+                    // iOS links the static archive and the Apple frameworks
+                    // exactly like :dawn4k-native; the convention keeps its
+                    // test binaries disabled.
+                    else -> appleFrameworks.forEach { linkerOpts("-framework", it) }
                 }
             }
         }
@@ -87,9 +108,10 @@ tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
-// GPU tests live in commonTest but only the gpuTest* tasks may execute them:
-// the standard test tasks exclude the *GpuTest classes, and the GPU tasks run
-// exclusively those classes and fail when no adapter is available.
+// GPU tests live in commonTest and desktopTest but only the gpuTest* tasks may
+// execute them: the standard test tasks exclude the *GpuTest classes, and the
+// GPU tasks run exclusively those classes and fail when no adapter is
+// available.
 
 val jvmTestCompilation = kotlin.run {
     val jvmTarget = targets.getByName("jvm") as KotlinJvmTarget
