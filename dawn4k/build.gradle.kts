@@ -130,8 +130,13 @@ tasks.withType<Test>().matching { it.name == "jvmTest" }.configureEach {
 }
 
 // The Kotlin/Native GPU tasks reuse the standard test binaries with a class
-// filter: same executable, restricted to *GpuTest.
-kotlin.targets.withType<KotlinNativeTarget>().configureEach {
+// filter: same executable, restricted to *GpuTest. Only the host-runnable
+// native targets get one: the iOS test binaries cannot execute on the host,
+// so a KotlinNativeHostTest for them would be a lie that only the
+// convention's disable clause keeps inert.
+kotlin.targets.withType<KotlinNativeTarget>()
+    .matching { it.targetName in setOf("macosArm64", "linuxX64") }
+    .configureEach {
     val nativeTarget = this
     val gpuTaskName = "gpuTest" + nativeTarget.targetName.replaceFirstChar { it.uppercase() }
     val testBinary = nativeTarget.binaries.getTest(NativeBuildType.DEBUG)
