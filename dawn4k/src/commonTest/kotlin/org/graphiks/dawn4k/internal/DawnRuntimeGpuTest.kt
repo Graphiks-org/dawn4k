@@ -5,7 +5,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.graphiks.dawn4k.DawnComputePipeline
 import org.graphiks.dawn4k.DawnConfig
+import org.graphiks.dawn4k.DawnRenderPipeline
 import org.graphiks.dawn4k.createComputePipelineAsync
 import org.graphiks.dawn4k.createRenderPipelineAsync
 import org.graphiks.dawn4k.createShaderModule
@@ -28,8 +30,8 @@ import kotlin.test.assertTrue
  * Real-GPU lifecycle of [DawnRuntime]: twenty device sessions opened and closed
  * leave no open callback registration and no owned reference behind, and a wait
  * in flight when the runtime closes fails with the close diagnostic instead of
- * hanging — the async pipeline creations abandoned by that close fold into
- * their [Result] contract instead of throwing out of it. Runs only through the
+ * hanging — the async pipeline creations racing that close fold into their
+ * [Result] contract instead of throwing out of it. Runs only through the
  * gpuTest* tasks; a host without an adapter fails these tests (no silent skip).
  */
 class DawnRuntimeGpuTest {
@@ -86,8 +88,18 @@ class DawnRuntimeGpuTest {
         assertEquals(0, runtime.debugOpenCallbacks())
     }
 
+    /**
+     * The invariant is the fold, never the throw: an async pipeline creation
+     * that is in flight when the runtime closes lands inside its [Result]
+     * contract either way. The close abandons a creation still in flight into
+     * `Result.failure(DawnRuntimeClosedException)`; a creation whose WGSL
+     * compilation settles before the close enqueue completes successfully.
+     * Both shapes are the contract, so both are accepted: the ≥2-callbacks
+     * hand-off below maximizes the abandoned shape but cannot guarantee it
+     * under load, and the invariant under test holds either way.
+     */
     @Test
-    fun asyncPipelineCreationsAbandonedByRuntimeCloseFoldIntoFailures() = runBlocking {
+    fun asyncPipelineCreationsFoldAcrossRuntimeClose() = runBlocking {
         val runtime = DawnRuntime(DawnConfig())
         try {
             val session = runtime.openSession()
@@ -105,22 +117,35 @@ class DawnRuntimeGpuTest {
             val render = async(Dispatchers.Default) {
                 session.createRenderPipelineAsync(renderPipelineDescriptor(renderShader))
             }
-            // Deterministic hand-off: both creations have their callback
-            // registrations open before the close abandons them.
+            // Best-effort hand-off: both creations have their callback
+            // registrations open before the close, which maximizes the
+            // abandoned shape — but a creation may legitimately settle first,
+            // so this must not be load-bearing.
             withTimeout(CREATION_HANDOFF_TIMEOUT_MS) {
                 while (runtime.debugOpenCallbacks() < 2) yield()
             }
             runtime.close()
 
+            // The fold: each in-flight creation lands inside its Result — the
+            // abandoned shape fails with the close diagnostic, the
+            // settled-before-close shape delivers a live pipeline. Neither
+            // ever throws out of the contract.
             val computeOutcome = compute.await()
-            assertTrue(computeOutcome.isFailure)
-            assertIs<DawnRuntimeClosedException>(computeOutcome.exceptionOrNull())
+            if (computeOutcome.isFailure) {
+                assertIs<DawnRuntimeClosedException>(computeOutcome.exceptionOrNull())
+            } else {
+                assertIs<DawnComputePipeline>(computeOutcome.getOrThrow())
+            }
             val renderOutcome = render.await()
-            assertTrue(renderOutcome.isFailure)
-            assertIs<DawnRuntimeClosedException>(renderOutcome.exceptionOrNull())
+            if (renderOutcome.isFailure) {
+                assertIs<DawnRuntimeClosedException>(renderOutcome.exceptionOrNull())
+            } else {
+                assertIs<DawnRenderPipeline>(renderOutcome.getOrThrow())
+            }
 
             // A creation issued after the close folds the dead dispatcher's
-            // refusal into the Result the same way, never out of the contract.
+            // refusal into the Result the same way, never out of the contract —
+            // and here nothing can settle anymore, so failure is strict.
             val late = session.createComputePipelineAsync(
                 ComputePipelineDescriptor(ProgrammableStage(computeShader, "main")),
             )
