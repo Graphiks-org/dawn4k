@@ -29,6 +29,13 @@ val abiHost: String = run {
 val dawnNativeProject = project(":dawn4k-native")
 
 kotlin {
+    // expect/actual classes (the portable SynchronizedObject of the internal
+    // package) opt into the promoted model: the beta warning is not a warning
+    // we want in the build output, and this flag becomes the default anyway.
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k-native"))
         api("org.graphiks:webgpu-api:0.1.0-SNAPSHOT")
