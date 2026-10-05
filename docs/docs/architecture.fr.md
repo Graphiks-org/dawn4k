@@ -101,27 +101,30 @@ session avec la même chorégraphie ordonnée par le dispatcher.
 ## Couverture des cibles face à `:dawn4k-native`
 
 `:dawn4k-native` publie des bindings pour une large matrice (JVM, Android,
-macOS, Linux x64, Android NDK, iOS et tvOS). Le backend `:dawn4k` déclare
-aujourd'hui, délibérément, une matrice **desktop uniquement** — JVM,
-`macosArm64` et `linuxX64` — et cette divergence est bornée par les snapshots
-Graphiks WebGPU publiées, pas seulement par un choix de périmètre :
+macOS, Linux x64, Android NDK, iOS et tvOS). Le backend `:dawn4k` déclare la
+même matrice autant que les snapshots Graphiks WebGPU publiées le permettent —
+JVM, `macosArm64`, `linuxX64` et les trois cibles iOS — et la divergence
+restante est bornée en amont, pas par un choix de périmètre :
 
 | Cible | `:dawn4k-native` | `:dawn4k` | Ce qui borne le backend |
 | --- | --- | --- | --- |
 | JVM | oui | oui (validée) | — |
 | `macosArm64` | oui | oui (validée, Metal) | — |
 | `linuxX64` | oui | oui (un hôte Linux avec GPU est requis pour valider) | — |
-| Android | oui | non | `suite-acid-tests` (dépendance de `commonTest`) ne publie pas de variante Android ; la `ArrayBuffer` empruntée exige en outre un actual `androidMain` (la voie du `ByteBuffer` direct de `ArrayBuffer.wrap` de `webgpu-api-android`) |
-| iOS (`arm64`/`x64`/simulateur) | oui | non | `suite-acid-tests` ne publie pas de variante iOS ; les actuals `nativeMain` couvrent déjà le code du backend |
-| tvOS | oui | non | `webgpu-api` ne publie aucune variante tvOS |
+| iOS (`arm64`/`x64`/simulateur) | oui | déclarée (compilée, binaires de test désactivés comme `:dawn4k-native`) | la validation exige un device ou un simulateur démarré |
+| Android | oui | non | la `ArrayBuffer` empruntée attend en amont un `ArrayBuffer.wrap(ByteBuffer)` par adresse empruntée sur `webgpu-api-android` — une copie CPU ferait un faux `getMappedRange`, interdit par le contrat |
+| tvOS | oui | non | `webgpu-api` et `webgpu-descriptors` ne publient aucune variante tvOS |
 
-Le code du backend est écrit de façon portable (expect/actual, aucun
-JVM-isme dans `commonMain`) : élargir la matrice est un incrément plutôt qu'une
-réécriture — publier les variantes `suite-acid-tests` manquantes (ou déplacer
-cette dépendance vers un source set de test desktop uniquement), déclarer les
-cibles supplémentaires, et pour Android écrire les actuals `androidMain` (le
-dispatcher mono-thread compile déjà sur Android ; la plage mappée empruntée
-envelopperait un `ByteBuffer` direct).
+La `suite-acid-tests` publiée ne fournit pas de variante iOS : cette dépendance
+est passée de `commonTest` vers un source set de test intermédiaire desktop
+uniquement ; le témoin acid du contrat public (`PublicContractGpuTest`) continue
+de tourner sur les cibles hôtes via les tâches `gpuTest*`. Le code du backend est
+écrit de façon portable (expect/actual, aucun JVM-isme dans `commonMain`) : les
+incréments restants sont en amont — une fabrique
+`ArrayBuffer.wrap(ByteBuffer)` par adresse empruntée sur `webgpu-api-android`,
+et des variantes tvOS de `webgpu-api`/`webgpu-descriptors`. Une fois qu'elles
+existeront, déclarer les cibles supplémentaires sera un incrément plutôt qu'une
+réécriture.
 
 ## Règles de possession pour l'appelant
 
