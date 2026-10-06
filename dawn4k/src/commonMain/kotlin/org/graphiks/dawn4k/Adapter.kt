@@ -85,6 +85,14 @@ class DawnAdapter internal constructor(
             }
         }
 
+    /**
+     * The raw `WGPUAdapter` pointer of this adapter, for platform integrators
+     * (surface bridges). Not part of the WebGPU contract: the handle is valid
+     * only while this adapter is open, and native calls must go through the
+     * context's [NativeBridge.call].
+     */
+    fun nativeHandle(): Long = handle.handler.rawValue
+
     override suspend fun requestDevice(descriptor: GPUDeviceDescriptor?): Result<GPUDevice> = try {
         val session = runtime.openSessionOnAdapter(handle) { native, allocator ->
             native.applyDeviceDescriptor(descriptor, allocator)

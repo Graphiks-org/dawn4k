@@ -41,6 +41,18 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
     suspend fun drainEvents() = runtime.drainEvents()
 
     /**
+     * Returns a [NativeBridge] over this context's runtime, for platform
+     * integrators (window/surface bridges). Not part of the WebGPU contract:
+     * the handles are raw native pointers valid only while this context is
+     * open, and [NativeBridge.call] must be used to touch them.
+     */
+    fun nativeBridge(): NativeBridge = object : NativeBridge {
+        override fun <T> call(block: () -> T): T = runtime.dispatcher.call(block)
+        override fun instanceHandle(): Long =
+            runtime.currentInstance()?.handler?.rawValue ?: 0L
+    }
+
+    /**
      * Closes the context's runtime (instance and dispatcher); idempotent.
      * Adapters and device sessions must be closed before it.
      */

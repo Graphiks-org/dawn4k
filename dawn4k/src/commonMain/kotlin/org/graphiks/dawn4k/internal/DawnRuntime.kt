@@ -201,6 +201,11 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         if (teardownSettled.isCompleted) outstandingCallbacks
         else dispatcher.call { outstandingCallbacks }
 
+    /** The current instance, read on the worker; null once teardown has settled. */
+    internal fun currentInstance(): WGPUInstance? =
+        if (teardownSettled.isCompleted) null
+        else dispatcher.call { instance }
+
     // --- Sub-device callback operations ------------------------------------
 
     /**

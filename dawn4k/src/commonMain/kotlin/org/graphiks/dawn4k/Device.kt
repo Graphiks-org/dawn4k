@@ -150,6 +150,14 @@ class DawnDevice internal constructor(
     override val queue: GPUQueue
         get() = ownedQueue
 
+    /**
+     * The raw `WGPUDevice` pointer of this device, for platform integrators
+     * (surface bridges). Not part of the WebGPU contract: the handle is valid
+     * only while this device is open, and native calls must go through the
+     * context's [NativeBridge.call].
+     */
+    fun nativeHandle(): Long = session.handle.handler.rawValue
+
     override fun createBuffer(descriptor: GPUBufferDescriptor): GPUBuffer = session.createBuffer(descriptor)
 
     override fun createTexture(descriptor: GPUTextureDescriptor): GPUTexture = session.createTexture(descriptor)
