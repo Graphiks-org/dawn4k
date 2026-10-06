@@ -5,8 +5,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 
 /**
- * JVM actual: the worker is a dedicated single thread exposed as a coroutine
- * dispatcher. The deferred reentrant close is published by [createNativeDispatcher].
+ * JVM and Android actual: the worker is a dedicated single thread exposed as
+ * a coroutine dispatcher. The deferred reentrant close is published by
+ * [createNativeDispatcher].
  */
 internal actual fun createNativeDispatcher(): NativeDispatcher {
     val executor = Executors.newSingleThreadExecutor { runnable ->

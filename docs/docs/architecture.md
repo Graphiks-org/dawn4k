@@ -94,28 +94,30 @@ dispatcher-ordered choreography.
 ## Target coverage versus `:dawn4k-native`
 
 `:dawn4k-native` publishes bindings for a wide matrix (JVM, Android, macOS,
-Linux x64, Android NDK, iOS and tvOS). The `:dawn4k` backend declares the same
-matrix as far as the published Graphiks WebGPU snapshots allow — JVM,
-`macosArm64`, `linuxX64`, the three iOS targets and the two tvOS targets — and
-the remaining divergence is bounded upstream, not by scope choice:
+Linux x64, Android NDK, iOS and tvOS). The `:dawn4k` backend now declares the
+same Kotlin matrix: JVM, Android, `macosArm64`, `linuxX64`, the three iOS
+targets and the two tvOS targets. Android landed last, after `webgpu-api`
+gained the borrowed-address `ArrayBuffer.wrap(address, size)` factory that a
+GPU-mapped range requires (Graphiks-org/WebGPU#135):
 
-| Target | `:dawn4k-native` | `:dawn4k` | What bounds the backend |
+| Target | `:dawn4k-native` | `:dawn4k` | Validation status |
 | --- | --- | --- | --- |
-| JVM | yes | yes (validated) | — |
-| `macosArm64` | yes | yes (validated, Metal) | — |
-| `linuxX64` | yes | yes (a Linux host with a GPU is required to validate) | — |
-| iOS (`arm64`/`x64`/simulator) | yes | declared (compiled, test binaries disabled like `:dawn4k-native`) | validating requires a device or a booted simulator |
-| tvOS (`arm64`/simulator) | yes | declared (compiled, test binaries disabled like `:dawn4k-native`) | validating requires a device or a booted simulator |
-| Android | yes | no | the borrowed `ArrayBuffer` waits for an upstream borrowed-address `ArrayBuffer.wrap(ByteBuffer)` on `webgpu-api-android` — a CPU copy would fake `getMappedRange`, which the contract forbids |
+| JVM | yes | yes (validated) | JVM tests and the GPU suite on Metal |
+| `macosArm64` | yes | yes (validated, Metal) | K/N tests and the GPU suite on Metal |
+| `linuxX64` | yes | yes | a Linux host with a GPU is required to validate |
+| iOS (`arm64`/`x64`/simulator) | yes | yes | compiled, test binaries disabled like `:dawn4k-native` — validating requires a device or a booted simulator |
+| tvOS (`arm64`/simulator) | yes | yes | compiled, test binaries disabled like `:dawn4k-native` — validating requires a device or a booted simulator |
+| Android | yes | yes | compiled like `:dawn4k-native` (no host-test compilation); the borrowed mapped range goes through the upstream `ArrayBuffer.wrap(address, size)` |
 
-The `suite-acid-tests` dependency lives in a desktop-only intermediate test
-source set: the iOS and tvOS test binaries are disabled, so the public-contract
-acid witness (`PublicContractGpuTest`) runs on the host targets through the
-`gpuTest*` tasks. The backend code is written portably (expect/actual, no
-JVM-isms in `commonMain`), so the only remaining increment is an upstream one:
-a borrowed-address `ArrayBuffer.wrap(ByteBuffer)` factory on `webgpu-api-android`.
-Once it exists, declaring the Android target is an increment rather than a
-rewrite.
+On Android the borrowed `getMappedRange` view and the upload fast path ride
+`webgpu-api`'s public factories: `wrap(address, size)` for the borrowed view,
+and the direct `ByteBuffer` address for uploads, with a copy fallback whenever
+the address accessor is unavailable — the same degradation contract as the
+JVM actual. The `suite-acid-tests` dependency lives in a desktop-only
+intermediate test source set: the iOS and tvOS test binaries are disabled, so
+the public-contract acid witness (`PublicContractGpuTest`) runs on the host
+targets through the `gpuTest*` tasks. The JVM and Android runtimes share their
+dispatcher and lock actuals through a `jvmSharedMain` source set.
 
 ## Ownership rules for callers
 

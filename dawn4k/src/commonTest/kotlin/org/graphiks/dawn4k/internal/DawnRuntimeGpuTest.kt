@@ -168,7 +168,10 @@ class DawnRuntimeGpuTest {
 
     private companion object {
         const val ADAPTER_HANDOFF_TIMEOUT_MS = 20_000L
-        const val CREATION_HANDOFF_TIMEOUT_MS = 20_000L
+        // Generous on purpose: under a heavily loaded build (a forced rerun of the
+        // whole battery, a concurrent Kotlin/Native link), the two in-flight
+        // creations can take tens of seconds just to be scheduled.
+        const val CREATION_HANDOFF_TIMEOUT_MS = 60_000L
     }
 }
 

@@ -101,28 +101,31 @@ session avec la même chorégraphie ordonnée par le dispatcher.
 ## Couverture des cibles face à `:dawn4k-native`
 
 `:dawn4k-native` publie des bindings pour une large matrice (JVM, Android,
-macOS, Linux x64, Android NDK, iOS et tvOS). Le backend `:dawn4k` déclare la
-même matrice autant que les snapshots Graphiks WebGPU publiées le permettent —
-JVM, `macosArm64`, `linuxX64`, les trois cibles iOS et les deux cibles tvOS —
-et la divergence restante est bornée en amont, pas par un choix de périmètre :
+macOS, Linux x64, Android NDK, iOS et tvOS). Le backend `:dawn4k` déclare
+désormais la même matrice Kotlin : JVM, Android, `macosArm64`, `linuxX64`,
+les trois cibles iOS et les deux cibles tvOS. Android est arrivée en dernier,
+après que `webgpu-api` a gagné la fabrique `ArrayBuffer.wrap(address, size)`
+par adresse empruntée qu'exige une plage mappée GPU (Graphiks-org/WebGPU#135) :
 
-| Cible | `:dawn4k-native` | `:dawn4k` | Ce qui borne le backend |
+| Cible | `:dawn4k-native` | `:dawn4k` | Statut de validation |
 | --- | --- | --- | --- |
-| JVM | oui | oui (validée) | — |
-| `macosArm64` | oui | oui (validée, Metal) | — |
-| `linuxX64` | oui | oui (un hôte Linux avec GPU est requis pour valider) | — |
-| iOS (`arm64`/`x64`/simulateur) | oui | déclarée (compilée, binaires de test désactivés comme `:dawn4k-native`) | la validation exige un device ou un simulateur démarré |
-| tvOS (`arm64`/simulateur) | oui | déclarée (compilée, binaires de test désactivés comme `:dawn4k-native`) | la validation exige un device ou un simulateur démarré |
-| Android | oui | non | la `ArrayBuffer` empruntée attend en amont un `ArrayBuffer.wrap(ByteBuffer)` par adresse empruntée sur `webgpu-api-android` — une copie CPU ferait un faux `getMappedRange`, interdit par le contrat |
+| JVM | oui | oui (validée) | tests JVM et suite GPU sur Metal |
+| `macosArm64` | oui | oui (validée, Metal) | tests K/N et suite GPU sur Metal |
+| `linuxX64` | oui | oui | un hôte Linux avec GPU est requis pour valider |
+| iOS (`arm64`/`x64`/simulateur) | oui | oui | compilée, binaires de test désactivés comme `:dawn4k-native` — la validation exige un device ou un simulateur démarré |
+| tvOS (`arm64`/simulateur) | oui | oui | compilée, binaires de test désactivés comme `:dawn4k-native` — la validation exige un device ou un simulateur démarré |
+| Android | oui | oui | compilée comme `:dawn4k-native` (pas de compilation de test hôte) ; la plage mappée empruntée passe par le `ArrayBuffer.wrap(address, size)` amont |
 
-La dépendance `suite-acid-tests` vit dans un source set de test intermédiaire
-desktop uniquement : les binaires de test iOS et tvOS sont désactivés, donc le
-témoin acid du contrat public (`PublicContractGpuTest`) tourne sur les cibles
-hôtes via les tâches `gpuTest*`. Le code du backend est écrit de façon
-portable (expect/actual, aucun JVM-isme dans `commonMain`) : le seul incrément
-restant est en amont — une fabrique `ArrayBuffer.wrap(ByteBuffer)` par adresse
-empruntée sur `webgpu-api-android`. Une fois qu'elle existera, déclarer la
-cible Android sera un incrément plutôt qu'une réécriture.
+Sur Android, la vue empruntée de `getMappedRange` et le chemin rapide
+d'upload passent par les fabriques publiques de `webgpu-api` :
+`wrap(address, size)` pour la vue empruntée, et l'adresse du `ByteBuffer`
+direct pour l'upload, avec repli par copie dès que l'accesseur d'adresse est
+indisponible — le même contrat de dégradation que l'actual JVM. La dépendance
+`suite-acid-tests` vit dans un source set de test intermédiaire desktop
+uniquement : les binaires de test iOS et tvOS sont désactivés, donc le témoin
+acid du contrat public (`PublicContractGpuTest`) tourne sur les cibles hôtes
+via les tâches `gpuTest*`. Les runtimes JVM et Android partagent leurs
+actuals de dispatcher et de verrou via un source set `jvmSharedMain`.
 
 ## Règles de possession pour l'appelant
 
