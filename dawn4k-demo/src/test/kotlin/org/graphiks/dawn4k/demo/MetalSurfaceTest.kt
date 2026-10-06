@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import org.graphiks.kffi.objc.NSView
+import org.graphiks.kffi.objc.CALayer
 import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 
@@ -19,9 +20,40 @@ import org.graphiks.kffi.objc.PlatformAvailability
 class MetalSurfaceTest {
 
     @Test
+    fun metalLayerIsAnOverlayWithoutReplacingTheComposeBackingLayer() {
+        if (!System.getProperty("os.name").lowercase().contains("mac")) return
+        java.awt.Toolkit.getDefaultToolkit()
+        onAppKitThread {
+            val allocated = ObjCRuntime.msgSend(
+                ValueLayout.ADDRESS, ObjCRuntime.getClass("NSView"), ObjCRuntime.sel("alloc")
+            ) as MemorySegment
+            val pointer = ObjCRuntime.msgSend(
+                ValueLayout.ADDRESS, allocated, ObjCRuntime.sel("init")
+            ) as MemorySegment
+            val view = NSView(pointer)
+            try {
+                view.setWantsLayer(true)
+                val backingLayer = view.layer()
+                val overlay = MemorySegment.ofAddress(MetalSurface.metalLayerOf(pointer.address()))
+                try {
+                    assertEquals(backingLayer, view.layer(), "Compose must keep its backing layer")
+                    assertEquals(backingLayer, CALayer(overlay).superlayer(), "Metal must be a sublayer")
+                    kotlin.test.assertTrue(CALayer(overlay).zPosition() > 0.0, "Metal must be above Compose")
+                } finally {
+                    CALayer(overlay).removeFromSuperlayer()
+                    ObjCRuntime.msgSend(null, overlay, ObjCRuntime.sel("release"))
+                }
+            } finally {
+                ObjCRuntime.msgSend(null, pointer, ObjCRuntime.sel("release"))
+            }
+        }
+    }
+
+    @Test
     fun nsViewLayerIsRetrievableAfterSetWantsLayer() {
         if (System.getProperty("os.name").lowercase().contains("mac").not()) return
-        ObjCRuntime.autoreleasePool {
+        java.awt.Toolkit.getDefaultToolkit()
+        onAppKitThread {
             // Create a bare NSView via alloc + init (initWithFrame: takes an
             // NSRect by value — ObjCStructArg is internal to kffi-objc).
             val viewClass = ObjCRuntime.getClass("NSView")
@@ -45,7 +77,8 @@ class MetalSurfaceTest {
     @Test
     fun createdCaMetalLayerIsDetectedAsCaMetalLayer() {
         if (System.getProperty("os.name").lowercase().contains("mac").not()) return
-        ObjCRuntime.autoreleasePool {
+        java.awt.Toolkit.getDefaultToolkit()
+        onAppKitThread {
             val metalLayer = MetalSurface.createCaMetalLayer()
             assertNotNull(metalLayer)
             // The class of the created layer must be CAMetalLayer.

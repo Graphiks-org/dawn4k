@@ -1,0 +1,133 @@
+package org.graphiks.dawn4k.demo
+
+import androidx.compose.ui.awt.ComposeWindow
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import javax.swing.SwingUtilities
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
+import org.graphiks.kffi.objc.CALayer
+import org.graphiks.kffi.objc.CGSize
+import org.graphiks.kffi.objc.NSArray
+import org.graphiks.kffi.objc.NSView
+import org.graphiks.kffi.objc.NSWindow
+import org.graphiks.kffi.objc.ObjCRuntime
+import org.graphiks.kffi.objc.PlatformAvailability
+import kotlin.math.roundToInt
+
+/** Exercises the real Compose → AppKit overlay → Dawn configuration and shutdown. */
+@OptIn(PlatformAvailability::class)
+class DemoWindowTest {
+    @Test
+    fun closingBeforeNativeAttachmentCancelsStartupWithoutTouchingADisposedWindow() {
+        if (!System.getProperty("os.name").lowercase().contains("mac")) return
+        lateinit var window: ComposeWindow
+        SwingUtilities.invokeAndWait {
+            window = ComposeWindow()
+            window.setSize(420, 320)
+            window.setContent {}
+            window.isVisible = true
+            window.dispose()
+        }
+        assertFailsWith<CancellationException> {
+            runBlocking { awaitMetalLayerHost(window) }
+        }
+    }
+
+    @Test
+    fun demoConfiguresAVisibleOverlayAtWindowPixelSizeAndReleasesItOnClose() {
+        if (!System.getProperty("os.name").lowercase().contains("mac")) return
+        lateinit var window: ComposeWindow
+        var overlay = MemorySegment.NULL
+        val originalOutput = System.out
+        val trace = ByteArrayOutputStream()
+        val capture = PrintStream(trace, true)
+        System.setOut(capture)
+        try {
+            SwingUtilities.invokeAndWait {
+                window = ComposeWindow()
+                window.setSize(420, 320)
+                window.setContent { DemoApp(window) }
+                window.isVisible = true
+            }
+            var handle = 0L
+            awaitCondition("Compose native window") {
+                SwingUtilities.invokeAndWait { handle = window.windowHandle }
+                handle != 0L
+            }
+            awaitCondition("Dawn overlay configuration") {
+                onAppKitThread {
+                    val view = NSView(NSWindow(MemorySegment.ofAddress(handle)).contentView())
+                    val layers = NSArray(CALayer(view.layer()).sublayers())
+                    val candidate = (0 until layers.count()).map { layers.objectAtIndex(it) }
+                        .firstOrNull {
+                            CALayer(it).zPosition() > 0.0 && ObjCRuntime.msgSend(
+                                ValueLayout.JAVA_BOOLEAN, it, ObjCRuntime.sel("isKindOfClass:"),
+                                ObjCRuntime.getClass("CAMetalLayer")
+                            ) == true
+                        }
+                    if (candidate == null || drawableSize(candidate).first <= 0) false
+                    else {
+                        overlay = candidate
+                        ObjCRuntime.msgSend(null, overlay, ObjCRuntime.sel("retain"))
+                        assertEquals(view.layer(), CALayer(overlay).superlayer())
+                        true
+                    }
+                }
+            }
+            // This trace is emitted only after acquisition, submission and successful present.
+            awaitCondition("first successfully presented particle frame") {
+                trace.toString().contains("[demo] frame 1 rendered")
+            }
+            val initialSize = onAppKitThread { drawableSize(overlay) }
+            SwingUtilities.invokeAndWait { window.setSize(610, 410) }
+            awaitCondition("Dawn resize in physical pixels") {
+                onAppKitThread {
+                    val nativeWindow = NSWindow(MemorySegment.ofAddress(handle))
+                    val bounds = NSView(nativeWindow.contentView()).bounds()
+                    val scale = nativeWindow.backingScaleFactor()
+                    val expected = (bounds.size.width * scale).roundToInt() to
+                        (bounds.size.height * scale).roundToInt()
+                    val actual = drawableSize(overlay)
+                    actual != initialSize && actual == expected
+                }
+            }
+            SwingUtilities.invokeAndWait { window.dispose() }
+            awaitCondition("overlay cleanup after composition cancellation") {
+                onAppKitThread { CALayer(overlay).superlayer() == MemorySegment.NULL }
+            }
+        } finally {
+            try {
+                SwingUtilities.invokeAndWait { if (window.isDisplayable) window.dispose() }
+                if (overlay != MemorySegment.NULL) onAppKitThread {
+                    ObjCRuntime.msgSend(null, overlay, ObjCRuntime.sel("release"))
+                }
+            } finally {
+                System.setOut(originalOutput)
+                originalOutput.print(trace.toString())
+                capture.close()
+            }
+        }
+    }
+
+    private fun drawableSize(layer: MemorySegment): Pair<Int, Int> {
+        val size = ObjCRuntime.msgSendStruct(CGSize.layout, layer, ObjCRuntime.sel("drawableSize"))
+        return size.get(ValueLayout.JAVA_DOUBLE, 0).roundToInt() to
+            size.get(ValueLayout.JAVA_DOUBLE, 8).roundToInt()
+    }
+
+    private fun awaitCondition(description: String, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + 10_000_000_000L
+        while (System.nanoTime() < deadline) {
+            if (condition()) return
+            Thread.sleep(25)
+        }
+        assertTrue(condition(), "timed out waiting for $description")
+    }
+}

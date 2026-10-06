@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the Dokka GFM and Python post-processing pipeline with Dokka for Material for MkDocs.
 
 ### Fixed
+- Blank Compose/Metal demo window, fixed-size surface rendering and animation stalls during mouse dragging; native UI work now runs on AppKit in common run-loop modes with explicit resource cleanup.
 - Default snapshot publication version when no workflow version is provided.
 
 ### Built with

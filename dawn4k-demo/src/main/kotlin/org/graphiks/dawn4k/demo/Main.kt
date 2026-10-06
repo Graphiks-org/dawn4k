@@ -11,7 +11,7 @@ fun main() {
             title = "dawn4k-demo — ParticleScene (Dawn/Metal)",
             onCloseRequest = ::exitApplication,
         ) {
-            DemoApp()
+            DemoApp(window)
         }
     }
 }

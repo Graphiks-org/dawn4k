@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.demo
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -9,6 +10,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.awt.ComposeWindow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -18,43 +21,41 @@ import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnDevice
+import org.graphiks.dawn4k.NativeBridge
 import org.graphiks.dawn4k.native.wgpuTextureCreateView
-import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.GPUTextureView
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
 import org.graphiks.webgpu.suite.demos.particles.initialParticles
 import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
-import org.jetbrains.skiko.SkiaLayer
+import org.jetbrains.skiko.MainUIDispatcher
 
 private const val ParticleCount = 4096
 
 @Composable
-fun DemoApp() {
-    // The Compose content is empty: the whole window is the WebGPU surface.
-    // We only need the SkiaLayer to extract the NSView → CAMetalLayer.
+fun DemoApp(window: ComposeWindow) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     if (errorMessage != null) {
-        // No material3/material on the classpath: log to stderr and show an empty canvas.
-        System.err.println("dawn4k-demo error: $errorMessage")
+        BasicText("dawn4k-demo error: $errorMessage")
+    } else {
+        Canvas(Modifier.fillMaxSize()) {}
     }
 
     // LaunchedEffect drives the GPU setup + render loop off the UI thread's
     // composition, but the actual native calls go through the bridge (worker).
-    LaunchedEffect(Unit) {
+    LaunchedEffect(window) {
         try {
             withContext(Dispatchers.Default) {
-                runDemo()
+                runDemo(window)
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: Throwable) {
+            failure.printStackTrace()
             errorMessage = failure.message ?: failure.toString()
         }
     }
-
-    // Empty composable: reserves the window. The SkiaLayer is reached via
-    // reflection on the ComposeWindow (see extractMetalLayerPtr).
-    Canvas(Modifier.fillMaxSize()) {}
 }
 
 /**
@@ -62,30 +63,24 @@ fun DemoApp() {
  * CAMetalLayer from the Compose window, creates the surface, builds the
  * particle scene, and renders frames until the coroutine is cancelled.
  */
-private suspend fun runDemo() {
-    println("[demo] creating Dawn context (Metal backend)")
-    val context = DawnContext.create(DawnConfig(backend = DawnBackend.Metal))
-    context.use { context ->
-        println("[demo] requesting adapter")
-        val adapter = context.requestAdapter().getOrThrow()
-        adapter.use {
-            println("[demo] requesting device")
-            val device = adapter.requestDevice().getOrThrow() as DawnDevice
-            device.use { device ->
-                val bridge = context.nativeBridge()
-                println("[demo] extracting CAMetalLayer from the Compose window")
-                val metalLayerPtr = extractMetalLayerPtr()
-                    ?: throw IllegalStateException("could not retrieve the CAMetalLayer from the Compose window")
-                println("[demo] CAMetalLayer ptr=0x${metalLayerPtr.toString(16)}")
-                val surface = MetalSurface.create(bridge, device.nativeHandle(), metalLayerPtr)
-                surface.use { surface ->
-                    val limits = device.limits
-                    val count = minOf(ParticleCount, maxParticleCount(limits))
-                    println("[demo] creating ParticleScene ($count particles)")
-                    val scene = ParticleScene.create(device, GPUTextureFormat.BGRA8Unorm, initialParticles(count))
-                    scene.use { scene ->
-                        println("[demo] scene ready — starting render loop")
-                        renderLoop(device, surface, scene)
+private suspend fun runDemo(window: ComposeWindow) {
+    val host = awaitMetalLayerHost(window)
+    host.use {
+        println("[demo] creating Dawn context (Metal backend)")
+        DawnContext.create(DawnConfig(backend = DawnBackend.Metal)).use { context ->
+            println("[demo] requesting adapter")
+            context.requestAdapter().getOrThrow().use { adapter ->
+                println("[demo] requesting device")
+                (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
+                    val bridge = context.nativeBridge()
+                    println("[demo] CAMetalLayer ptr=0x${host.layerPtr.toString(16)}")
+                    MetalSurface.create(bridge, device.nativeHandle(), host.layerPtr).use { surface ->
+                        val count = minOf(ParticleCount, maxParticleCount(device.limits))
+                        println("[demo] creating ParticleScene ($count particles)")
+                        ParticleScene.create(device, GPUTextureFormat.BGRA8Unorm, initialParticles(count)).use { scene ->
+                            println("[demo] scene ready — starting render loop")
+                            renderLoop(device, surface, scene, host, bridge)
+                        }
                     }
                 }
             }
@@ -101,6 +96,8 @@ private suspend fun renderLoop(
     device: DawnDevice,
     surface: MetalSurface,
     scene: ParticleScene,
+    host: MetalLayerHost,
+    bridge: NativeBridge,
 ) {
     var lastFrame = System.nanoTime()
     var frameCount = 0L
@@ -109,39 +106,32 @@ private suspend fun renderLoop(
         val delta = ((now - lastFrame) / 1e9).toFloat().coerceIn(0f, 0.05f)
         lastFrame = now
 
-        val width = surface.width
-        val height = surface.height
+        val (width, height) = host.pixelSize()
         if (width <= 0 || height <= 0) {
-            // Not configured yet (first frame): configure with a default size.
-            println("[demo] configuring surface ${width}x${height} → 800x600")
-            surface.configure(800, 600)
+            delay(16)
             continue
+        }
+        if (width != surface.width || height != surface.height) {
+            println("[demo] configuring surface ${width}x${height}")
+            surface.configure(width, height)
         }
 
         try {
-            val texture = surface.acquireFrame()
             // The Dawn backend's render pass requires a DawnTextureView (internal
             // constructor). We create one via reflection over the borrowed texture's
             // WGPUTextureView handle. The DawnTextureView owns the view reference
             // and releases it on close().
-            val view = createDawnTextureView(device, texture)
-            try {
-                val encoder = device.createCommandEncoder()
-                try {
-                    scene.encodeFrame(encoder, view, width, height, delta)
-                    val commandBuffer = encoder.finish()
-                    try {
-                        device.queue.submit(listOf(commandBuffer))
-                    } finally {
-                        commandBuffer.close()
+            surface.acquireFrame().use { texture ->
+                bridge.call { createDawnTextureView(device, texture) }.use { view ->
+                    device.createCommandEncoder().use { encoder ->
+                        scene.encodeFrame(encoder, view, width, height, delta)
+                        encoder.finish().use { commandBuffer ->
+                            device.queue.submit(listOf(commandBuffer))
+                        }
                     }
-                } finally {
-                    encoder.close()
                 }
-            } finally {
-                view.close()
+                surface.present(texture)
             }
-            surface.present(texture)
             frameCount++
             if (frameCount == 1L || frameCount % 120L == 0L) {
                 println("[demo] frame $frameCount rendered (${width}x${height}, delta=${"%.3f".format(delta)}s)")
@@ -198,59 +188,32 @@ private fun createDawnTextureView(
     return constructor.newInstance(session, rawHandle, "surface-view") as GPUTextureView
 }
 
-/**
- * Extracts the `CAMetalLayer*` pointer from the current Compose window.
- *
- * The chain is: ComposeWindow (JFrame) → composePanel (private) →
- * ComposeWindowPanel → _composeContainer (private) → ComposeContainer →
- * contentComponent (public) → SkiaLayer → contentHandle (public).
- *
- * On macOS, `SkiaLayer.contentHandle` returns the `NSWindow*` (not the NSView*).
- * We get the content view via `-[NSWindow contentView]` and pass that NSView*
- * to [MetalSurface.metalLayerOf].
- *
- * The private hops use reflection; if Compose changes its internals, this
- * throws with a clear message.
- */
-private fun extractMetalLayerPtr(): Long? {
-    waitForVisibleWindow()
-    val window = java.awt.Window.getWindows().firstOrNull { it.isShowing }
-        ?: throw IllegalStateException("no visible window found")
-    // ComposeWindow extends JFrame; its composePanel field is private.
-    val composePanel = window.javaClass.getDeclaredField("composePanel").apply {
-        isAccessible = true
-    }.get(window)
-    // ComposeWindowPanel._composeContainer is private.
-    val container = composePanel.javaClass.getDeclaredField("_composeContainer").apply {
-        isAccessible = true
-    }.get(composePanel)
-    // ComposeContainer is internal — use reflection to call contentComponent.
-    val skiaLayer = container.javaClass.getMethod("getContentComponent").invoke(container) as SkiaLayer
-    // On macOS, contentHandle returns the NSWindow* (verified in skiko's
-    // Drawlayer.mm: getContentHandle returns layer.window).
-    val nsWindowPtr = skiaLayer.contentHandle
-    // Get the content view (NSView*) from the NSWindow via ObjC.
-    val nsViewPtr = org.graphiks.kffi.objc.ObjCRuntime.autoreleasePool {
-        val contentView = org.graphiks.kffi.objc.ObjCRuntime.msgSend(
-            java.lang.foreign.ValueLayout.ADDRESS,
-            java.lang.foreign.MemorySegment.ofAddress(nsWindowPtr),
-            org.graphiks.kffi.objc.ObjCRuntime.sel("contentView"),
-        ) as java.lang.foreign.MemorySegment
-        contentView.address()
+/** Keep handle lookup and native retention in one EDT operation, excluding disposal. */
+@OptIn(org.graphiks.kffi.objc.PlatformAvailability::class)
+internal suspend fun awaitMetalLayerHost(window: ComposeWindow): MetalLayerHost {
+    val deadline = System.nanoTime() + 5_000_000_000L
+    while (System.nanoTime() < deadline) {
+        var host: MetalLayerHost? = null
+        try {
+            withContext(MainUIDispatcher) {
+                if (!window.isDisplayable) throw CancellationException("the Compose window was closed")
+                if (window.isShowing) {
+                    val handle = window.windowHandle
+                    if (handle != 0L) host = onAppKitThread {
+                        val view = org.graphiks.kffi.objc.NSWindow(
+                            java.lang.foreign.MemorySegment.ofAddress(handle)
+                        ).contentView()
+                        MetalLayerHost.attach(view.address())
+                    }
+                }
+            }
+        } catch (failure: Throwable) {
+            // withContext may discard its result on cancellation after native attachment.
+            host?.close()
+            throw failure
+        }
+        host?.let { return it }
+        delay(50)
     }
-    return MetalSurface.metalLayerOf(nsViewPtr)
-}
-
-/**
- * Waits until at least one AWT window is visible (showing), with a timeout.
- * The LaunchedEffect runs after the first composition, but the window may not
- * be visible yet — poll until it is.
- */
-private fun waitForVisibleWindow(timeoutMillis: Long = 5000) {
-    val deadline = System.currentTimeMillis() + timeoutMillis
-    while (System.currentTimeMillis() < deadline) {
-        if (java.awt.Window.getWindows().any { it.isShowing }) return
-        Thread.sleep(50)
-    }
-    throw IllegalStateException("timed out waiting for a visible window after ${timeoutMillis}ms")
+    error("timed out waiting for the Compose window's native handle")
 }

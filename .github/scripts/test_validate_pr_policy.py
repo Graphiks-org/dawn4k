@@ -150,6 +150,22 @@ class ValidatePrPolicyTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_demo_scope_is_accepted_by_repository_policy(self) -> None:
+        self.policy = Path(__file__).resolve().parents[1] / "contributing-policy.toml"
+        errors = self.validate(
+            title="fix(demo): render particles during dragging",
+            body=make_body(selected_type="fix"),
+            branch="fix/demo-rendering",
+            changed_files=["dawn4k-demo/src/main/kotlin/DemoApp.kt", "CHANGELOG.md"],
+            commit_subjects=[
+                "refactor(demo): simplify resource management with use blocks in DemoApp",
+                "fix(demo): render particles during dragging",
+            ],
+            base_ancestor=True,
+            merge_commits=0,
+        )
+        self.assertEqual(errors, [])
+
     def test_invalid_title_is_rejected(self) -> None:
         errors = self.validate(
             title="add policy validation",

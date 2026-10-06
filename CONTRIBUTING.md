@@ -118,7 +118,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 | `test`    | Adding or fixing tests                             |
 | `style`   | Code style (formatting, imports ordering)          |
 
-**Scopes:** `dawn4k`, `dawn4k-native`, `buildSrc`, `docs`, `release`
+**Scopes:** `dawn4k`, `dawn4k-native`, `demo`, `buildSrc`, `docs`, `release`
 
 **Examples:**
 ```

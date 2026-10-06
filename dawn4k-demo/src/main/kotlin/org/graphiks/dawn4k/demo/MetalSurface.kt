@@ -20,7 +20,6 @@ import org.graphiks.dawn4k.native.WGPUStatus_Success
 import org.graphiks.dawn4k.native.WGPUTexture
 import org.graphiks.dawn4k.native.WGPUTextureFormat_BGRA8Unorm
 import org.graphiks.dawn4k.native.WGPUTextureUsage_RenderAttachment
-import org.graphiks.dawn4k.native.WGPUTextureView
 import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceMetalLayer
 import org.graphiks.dawn4k.native.wgpuInstanceCreateSurface
 import org.graphiks.dawn4k.native.wgpuSurfaceConfigure
@@ -28,22 +27,14 @@ import org.graphiks.dawn4k.native.wgpuSurfaceGetCurrentTexture
 import org.graphiks.dawn4k.native.wgpuSurfacePresent
 import org.graphiks.dawn4k.native.wgpuSurfaceRelease
 import org.graphiks.dawn4k.native.wgpuSurfaceUnconfigure
-import org.graphiks.dawn4k.native.wgpuTextureCreateView
 import org.graphiks.dawn4k.native.wgpuTextureRelease
-import org.graphiks.dawn4k.native.wgpuTextureViewRelease
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.memoryScope
 import org.graphiks.kffi.objc.NSView
+import org.graphiks.kffi.objc.CALayer
+import org.graphiks.kffi.objc.CAAutoresizingMask
 import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
-import org.graphiks.webgpu.GPUIntegerCoordinateOut
-import org.graphiks.webgpu.GPUSize32Out
-import org.graphiks.webgpu.GPUTexture
-import org.graphiks.webgpu.GPUTextureDimension
-import org.graphiks.webgpu.GPUTextureFormat
-import org.graphiks.webgpu.GPUTextureUsage
-import org.graphiks.webgpu.GPUTextureView
-import org.graphiks.webgpu.GPUTextureViewDescriptor
 
 /**
  * A Dawn surface over a macOS `CAMetalLayer`, living entirely inside the demo.
@@ -54,18 +45,14 @@ import org.graphiks.webgpu.GPUTextureViewDescriptor
  * worker thread — the only thread allowed to touch Dawn handles.
  *
  * The current texture is BORROWED from the surface: it is released after
- * [present], never destroyed. The wrappers ([BorrowedSurfaceTexture],
- * [BorrowedSurfaceTextureView]) implement the public `GPUTexture` /
- * `GPUTextureView` contracts without registering in the backend's resource
- * registry (the texture does not belong to a device session).
+ * [present], never destroyed. [BorrowedSurfaceTexture.close] releases only
+ * the acquired reference, including when encoding or presentation fails.
  */
 @OptIn(PlatformAvailability::class)
 class MetalSurface private constructor(
     private val bridge: NativeBridge,
-    private val instance: WGPUInstance,
     private val device: WGPUDevice,
     private val handle: WGPUSurface,
-    private val metalLayer: MemorySegment,
 ) : AutoCloseable {
 
     private var configuredWidth: Int = 0
@@ -89,7 +76,6 @@ class MetalSurface private constructor(
             require(instanceHandle != 0L) { "the context is closed: no instance handle" }
             require(deviceHandle != 0L) { "the device is closed: no device handle" }
             require(metalLayerPtr != 0L) { "the metal layer pointer is null" }
-            val metalLayer = MemorySegment.ofAddress(metalLayerPtr)
             return bridge.call {
                 memoryScope { allocator ->
                     val instance = WGPUInstance(NativeAddress(instanceHandle))
@@ -108,7 +94,7 @@ class MetalSurface private constructor(
 
                     val surface = wgpuInstanceCreateSurface(instance, descriptor)
                         ?: throw IllegalStateException("wgpuInstanceCreateSurface returned no surface")
-                    MetalSurface(bridge, instance, device, surface, metalLayer)
+                    MetalSurface(bridge, device, surface)
                 }
             }
         }
@@ -136,13 +122,9 @@ class MetalSurface private constructor(
         }
 
         /**
-         * Retrieves the `CAMetalLayer*` of a Compose/Skia [nsViewPtr] (an `NSView*`
-         * as a Long). Forces layer creation with `setWantsLayer(true)`, reads
-         * `layer`, and verifies it is a `CAMetalLayer`. If the view's layer is a
-         * plain `CALayer`, a fresh `CAMetalLayer` is created and installed with
-         * `setLayer:`.
-         *
-         * Returns the `CAMetalLayer*` as a Long, or throws.
+         * Installs a dedicated Metal overlay above the view's Compose/Skia children.
+         * Never replace the backing layer: its contents are below those children.
+         * Call on the AppKit thread. The caller must detach and release the layer.
          */
         fun metalLayerOf(nsViewPtr: Long): Long = ObjCRuntime.autoreleasePool {
             require(nsViewPtr != 0L) { "the NSView pointer is null" }
@@ -150,23 +132,17 @@ class MetalSurface private constructor(
             view.setWantsLayer(true)
             val layer = view.layer()
             require(layer != MemorySegment.NULL) { "setWantsLayer(true) did not create a layer" }
-            val layerClass = ObjCRuntime.msgSend(
-                ValueLayout.ADDRESS, layer, ObjCRuntime.sel("class")
-            ) as MemorySegment
-            val metalLayerClass = ObjCRuntime.getClass("CAMetalLayer")
-            if (layerClass == metalLayerClass) {
-                layer.address()
-            } else {
-                // Replace the plain CALayer with a CAMetalLayer.
-                val metalLayer = createCaMetalLayer()
-                view.setLayer(metalLayer)
-                metalLayer.address()
-            }
+            val metalLayer = createCaMetalLayer()
+            val overlay = CALayer(metalLayer)
+            overlay.setFrame(view.bounds())
+            overlay.setAutoresizingMask(
+                CAAutoresizingMask.kCALayerWidthSizable + CAAutoresizingMask.kCALayerHeightSizable
+            )
+            overlay.setZPosition(1.0)
+            CALayer(layer).addSublayer(metalLayer)
+            metalLayer.address()
         }
     }
-
-    /** The `CAMetalLayer*` this surface renders into, as a Long. */
-    val metalLayerPtr: Long get() = metalLayer.address()
 
     /**
      * Configures (or reconfigures) the surface for [width]×[height] pixels.
@@ -202,7 +178,7 @@ class MetalSurface private constructor(
     val height: Int get() = configuredHeight
 
     /**
-     * Acquires the current surface texture as a borrowed [GPUTexture].
+     * Acquires a borrowed surface texture reference; close it after presentation.
      * The texture is valid until [present] is called with it.
      *
      * @throws SurfaceOutdatedException when the surface must be reconfigured
@@ -222,7 +198,7 @@ class MetalSurface private constructor(
                     WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal -> {
                         val texture = surfaceTexture.texture
                             ?: throw IllegalStateException("surface texture is null despite success status")
-                        BorrowedSurfaceTexture(texture, configuredWidth.toUInt(), configuredHeight.toUInt())
+                        BorrowedSurfaceTexture(bridge, texture)
                     }
                     WGPUSurfaceGetCurrentTextureStatus_Outdated,
                     WGPUSurfaceGetCurrentTextureStatus_Lost ->
@@ -236,19 +212,17 @@ class MetalSurface private constructor(
     }
 
     /**
-     * Presents [texture] (acquired by [acquireFrame]) and releases the borrowed
-     * reference. The texture must not be used after this call.
+     * Presents [texture] (acquired by [acquireFrame]). Use it in a `use` block
+     * to release the reference even when encoding or presentation fails.
      */
     fun present(texture: BorrowedSurfaceTexture) {
         check(!closed) { "the surface is closed" }
+        check(!texture.released) { "the surface texture is released" }
         bridge.call {
             val status = wgpuSurfacePresent(handle)
             if (status != WGPUStatus_Success) {
                 throw IllegalStateException("wgpuSurfacePresent failed (status=$status)")
             }
-            // Release the borrowed texture reference — NEVER destroy: the
-            // texture belongs to the surface.
-            wgpuTextureRelease(texture.handle)
         }
     }
 
@@ -266,47 +240,20 @@ class MetalSurface private constructor(
 class SurfaceOutdatedException(message: String) : IllegalStateException(message)
 
 /**
- * A borrowed surface texture: implements [GPUTexture] without registering in
- * the backend's resource registry. [close] is a no-op — the texture belongs to
- * the surface and is released by [MetalSurface.present].
+ * A borrowed surface texture. [close] releases only the borrowed reference,
+ * never destroys the texture owned by the surface.
  */
 class BorrowedSurfaceTexture internal constructor(
+    private val bridge: NativeBridge,
     internal val handle: WGPUTexture,
-    override val width: GPUIntegerCoordinateOut,
-    override val height: GPUIntegerCoordinateOut,
-) : GPUTexture {
+) : AutoCloseable {
+    internal var released = false
+        private set
 
-    override val depthOrArrayLayers: GPUIntegerCoordinateOut = 1u
-    override val mipLevelCount: GPUIntegerCoordinateOut = 1u
-    override val sampleCount: GPUSize32Out = 1u
-    override val dimension: GPUTextureDimension = GPUTextureDimension.TwoD
-    override val format: GPUTextureFormat = GPUTextureFormat.BGRA8Unorm
-    override val usage: Set<GPUTextureUsage> = setOf(GPUTextureUsage.RenderAttachment)
-    override var label: String = "surface"
-
-    override fun createView(descriptor: GPUTextureViewDescriptor?): GPUTextureView {
-        // A null descriptor adopts the C defaults (whole texture, all aspects).
-        val viewHandle = wgpuTextureCreateView(handle, null)
-            ?: throw IllegalStateException("wgpuTextureCreateView returned no view")
-        return BorrowedSurfaceTextureView(viewHandle)
-    }
-
-    override fun close() {
-        // No-op: the texture is owned by the surface and released by present().
-    }
-}
-
-/**
- * A view over a borrowed surface texture. [close] releases the view reference
- * (the view is a fresh reference created by `wgpuTextureCreateView`).
- */
-class BorrowedSurfaceTextureView internal constructor(
-    internal val handle: WGPUTextureView,
-) : GPUTextureView {
-
-    override var label: String = "surface-view"
-
-    override fun close() {
-        wgpuTextureViewRelease(handle)
+    override fun close() = bridge.call {
+        if (!released) {
+            released = true
+            wgpuTextureRelease(handle)
+        }
     }
 }

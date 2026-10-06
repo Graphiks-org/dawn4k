@@ -16,14 +16,16 @@ Metal et le pont Objective-C sont spécifiques à macOS).
 
 ## Fonctionnement
 
-1. **Fenêtre** : Compose Desktop crée la fenêtre. La démo atteint le
-   `SkiaLayer` sous-jacent (via le `ComposeContainer` de Compose) et lit le
-   handle natif de la `NSView`.
-2. **Couche Metal** : le `CAMetalLayer` de la `NSView` est récupéré (ou créé et
-   installé) via `kffi-objc` — un pont Objective-C pur JVM sur FFM, sans JNA,
-   sans compilation native.
+1. **Fenêtre** : Compose Desktop crée la fenêtre. Son API publique `windowHandle`
+   fournit le pointeur `NSWindow` ; `kffi-objc` récupère sa `NSView` de contenu.
+2. **Couche Metal** : une `CAMetalLayer` dédiée est installée au-dessus des enfants
+   Compose, sans remplacer sa couche de fond. Les appels AppKit utilisent une
+   source de boucle d'événements en modes communs pour éviter les gels pendant un
+   glisser ou un redimensionnement. Le pont Objective-C utilise FFM sur JVM, sans
+   JNA ni compilation native.
 3. **Surface** : une `WGPUSurface` Dawn est créée sur le `CAMetalLayer`
-   (`WGPUSurfaceSourceMetalLayer`), configurée en `BGRA8Unorm` / `Fifo`.
+   (`WGPUSurfaceSourceMetalLayer`), configurée en `BGRA8Unorm` / `Fifo` et
+   redimensionnée selon la taille physique en pixels, y compris sur écran Retina.
 4. **Boucle de rendu** : chaque frame acquiert la texture de surface, encode
    la `ParticleScene` (passe compute + passe render), soumet et présente.
 
@@ -38,6 +40,9 @@ accesseurs minimaux « platform integrator » (`DawnContext.nativeBridge()`,
 ./gradlew :dawn4k-demo:test
 ```
 
-Les tests sont headless (sans fenêtre) : ils vérifient le pont ObjC (NSView →
-CAMetalLayer) et les wrappers de texture empruntée. La boucle de rendu complète
-est validée manuellement sur macOS.
+Sur macOS, les tests vérifient la conservation de la couche Compose, les appels
+AppKit pendant un glisser, le redimensionnement et la libération des ressources.
+Un test d'intégration ouvre une vraie fenêtre Compose et vérifie la présentation
+d'une frame, les tailles physiques en pixels et l'annulation lors d'une fermeture
+précoce ; ces tests nécessitent une session graphique. La visibilité des particules
+et la continuité de l'animation pendant un glisser sont aussi vérifiées manuellement.

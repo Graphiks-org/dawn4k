@@ -16,14 +16,15 @@ Objective-C bridge are macOS-specific).
 
 ## How it works
 
-1. **Window**: Compose Desktop creates the window. The demo reaches the
-   underlying `SkiaLayer` (via Compose's public `ComposeContainer`) and reads
-   the native `NSView` handle.
-2. **Metal layer**: the `NSView`'s `CAMetalLayer` is retrieved (or created and
-   installed) through `kffi-objc` — a pure-JVM Objective-C bridge over FFM, no
-   JNA, no native compilation.
+1. **Window**: Compose Desktop creates the window. Its public `windowHandle`
+   provides the `NSWindow` pointer; `kffi-objc` retrieves its content `NSView`.
+2. **Metal layer**: a dedicated `CAMetalLayer` is installed above Compose's
+   children without replacing its backing layer. AppKit work uses a common-mode
+   run-loop source so dragging and live resize do not stall rendering. The
+   Objective-C bridge uses JVM FFM, with no JNA or native compilation.
 3. **Surface**: a Dawn `WGPUSurface` is created over the `CAMetalLayer`
-   (`WGPUSurfaceSourceMetalLayer`), configured for `BGRA8Unorm` / `Fifo`.
+   (`WGPUSurfaceSourceMetalLayer`), configured for `BGRA8Unorm` / `Fifo` and
+   resized to the window's physical pixel dimensions, including Retina scaling.
 4. **Render loop**: each frame acquires the surface texture, encodes the
    `ParticleScene` (compute pass + render pass), submits, and presents.
 
@@ -38,6 +39,8 @@ three minimal "platform integrator" accessors (`DawnContext.nativeBridge()`,
 ./gradlew :dawn4k-demo:test
 ```
 
-The tests are headless (no window): they verify the ObjC bridge (NSView →
-CAMetalLayer) and the borrowed-texture wrappers. The full window render loop
-is validated manually on macOS.
+On macOS, the tests verify layer preservation, AppKit dispatch during mouse
+tracking, resizing and resource cleanup. An integration test opens a real
+Compose window and checks successful frame presentation, physical pixel sizes
+and early-close cancellation; these tests require a graphical session. Visible
+particles and uninterrupted animation during dragging are also checked manually.
