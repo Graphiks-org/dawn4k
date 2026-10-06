@@ -16,6 +16,8 @@ dependencies {
     implementation(libs.webgpu.descriptors)
     implementation(libs.compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(kotlin("test"))
 }
 
 application {
