@@ -21,6 +21,9 @@ serialization-json = "1.11.0"
 webgpu = "0.1.0-SNAPSHOT"
 kffi = "1.0.0-SNAPSHOT"
 
+# Skiko native runtime (managed by the Compose plugin version)
+skiko = "0.144.6"
+
 [libraries]
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -52,6 +55,14 @@ kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
 
 # Compose Desktop (application)
 compose-desktop-currentOs = { module = "org.jetbrains.compose.desktop:desktop", version.ref = "compose-multiplatform" }
+
+# Skiko native runtimes (required at runtime for Compose Desktop rendering;
+# compose.desktop.currentOs brings the JVM classes but not the native runtime
+# in a kotlin("jvm") module — add them explicitly for the host OS)
+skiko-awt-runtime-macos-arm64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-macos-arm64", version.ref = "skiko" }
+skiko-awt-runtime-macos-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-macos-x64", version.ref = "skiko" }
+skiko-awt-runtime-linux-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-linux-x64", version.ref = "skiko" }
+skiko-awt-runtime-windows-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-windows-x64", version.ref = "skiko" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

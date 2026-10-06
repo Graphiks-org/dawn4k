@@ -17,6 +17,14 @@ dependencies {
     implementation(libs.compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutines.core)
 
+    // Skiko native runtime (required at runtime for Compose Desktop rendering).
+    // compose.desktop.currentOs brings the JVM classes but not the native runtime
+    // in a kotlin("jvm") module — add it explicitly for the host OS.
+    runtimeOnly(libs.skiko.awt.runtime.macos.arm64)
+    runtimeOnly(libs.skiko.awt.runtime.macos.x64)
+    runtimeOnly(libs.skiko.awt.runtime.linux.x64)
+    runtimeOnly(libs.skiko.awt.runtime.windows.x64)
+
     testImplementation(kotlin("test"))
 }
 
