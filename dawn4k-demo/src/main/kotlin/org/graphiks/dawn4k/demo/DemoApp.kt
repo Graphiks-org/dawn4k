@@ -63,21 +63,28 @@ fun DemoApp() {
  * particle scene, and renders frames until the coroutine is cancelled.
  */
 private suspend fun runDemo() {
+    println("[demo] creating Dawn context (Metal backend)")
     val context = DawnContext.create(DawnConfig(backend = DawnBackend.Metal))
     try {
+        println("[demo] requesting adapter")
         val adapter = context.requestAdapter().getOrThrow()
         try {
+            println("[demo] requesting device")
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
             try {
                 val bridge = context.nativeBridge()
+                println("[demo] extracting CAMetalLayer from the Compose window")
                 val metalLayerPtr = extractMetalLayerPtr()
                     ?: throw IllegalStateException("could not retrieve the CAMetalLayer from the Compose window")
+                println("[demo] CAMetalLayer ptr=0x${metalLayerPtr.toString(16)}")
                 val surface = MetalSurface.create(bridge, device.nativeHandle(), metalLayerPtr)
                 try {
                     val limits = device.limits
                     val count = minOf(ParticleCount, maxParticleCount(limits))
+                    println("[demo] creating ParticleScene ($count particles)")
                     val scene = ParticleScene.create(device, GPUTextureFormat.BGRA8Unorm, initialParticles(count))
                     try {
+                        println("[demo] scene ready — starting render loop")
                         renderLoop(device, surface, scene)
                     } finally {
                         scene.close()
@@ -106,6 +113,7 @@ private suspend fun renderLoop(
     scene: ParticleScene,
 ) {
     var lastFrame = System.nanoTime()
+    var frameCount = 0L
     while (coroutineContext.isActive) {
         val now = System.nanoTime()
         val delta = ((now - lastFrame) / 1e9).toFloat().coerceIn(0f, 0.05f)
@@ -115,6 +123,7 @@ private suspend fun renderLoop(
         val height = surface.height
         if (width <= 0 || height <= 0) {
             // Not configured yet (first frame): configure with a default size.
+            println("[demo] configuring surface ${width}x${height} → 800x600")
             surface.configure(800, 600)
             continue
         }
@@ -143,12 +152,18 @@ private suspend fun renderLoop(
                 view.close()
             }
             surface.present(texture)
+            frameCount++
+            if (frameCount == 1L || frameCount % 120L == 0L) {
+                println("[demo] frame $frameCount rendered (${width}x${height}, delta=${"%.3f".format(delta)}s)")
+            }
         } catch (outdated: SurfaceOutdatedException) {
             // Reconfigure on the next iteration (the window was resized).
+            println("[demo] surface outdated — reconfiguring ${width}x${height}")
             surface.configure(width, height)
         }
         delay(1) // let the Fifo present mode regulate the frame rate
     }
+    println("[demo] render loop ended after $frameCount frames")
 }
 
 /**
