@@ -16,6 +16,7 @@ val dawnTargets: List<String> =
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }
         ?: listOf(
+            "mingwX64",
             "macosArm64",
             "linuxX64",
             "androidNativeArm64",

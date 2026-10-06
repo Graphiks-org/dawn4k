@@ -1,3 +1,5 @@
+import org.gradle.jvm.application.tasks.CreateStartScripts
+
 plugins {
     kotlin("jvm")
     application
@@ -30,13 +32,42 @@ dependencies {
 
 application {
     mainClass.set("org.graphiks.dawn4k.demo.MainKt")
+    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED")
 }
 
-// The demo targets macOS only: the ObjC bridge and the Metal surface compile
-// everywhere (pure JVM + FFM) but only run on macOS. The main function guards
-// the OS at startup.
+// Keep the verified Windows DLLs beside the launcher in standalone distributions.
+// The generated raw bindings already support java.library.path for external DLLs.
+val windowsNativeBin = project(":dawn4k-native").layout.buildDirectory.dir("native/mingwX64/shared/bin")
+distributions {
+    main {
+        contents {
+            from(windowsNativeBin) {
+                include("*.dll")
+                into("lib/native/windows")
+            }
+        }
+    }
+}
+tasks.matching { it.name in setOf("installDist", "distZip", "distTar") }.configureEach {
+    dependsOn(":dawn4k-native:prepareDawn")
+}
+tasks.named<CreateStartScripts>("startScripts") {
+    doLast {
+        windowsScript.writeText(windowsScript.readText().replace(
+            "set DEFAULT_JVM_OPTS=",
+            "set \"PATH=%APP_HOME%\\lib\\native\\windows;%PATH%\"\r\n" +
+                "set DEFAULT_JVM_OPTS=\"-Djava.library.path=%APP_HOME%\\lib\\native\\windows\" ",
+        ).replace(
+            // Gradle otherwise restores PATH before launching Java. The batch
+            // file's local environment is still restored when it exits.
+            "endlocal & \"%JAVA_EXE%\"",
+            "\"%JAVA_EXE%\"",
+        ))
+    }
+}
+
 tasks.withType<JavaExec>().configureEach {
-    // FFM (kffi-objc) needs native access enabled.
+    // FFM is used by both the Objective-C bridge and the Win32 host.
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 

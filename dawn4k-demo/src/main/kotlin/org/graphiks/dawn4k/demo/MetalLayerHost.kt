@@ -7,13 +7,15 @@ import org.graphiks.kffi.objc.NSWindow
 import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 import kotlin.math.roundToInt
+import org.graphiks.dawn4k.DawnBackend
+import org.graphiks.dawn4k.NativeBridge
 
 /** Owns the particle layer below Compose, not its backing layer. Outlives the Dawn surface. */
 @OptIn(PlatformAvailability::class)
 internal class MetalLayerHost private constructor(
     private val view: NSView,
     val layerPtr: Long,
-) : AutoCloseable {
+) : SurfaceHost {
     private var closed = false
 
     companion object {
@@ -26,7 +28,12 @@ internal class MetalLayerHost private constructor(
     }
 
     /** Pixel dimensions, refreshed on AppKit so resize and monitor DPI changes are observed. */
-    fun pixelSize(): Pair<Int, Int> = onAppKitThread {
+    override val backend: DawnBackend get() = DawnBackend.Metal
+
+    override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface =
+        MetalSurface.create(bridge, deviceHandle, layerPtr)
+
+    override fun pixelSize(): Pair<Int, Int> = onAppKitThread {
         check(!closed) { "the Metal layer host is closed" }
         val window = view.window()
         val scale = if (window == MemorySegment.NULL) 1.0 else NSWindow(window).backingScaleFactor()

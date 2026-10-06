@@ -3,14 +3,27 @@ package org.graphiks.dawn4k.demo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.awt.ComposeWindow
+import java.awt.Rectangle
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
-import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnDevice
@@ -29,14 +42,27 @@ internal fun DemoApp(
     controls: ParticleControls = remember { ParticleControls() },
     onClose: () -> Unit = { window.dispose() },
 ) {
-    ParticleControlPanel(controls, onClose)
+    val windows = remember { System.getProperty("os.name").startsWith("Windows") }
+    val viewport = remember { AtomicReference(Rectangle()) }
+    if (windows) {
+        Row(Modifier.fillMaxSize().background(Color(0xFF101820))) {
+            Box(Modifier.width(300.dp).fillMaxHeight()) { ParticleControlPanel(controls, onClose) }
+            Box(Modifier.weight(1f).fillMaxHeight().onGloballyPositioned {
+                val bounds = it.boundsInWindow()
+                viewport.set(Rectangle(bounds.left.roundToInt(), bounds.top.roundToInt(),
+                    bounds.width.roundToInt(), bounds.height.roundToInt()))
+            })
+        }
+    } else {
+        ParticleControlPanel(controls, onClose)
+    }
 
     // LaunchedEffect drives the GPU setup + render loop off the UI thread's
     // composition, but the actual native calls go through the bridge (worker).
     LaunchedEffect(window, controls) {
         try {
             withContext(Dispatchers.Default) {
-                runDemo(window, controls)
+                runDemo(window, controls, windows, viewport)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -48,22 +74,23 @@ internal fun DemoApp(
 }
 
 /**
- * Runs the demo: opens a Dawn context, creates a device, extracts the
- * CAMetalLayer from the Compose window, creates the surface, builds the
- * particle scene, and renders frames until the coroutine is cancelled.
+ * Opens the platform host, Dawn context and device, then renders the particle
+ * scene until the composition is cancelled. The native host outlives the surface.
  */
-private suspend fun runDemo(window: ComposeWindow, controls: ParticleControls) {
-    val host = awaitMetalLayerHost(window)
+private suspend fun runDemo(
+    window: ComposeWindow, controls: ParticleControls, windows: Boolean,
+    viewport: AtomicReference<Rectangle>,
+) {
+    val host: SurfaceHost = if (windows) awaitWindowsSurfaceHost(window, viewport) else awaitMetalLayerHost(window)
     host.use {
-        println("[demo] creating Dawn context (Metal backend)")
-        DawnContext.create(DawnConfig(backend = DawnBackend.Metal)).use { context ->
+        println("[demo] creating Dawn context (${host.backend} backend)")
+        DawnContext.create(DawnConfig(backend = host.backend)).use { context ->
             println("[demo] requesting adapter")
             context.requestAdapter().getOrThrow().use { adapter ->
                 println("[demo] requesting device")
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val bridge = context.nativeBridge()
-                    println("[demo] CAMetalLayer ptr=0x${host.layerPtr.toString(16)}")
-                    MetalSurface.create(bridge, device.nativeHandle(), host.layerPtr).use { surface ->
+                    host.createSurface(bridge, device.nativeHandle()).use { surface ->
                         controls.initialize(maxParticleCount(device.limits))
                         renderLoop(device, surface, host, bridge, controls)
                     }
@@ -79,8 +106,8 @@ private suspend fun runDemo(window: ComposeWindow, controls: ParticleControls) {
  */
 private suspend fun renderLoop(
     device: DawnDevice,
-    surface: MetalSurface,
-    host: MetalLayerHost,
+    surface: DawnSurface,
+    host: SurfaceHost,
     bridge: NativeBridge,
     controls: ParticleControls,
 ) {
@@ -218,6 +245,29 @@ internal suspend fun awaitMetalLayerHost(window: ComposeWindow): MetalLayerHost 
             }
         } catch (failure: Throwable) {
             // withContext may discard its result on cancellation after native attachment.
+            host?.close()
+            throw failure
+        }
+        host?.let { return it }
+        delay(50)
+    }
+    error("timed out waiting for the Compose window's native handle")
+}
+
+internal suspend fun awaitWindowsSurfaceHost(
+    window: ComposeWindow, viewport: AtomicReference<Rectangle>,
+): WindowsSurfaceHost {
+    val deadline = System.nanoTime() + 5_000_000_000L
+    while (System.nanoTime() < deadline) {
+        var host: WindowsSurfaceHost? = null
+        try {
+            withContext(MainUIDispatcher) {
+                if (!window.isDisplayable) throw CancellationException("the Compose window was closed")
+                if (window.isShowing && window.windowHandle != 0L) {
+                    host = WindowsSurfaceHost.attach(window.windowHandle, viewport)
+                }
+            }
+        } catch (failure: Throwable) {
             host?.close()
             throw failure
         }

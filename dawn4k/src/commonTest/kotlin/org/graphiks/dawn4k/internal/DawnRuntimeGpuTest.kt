@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.internal
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -69,21 +70,27 @@ class DawnRuntimeGpuTest {
             // Prove the GPU first: a host without an adapter fails here.
             runtime.openSession().close()
 
-            val interrupted = async(Dispatchers.Default) {
-                runCatching { runtime.openSession() }
+            val interrupted = runtime.dispatcher.call {
+                // Start the request and close in one worker operation. Merely
+                // observing an open callback from another thread races its
+                // completion on fast adapters, notably Windows D3D12.
+                val opening = async(start = CoroutineStart.UNDISPATCHED) {
+                    runCatching { runtime.openSession() }
+                }
+                assertTrue(runtime.debugOpenCallbacks() > 0)
+                runtime.close()
+                opening
             }
-            // Deterministic hand-off: wait until the second openSession has an
-            // adapter request in flight — its callback registration is open.
-            withTimeout(ADAPTER_HANDOFF_TIMEOUT_MS) {
-                while (runtime.debugOpenCallbacks() == 0) yield()
-            }
-            runtime.close()
 
             val outcome = interrupted.await()
             assertTrue(outcome.isFailure)
             assertIs<DawnRuntimeClosedException>(outcome.exceptionOrNull())
         } finally {
             runtime.close()
+        }
+        // A worker-reentrant close returns before the late callback is drained.
+        withTimeout(ADAPTER_HANDOFF_TIMEOUT_MS) {
+            while (runtime.debugOpenCallbacks() != 0) yield()
         }
         assertEquals(0, runtime.debugOpenCallbacks())
     }

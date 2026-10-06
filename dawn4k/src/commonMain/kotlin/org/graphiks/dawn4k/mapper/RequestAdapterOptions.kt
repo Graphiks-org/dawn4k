@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.mapper
 
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.native.WGPUBackendType_Metal
+import org.graphiks.dawn4k.native.WGPUBackendType_D3D12
 import org.graphiks.dawn4k.native.WGPUBackendType_Undefined
 import org.graphiks.dawn4k.native.WGPUBackendType_Vulkan
 import org.graphiks.dawn4k.native.WGPUFeatureLevel_Compatibility
@@ -52,6 +53,7 @@ internal fun MemoryAllocator.allocateRequestAdapterOptions(
         null -> WGPUBackendType_Undefined
         DawnBackend.Metal -> WGPUBackendType_Metal
         DawnBackend.Vulkan -> WGPUBackendType_Vulkan
+        DawnBackend.D3D12 -> WGPUBackendType_D3D12
     }
     native.compatibleSurface = null
     return native

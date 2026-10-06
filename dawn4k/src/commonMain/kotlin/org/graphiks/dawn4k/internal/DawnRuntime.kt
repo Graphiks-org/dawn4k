@@ -91,6 +91,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
 
     init {
         try {
+            preparePlatformLibraries()
             instance = dispatcher.call { createInstanceOnWorker() }
         } catch (failure: Throwable) {
             dispatcher.close()

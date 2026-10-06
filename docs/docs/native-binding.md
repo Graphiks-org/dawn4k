@@ -49,6 +49,12 @@ inconsistency.
   `darwin-aarch64/libwebgpu_dawn.dylib` and `linux-x86-64/libwebgpu_dawn.so`. The
   generated bootstrap verifies their SHA-256 and extracts them to a cache directory.
   Run with `--enable-native-access=ALL-UNNAMED`.
+- **Windows/JVM** uses the pinned `mingwX64/shared/bin/webgpu_dawn.dll` and
+  its bundled MSVC runtime DLLs as external libraries. Gradle JVM tests and
+  demo execution set `java.library.path` and `PATH` to the verified directory.
+  The demo distribution ships them under `lib/native/windows`; its Windows
+  launcher configures both paths. The generated raw sources remain unchanged.
+  Dawn contexts preload the system shader compiler from Windows `System32`.
 - **Kotlin/Native** links the static library (`libwebgpu_dawn.a`) plus the platform
   system libraries: the Apple frameworks (`Metal`, `Foundation`, `CoreGraphics`,
   `QuartzCore`, `IOKit`, `IOSurface`) for macOS, iOS and tvOS (device + simulator),

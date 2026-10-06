@@ -9,4 +9,4 @@ package org.graphiks.dawn4k
 data class DawnConfig(val backend: DawnBackend? = null)
 
 /** The native backends Dawn can be asked for explicitly. */
-enum class DawnBackend { Metal, Vulkan }
+enum class DawnBackend { Metal, Vulkan, D3D12 }

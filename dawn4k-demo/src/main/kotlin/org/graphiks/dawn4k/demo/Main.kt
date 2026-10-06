@@ -13,20 +13,21 @@ import androidx.compose.ui.unit.dp
 
 fun main() {
     val os = System.getProperty("os.name").lowercase()
-    if (!os.contains("mac")) {
-        System.err.println("dawn4k-demo runs on macOS only (Metal surface). Detected: $os")
+    val macos = os.contains("mac")
+    if (!macos && !os.startsWith("windows")) {
+        System.err.println("dawn4k-demo supports macOS and Windows. Detected: $os")
         return
     }
     androidx.compose.ui.window.application {
         androidx.compose.ui.window.Window(
-            title = "dawn4k-demo — ParticleScene (Dawn/Metal)",
+            title = "dawn4k-demo — ParticleScene (Dawn/${if (macos) "Metal" else "D3D12"})",
             onCloseRequest = ::exitApplication,
-            undecorated = true,
-            transparent = true,
+            undecorated = macos,
+            transparent = macos,
         ) {
             Box(Modifier.fillMaxSize()) {
                 DemoApp(window, onClose = ::exitApplication)
-                WindowDraggableArea {
+                if (macos) WindowDraggableArea {
                     BasicText(
                         "ParticleScene · Dawn / Metal — drag to move",
                         Modifier.background(Color(0xD9263238)).padding(12.dp),

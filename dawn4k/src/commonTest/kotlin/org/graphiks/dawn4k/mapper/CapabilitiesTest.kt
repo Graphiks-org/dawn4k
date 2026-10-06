@@ -169,6 +169,14 @@ class CapabilitiesTest {
     // --- Adapter options ----------------------------------------------------
 
     @Test
+    fun windowsBackendIsSentToTheAdapterRequest() = memoryScope { allocator ->
+        val backend = org.graphiks.dawn4k.DawnBackend.valueOf("D3D12")
+        val options = allocator.allocateRequestAdapterOptions(null, backend)
+        assertEquals(org.graphiks.dawn4k.native.WGPUBackendType_D3D12, options.backendType)
+        assertNull(options.compatibleSurface)
+    }
+
+    @Test
     fun nullAdapterOptionsRequestTheConfiguredBackend() = memoryScope { allocator ->
         val options = allocator.allocateRequestAdapterOptions(null, org.graphiks.dawn4k.DawnBackend.Metal)
         assertNull(options.nextInChain)
