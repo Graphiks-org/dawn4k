@@ -65,41 +65,31 @@ fun DemoApp() {
 private suspend fun runDemo() {
     println("[demo] creating Dawn context (Metal backend)")
     val context = DawnContext.create(DawnConfig(backend = DawnBackend.Metal))
-    try {
+    context.use { context ->
         println("[demo] requesting adapter")
         val adapter = context.requestAdapter().getOrThrow()
-        try {
+        adapter.use {
             println("[demo] requesting device")
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
-            try {
+            device.use { device ->
                 val bridge = context.nativeBridge()
                 println("[demo] extracting CAMetalLayer from the Compose window")
                 val metalLayerPtr = extractMetalLayerPtr()
                     ?: throw IllegalStateException("could not retrieve the CAMetalLayer from the Compose window")
                 println("[demo] CAMetalLayer ptr=0x${metalLayerPtr.toString(16)}")
                 val surface = MetalSurface.create(bridge, device.nativeHandle(), metalLayerPtr)
-                try {
+                surface.use { surface ->
                     val limits = device.limits
                     val count = minOf(ParticleCount, maxParticleCount(limits))
                     println("[demo] creating ParticleScene ($count particles)")
                     val scene = ParticleScene.create(device, GPUTextureFormat.BGRA8Unorm, initialParticles(count))
-                    try {
+                    scene.use { scene ->
                         println("[demo] scene ready — starting render loop")
                         renderLoop(device, surface, scene)
-                    } finally {
-                        scene.close()
                     }
-                } finally {
-                    surface.close()
                 }
-            } finally {
-                device.close()
             }
-        } finally {
-            adapter.close()
         }
-    } finally {
-        context.close()
     }
 }
 
