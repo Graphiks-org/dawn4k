@@ -51,6 +51,7 @@ nav:
   - Getting Started: getting-started.md
   - Native binding: native-binding.md
   - Architecture: architecture.md
+  - Demo: demo.md
   - Dependency updates: dependency-updates.md
 
 # !!! EMBEDDED DOKKA START, DO NOT COMMIT !!! #
