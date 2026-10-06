@@ -122,8 +122,8 @@ class MetalSurface private constructor(
         }
 
         /**
-         * Installs a dedicated Metal overlay above the view's Compose/Skia children.
-         * Never replace the backing layer: its contents are below those children.
+         * Installs a dedicated Metal layer below the transparent Compose/Skia children.
+         * Never replace the backing layer: Compose still owns it.
          * Call on the AppKit thread. The caller must detach and release the layer.
          */
         fun metalLayerOf(nsViewPtr: Long): Long = ObjCRuntime.autoreleasePool {
@@ -138,7 +138,7 @@ class MetalSurface private constructor(
             overlay.setAutoresizingMask(
                 CAAutoresizingMask.kCALayerWidthSizable + CAAutoresizingMask.kCALayerHeightSizable
             )
-            overlay.setZPosition(1.0)
+            overlay.setZPosition(-1.0)
             CALayer(layer).addSublayer(metalLayer)
             metalLayer.address()
         }

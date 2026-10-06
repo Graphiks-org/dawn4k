@@ -20,7 +20,7 @@ import org.graphiks.kffi.objc.PlatformAvailability
 class MetalSurfaceTest {
 
     @Test
-    fun metalLayerIsAnOverlayWithoutReplacingTheComposeBackingLayer() {
+    fun metalLayerIsBelowComposeWithoutReplacingItsBackingLayer() {
         if (!System.getProperty("os.name").lowercase().contains("mac")) return
         java.awt.Toolkit.getDefaultToolkit()
         onAppKitThread {
@@ -38,7 +38,7 @@ class MetalSurfaceTest {
                 try {
                     assertEquals(backingLayer, view.layer(), "Compose must keep its backing layer")
                     assertEquals(backingLayer, CALayer(overlay).superlayer(), "Metal must be a sublayer")
-                    kotlin.test.assertTrue(CALayer(overlay).zPosition() > 0.0, "Metal must be above Compose")
+                    kotlin.test.assertTrue(CALayer(overlay).zPosition() < 0.0, "Compose controls must be above Metal")
                 } finally {
                     CALayer(overlay).removeFromSuperlayer()
                     ObjCRuntime.msgSend(null, overlay, ObjCRuntime.sel("release"))

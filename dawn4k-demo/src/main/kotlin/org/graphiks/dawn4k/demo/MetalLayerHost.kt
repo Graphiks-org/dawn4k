@@ -8,7 +8,7 @@ import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 import kotlin.math.roundToInt
 
-/** Owns the overlay, not Compose's view or backing layer. Outlives the Dawn surface. */
+/** Owns the particle layer below Compose, not its backing layer. Outlives the Dawn surface. */
 @OptIn(PlatformAvailability::class)
 internal class MetalLayerHost private constructor(
     private val view: NSView,

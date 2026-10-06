@@ -1,15 +1,8 @@
 package org.graphiks.dawn4k.demo
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -30,30 +23,26 @@ import org.graphiks.webgpu.suite.demos.particles.initialParticles
 import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
 import org.jetbrains.skiko.MainUIDispatcher
 
-private const val ParticleCount = 4096
-
 @Composable
-fun DemoApp(window: ComposeWindow) {
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    if (errorMessage != null) {
-        BasicText("dawn4k-demo error: $errorMessage")
-    } else {
-        Canvas(Modifier.fillMaxSize()) {}
-    }
+internal fun DemoApp(
+    window: ComposeWindow,
+    controls: ParticleControls = remember { ParticleControls() },
+    onClose: () -> Unit = { window.dispose() },
+) {
+    ParticleControlPanel(controls, onClose)
 
     // LaunchedEffect drives the GPU setup + render loop off the UI thread's
     // composition, but the actual native calls go through the bridge (worker).
-    LaunchedEffect(window) {
+    LaunchedEffect(window, controls) {
         try {
             withContext(Dispatchers.Default) {
-                runDemo(window)
+                runDemo(window, controls)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             failure.printStackTrace()
-            errorMessage = failure.message ?: failure.toString()
+            controls.fail(failure.message ?: failure.toString())
         }
     }
 }
@@ -63,7 +52,7 @@ fun DemoApp(window: ComposeWindow) {
  * CAMetalLayer from the Compose window, creates the surface, builds the
  * particle scene, and renders frames until the coroutine is cancelled.
  */
-private suspend fun runDemo(window: ComposeWindow) {
+private suspend fun runDemo(window: ComposeWindow, controls: ParticleControls) {
     val host = awaitMetalLayerHost(window)
     host.use {
         println("[demo] creating Dawn context (Metal backend)")
@@ -75,12 +64,8 @@ private suspend fun runDemo(window: ComposeWindow) {
                     val bridge = context.nativeBridge()
                     println("[demo] CAMetalLayer ptr=0x${host.layerPtr.toString(16)}")
                     MetalSurface.create(bridge, device.nativeHandle(), host.layerPtr).use { surface ->
-                        val count = minOf(ParticleCount, maxParticleCount(device.limits))
-                        println("[demo] creating ParticleScene ($count particles)")
-                        ParticleScene.create(device, GPUTextureFormat.BGRA8Unorm, initialParticles(count)).use { scene ->
-                            println("[demo] scene ready — starting render loop")
-                            renderLoop(device, surface, scene, host, bridge)
-                        }
+                        controls.initialize(maxParticleCount(device.limits))
+                        renderLoop(device, surface, host, bridge, controls)
                     }
                 }
             }
@@ -95,53 +80,77 @@ private suspend fun runDemo(window: ComposeWindow) {
 private suspend fun renderLoop(
     device: DawnDevice,
     surface: MetalSurface,
-    scene: ParticleScene,
     host: MetalLayerHost,
     bridge: NativeBridge,
+    controls: ParticleControls,
 ) {
-    var lastFrame = System.nanoTime()
+    var scene = ParticleScene.create(
+        device, GPUTextureFormat.BGRA8Unorm, initialParticles(controls.state.value.count)
+    )
+    println("[demo] scene ready — starting render loop")
+    val clock = ParticleFrameClock()
+    var resetGeneration = controls.state.value.resetGeneration
     var frameCount = 0L
-    while (coroutineContext.isActive) {
-        val now = System.nanoTime()
-        val delta = ((now - lastFrame) / 1e9).toFloat().coerceIn(0f, 0.05f)
-        lastFrame = now
+    try {
+        while (coroutineContext.isActive) {
+            val requested = controls.state.value
+            if (requested.count != scene.count) {
+                // No old scene resource is released while a submitted frame still uses it.
+                device.queue.onSubmittedWorkDone().getOrThrow()
+                val replacement = ParticleScene.create(
+                    device, GPUTextureFormat.BGRA8Unorm, initialParticles(requested.count)
+                )
+                val previous = scene
+                scene = replacement
+                previous.close()
+                println("[demo] scene changed (${scene.count} particles)")
+            }
+            if (requested.resetGeneration != resetGeneration) {
+                scene.reset(initialParticles(scene.count))
+                resetGeneration = requested.resetGeneration
+                println("[demo] scene reset (${scene.count} particles)")
+            }
+            val delta = clock.advance(requested, System.nanoTime())
 
-        val (width, height) = host.pixelSize()
-        if (width <= 0 || height <= 0) {
-            delay(16)
-            continue
-        }
-        if (width != surface.width || height != surface.height) {
-            println("[demo] configuring surface ${width}x${height}")
-            surface.configure(width, height)
-        }
+            val (width, height) = host.pixelSize()
+            if (width <= 0 || height <= 0) {
+                delay(16)
+                continue
+            }
+            if (width != surface.width || height != surface.height) {
+                println("[demo] configuring surface ${width}x${height}")
+                surface.configure(width, height)
+            }
 
-        try {
-            // The Dawn backend's render pass requires a DawnTextureView (internal
-            // constructor). We create one via reflection over the borrowed texture's
-            // WGPUTextureView handle. The DawnTextureView owns the view reference
-            // and releases it on close().
-            surface.acquireFrame().use { texture ->
-                bridge.call { createDawnTextureView(device, texture) }.use { view ->
-                    device.createCommandEncoder().use { encoder ->
-                        scene.encodeFrame(encoder, view, width, height, delta)
-                        encoder.finish().use { commandBuffer ->
-                            device.queue.submit(listOf(commandBuffer))
+            try {
+                // The Dawn backend's render pass requires a DawnTextureView (internal
+                // constructor). We create one via reflection over the borrowed texture's
+                // WGPUTextureView handle. The DawnTextureView owns the view reference
+                // and releases it on close().
+                surface.acquireFrame().use { texture ->
+                    bridge.call { createDawnTextureView(device, texture) }.use { view ->
+                        device.createCommandEncoder().use { encoder ->
+                            scene.encodeFrame(encoder, view, width, height, delta)
+                            encoder.finish().use { commandBuffer ->
+                                device.queue.submit(listOf(commandBuffer))
+                            }
                         }
                     }
+                    surface.present(texture)
                 }
-                surface.present(texture)
+                frameCount++
+                if (frameCount == 1L || frameCount % 120L == 0L) {
+                    println("[demo] frame $frameCount rendered (${width}x${height}, particles=${scene.count}, paused=${requested.paused}, delta=${"%.3f".format(delta)}s)")
+                }
+            } catch (outdated: SurfaceOutdatedException) {
+                // Reconfigure on the next iteration (the window was resized).
+                println("[demo] surface outdated — reconfiguring ${width}x${height}")
+                surface.configure(width, height)
             }
-            frameCount++
-            if (frameCount == 1L || frameCount % 120L == 0L) {
-                println("[demo] frame $frameCount rendered (${width}x${height}, delta=${"%.3f".format(delta)}s)")
-            }
-        } catch (outdated: SurfaceOutdatedException) {
-            // Reconfigure on the next iteration (the window was resized).
-            println("[demo] surface outdated — reconfiguring ${width}x${height}")
-            surface.configure(width, height)
+            delay(1) // let the Fifo present mode regulate the frame rate
         }
-        delay(1) // let the Fifo present mode regulate the frame rate
+    } finally {
+        scene.close()
     }
     println("[demo] render loop ended after $frameCount frames")
 }

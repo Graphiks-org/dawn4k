@@ -21,9 +21,53 @@ import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 import kotlin.math.roundToInt
 
-/** Exercises the real Compose → AppKit overlay → Dawn configuration and shutdown. */
+/** Exercises the real transparent Compose → AppKit particle layer → Dawn lifecycle. */
 @OptIn(PlatformAvailability::class)
 class DemoWindowTest {
+    @Test
+    fun controlsChangeTheRunningSceneAndResetItWhilePaused() {
+        if (!System.getProperty("os.name").lowercase().contains("mac")) return
+        lateinit var window: ComposeWindow
+        val controls = ParticleControls()
+        val originalOutput = System.out
+        val trace = ByteArrayOutputStream()
+        val capture = PrintStream(trace, true)
+        System.setOut(capture)
+        try {
+            SwingUtilities.invokeAndWait {
+                window = ComposeWindow()
+                window.isUndecorated = true
+                window.isTransparent = true
+                window.setSize(420, 320)
+                window.setContent { DemoApp(window, controls = controls) }
+                window.isVisible = true
+            }
+            awaitCondition("GPU controls ready") { controls.state.value.ready }
+            controls.togglePause()
+            controls.selectCount(256)
+            awaitCondition("paused frame with the new particle count") {
+                trace.toString().contains("particles=256, paused=true, delta=0")
+            }
+            controls.reset()
+            awaitCondition("reset applied to the paused scene") {
+                trace.toString().contains("[demo] scene reset (256 particles)")
+            }
+            controls.togglePause()
+            awaitCondition("resumed particle frame") {
+                trace.toString().contains("particles=256, paused=false")
+            }
+            assertEquals(null, controls.state.value.error)
+        } finally {
+            try {
+                SwingUtilities.invokeAndWait { if (window.isDisplayable) window.dispose() }
+            } finally {
+                System.setOut(originalOutput)
+                originalOutput.print(trace.toString())
+                capture.close()
+            }
+        }
+    }
+
     @Test
     fun closingBeforeNativeAttachmentCancelsStartupWithoutTouchingADisposedWindow() {
         if (!System.getProperty("os.name").lowercase().contains("mac")) return
@@ -41,7 +85,7 @@ class DemoWindowTest {
     }
 
     @Test
-    fun demoConfiguresAVisibleOverlayAtWindowPixelSizeAndReleasesItOnClose() {
+    fun demoConfiguresAParticleLayerBelowComposeAtWindowPixelSizeAndReleasesItOnClose() {
         if (!System.getProperty("os.name").lowercase().contains("mac")) return
         lateinit var window: ComposeWindow
         var overlay = MemorySegment.NULL
@@ -52,6 +96,8 @@ class DemoWindowTest {
         try {
             SwingUtilities.invokeAndWait {
                 window = ComposeWindow()
+                window.isUndecorated = true
+                window.isTransparent = true
                 window.setSize(420, 320)
                 window.setContent { DemoApp(window) }
                 window.isVisible = true
@@ -67,7 +113,7 @@ class DemoWindowTest {
                     val layers = NSArray(CALayer(view.layer()).sublayers())
                     val candidate = (0 until layers.count()).map { layers.objectAtIndex(it) }
                         .firstOrNull {
-                            CALayer(it).zPosition() > 0.0 && ObjCRuntime.msgSend(
+                            CALayer(it).zPosition() < 0.0 && ObjCRuntime.msgSend(
                                 ValueLayout.JAVA_BOOLEAN, it, ObjCRuntime.sel("isKindOfClass:"),
                                 ObjCRuntime.getClass("CAMetalLayer")
                             ) == true
