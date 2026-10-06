@@ -17,6 +17,10 @@ androidx-activity-compose = "1.10.1"
 commons-compress = "1.28.0"
 serialization-json = "1.11.0"
 
+# Graphiks snapshots (démos + pont ObjC)
+webgpu = "0.1.0-SNAPSHOT"
+kffi = "1.0.0-SNAPSHOT"
+
 [libraries]
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -40,6 +44,14 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 # Build tooling (buildSrc only)
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization-json" }
+
+# Graphiks snapshots (démos + pont ObjC)
+webgpu-descriptors = { module = "org.graphiks:webgpu-descriptors", version.ref = "webgpu" }
+suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
+kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
+
+# Compose Desktop (application)
+compose-desktop-currentOs = { module = "org.jetbrains.compose.desktop:desktop", version.ref = "compose-multiplatform" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
