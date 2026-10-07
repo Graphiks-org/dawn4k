@@ -36,7 +36,7 @@ class WaylandSurfaceTest {
                             surface.configureForAdapter((adapter as DawnAdapter).nativeHandle())
                             surface.configure(initial.first, initial.second)
                             repeat(3) { surface.acquireFrame().use { surface.present(it) } }
-                            val resize = ProcessBuilder("swaymsg", "[app_id=\"org.graphiks.dawn4k.demo\"] resize set width 900 px height 600 px").start()
+                            val resize = ProcessBuilder("swaymsg", "[app_id=\"org.graphiks.dawn4k.demo\" pid=${ProcessHandle.current().pid()}] resize set width 900 px height 600 px").start()
                             assertTrue(resize.waitFor(5, TimeUnit.SECONDS))
                             assertEquals(0, resize.exitValue())
                             val changed = awaitWaylandSize(host) { it.first > 0 && it.second > 0 && it != initial }
