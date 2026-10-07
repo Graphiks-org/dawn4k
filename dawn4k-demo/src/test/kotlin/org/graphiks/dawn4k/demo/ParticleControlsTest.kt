@@ -6,6 +6,23 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ParticleControlsTest {
+    @Test fun lateGpuInitializationCannotEraseATerminalConnectionFailure() {
+        val controls = ParticleControls()
+        controls.fail("Wayland connection/event failure")
+        val failed = controls.state.value
+        controls.initialize(65536)
+        assertEquals(failed, controls.state.value)
+        assertFalse(controls.state.value.ready)
+        assertEquals("Wayland connection/event failure", controls.state.value.error)
+    }
+
+    @Test fun laterFailuresCannotReplaceTheFirstTerminalCause() {
+        val controls = ParticleControls()
+        controls.fail("Wayland connection/event failure")
+        controls.fail("GPU cleanup failed")
+        assertEquals("Wayland connection/event failure", controls.state.value.error)
+    }
+
     @Test fun steppingSelectsAdjacentCountsAndClampsAtDeviceLimits() {
         val controls = ParticleControls()
         controls.stepCount(1)

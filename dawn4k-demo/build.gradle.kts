@@ -25,7 +25,18 @@ fun registerWaylandBuild(name: String, target: String, cross: Boolean) = tasks.r
     inputs.files(fileTree("src/main/c"), fileTree("scripts"))
     inputs.property("target", target)
     inputs.property("compiler", if (cross) "x86_64-linux-gnu-gcc" else System.getenv("CC") ?: "gcc")
-    inputs.file("/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml").optional()
+    val sysroot = System.getenv("DAWN_WAYLAND_X64_SYSROOT") ?: "/opt/demo/wayland-sysroot"
+    val protocol = System.getenv("WAYLAND_PROTOCOL_XML") ?: "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+    inputs.property("flags", if (cross) "--sysroot=$sysroot" else System.getenv("CFLAGS") ?: "")
+    inputs.property("protocolPath", protocol)
+    inputs.property("pkgConfigSysroot", if (cross) sysroot else System.getenv("PKG_CONFIG_SYSROOT_DIR") ?: "")
+    inputs.property("pkgConfigLibdir", if (cross) "$sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$sysroot/usr/share/pkgconfig"
+        else System.getenv("PKG_CONFIG_LIBDIR") ?: "")
+    inputs.property("pkgConfigPath", System.getenv("PKG_CONFIG_PATH") ?: "")
+    if (linuxHost) {
+        inputs.file(protocol)
+        if (cross) inputs.dir(sysroot)
+    }
     outputs.file(layout.buildDirectory.file("wayland/$target/libdawn4k_wayland.so"))
     environment("DAWN_WAYLAND_TARGET", target)
     commandLine("bash", "scripts/${if (cross) "cross-build-wayland-bridge.sh" else "build-wayland-bridge.sh"}")
@@ -119,9 +130,11 @@ tasks.withType<Test>().configureEach {
     val desktopTests = providers.environmentVariable("DAWN_DESKTOP_TESTS").orElse("0").get()
     val missingDisplayTest = providers.environmentVariable("DAWN_MISSING_DISPLAY_TEST").orElse("0").get()
     val waylandTests = providers.environmentVariable("DAWN_WAYLAND_TESTS").orElse("0").get()
+    val waylandPendingTests = providers.environmentVariable("DAWN_WAYLAND_PENDING_TESTS").orElse("0").get()
     inputs.property("dawn.desktopTests", desktopTests)
     inputs.property("dawn.missingDisplayTest", missingDisplayTest)
     inputs.property("dawn.waylandTests", waylandTests)
+    inputs.property("dawn.waylandPendingTests", waylandPendingTests)
     if (waylandTests == "1" && linuxHost) dependsOn(testWaylandBridge)
     val liveDesktop = desktopTests == "1" || missingDisplayTest == "1" || waylandTests == "1"
     outputs.upToDateWhen { !liveDesktop }
