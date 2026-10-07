@@ -17,6 +17,7 @@ read -r -a compiler_flags <<< "${CFLAGS:-}"
   -I"$generated" -Isrc/main/c src/main/c/wayland-host.c \
   "$generated/xdg-shell-protocol.c" "${flags[@]}" -o "$output/libdawn4k_wayland.so"
 if [[ ${1:-} == --test ]]; then
+  wayland-scanner server-header "$protocol" "$generated/xdg-shell-server-protocol.h"
   "$CC" -std=c11 -Wall -Wextra -Werror -Isrc/main/c \
     src/test/c/wayland-host-abi.c -o "$output/abi"
   "$output/abi"

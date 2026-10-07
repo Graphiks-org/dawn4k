@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Test the actual distributed application, not only the host factory."""
 import json
+import os
 from pathlib import Path
 import queue
 import subprocess
 import threading
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +15,7 @@ COMPOSE = ["docker", "compose", "-f", str(ROOT / "dawn4k-demo/docker/compose.yam
 APP = "/workspace/dawn4k-demo/build/install/dawn4k-demo/bin/dawn4k-demo"
 
 
-def desktop_command(arguments, changes=None):
+def desktop_command(arguments, changes=None, compose=None):
     code = """import json, os, sys
 environment = dict(os.environ, **json.load(open('/run/user/1000/desktop-env.json')))
 for key, value in json.loads(sys.argv[1]).items():
@@ -21,7 +23,7 @@ for key, value in json.loads(sys.argv[1]).items():
     else: environment[key] = value
 os.execvpe(sys.argv[2], sys.argv[2:], environment)
 """
-    return COMPOSE + ["exec", "-T", "-u", "demo", "desktop", "python3", "-c", code,
+    return (compose or COMPOSE) + ["exec", "-T", "-u", "demo", "desktop", "python3", "-c", code,
                       json.dumps(changes or {}), *arguments]
 
 
@@ -91,6 +93,71 @@ class WaylandEntrypointTest(unittest.TestCase):
                 except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=5)
             reader.join(timeout=5)
             process.stdout.close()
+
+    @unittest.skipUnless(os.environ.get("DAWN_WAYLAND_DISCONNECT_TESTS") == "1", "opt in to a disposable desktop")
+    def test_compositor_disconnection_is_an_error_and_exits_within_ten_seconds(self):
+        disposable = COMPOSE + ["-p", "dawn4k-wayland-disconnect"]
+        environment = dict(os.environ, DAWN_WAYLAND_PORT="6082")
+        process = None
+        reader = None
+        output = []
+        try:
+            subprocess.run(disposable + ["up", "-d", "--build", "--wait", "--wait-timeout", "60"],
+                           cwd=ROOT, env=environment, check=True, capture_output=True, timeout=240)
+            workspace = ROOT / ".superpowers/sdd/2026-10-07-wayland-native"
+            with tempfile.TemporaryDirectory(dir=workspace) as directory:
+                distribution = str(Path(directory) / "dist")
+                subprocess.run(COMPOSE + ["cp", "desktop:/workspace/dawn4k-demo/build/install/dawn4k-demo", distribution],
+                               check=True, capture_output=True, timeout=30)
+                subprocess.run(disposable + ["cp", distribution, "desktop:/opt/demo/test-dist"],
+                               check=True, capture_output=True, timeout=30)
+            lines = queue.Queue()
+            process = subprocess.Popen(desktop_command(["/opt/demo/test-dist/bin/dawn4k-demo"], compose=disposable),
+                                       cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            def read_output():
+                for line in process.stdout:
+                    output.append(line)
+                    lines.put(line)
+                lines.put(None)
+            reader = threading.Thread(target=read_output, daemon=True)
+            reader.start()
+            while True:
+                line = lines.get(timeout=60)
+                self.assertIsNotNone(line, "".join(output))
+                if "frame 1 rendered" in line: break
+            # Freeze only this test supervisor so it cannot kill the JVM before
+            # the application has a chance to demonstrate its own cleanup.
+            disconnect = """import os, pathlib, signal
+for path in pathlib.Path('/proc').iterdir():
+    if not path.name.isdigit(): continue
+    try:
+        args = (path / 'cmdline').read_bytes().split(b'\\0')
+        if b'/opt/demo/start-desktop.py' in args: os.kill(int(path.name), signal.SIGSTOP)
+        if (path / 'comm').read_text().strip() == 'sway': os.kill(int(path.name), signal.SIGTERM)
+    except (FileNotFoundError, ProcessLookupError): pass
+"""
+            subprocess.run(disposable + ["exec", "-T", "desktop", "python3", "-c", disconnect], check=True, timeout=5)
+            self.assertNotEqual(0, process.wait(timeout=10))
+            reader.join(timeout=5)
+            self.assertIn("Wayland connection", "".join(output))
+        finally:
+            if process is not None and process.poll() is None:
+                process.terminate()
+                try: process.wait(timeout=5)
+                except subprocess.TimeoutExpired: process.kill(); process.wait(timeout=5)
+            if reader is not None: reader.join(timeout=5)
+            if process is not None: process.stdout.close()
+            resume = """import os, pathlib, signal
+for path in pathlib.Path('/proc').iterdir():
+    if not path.name.isdigit(): continue
+    try:
+        if b'/opt/demo/start-desktop.py' in (path / 'cmdline').read_bytes().split(b'\\0'):
+            os.kill(int(path.name), signal.SIGCONT)
+    except (FileNotFoundError, ProcessLookupError): pass
+"""
+            subprocess.run(disposable + ["exec", "-T", "desktop", "python3", "-c", resume],
+                           capture_output=True, timeout=5)
+            subprocess.run(disposable + ["down", "--timeout", "5"], capture_output=True, timeout=30)
 
 
 if __name__ == "__main__":
