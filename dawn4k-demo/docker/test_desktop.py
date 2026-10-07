@@ -9,6 +9,7 @@ import time
 import unittest
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 
 
 def load_script(name):
@@ -22,6 +23,41 @@ def load_script(name):
 
 
 class DesktopTest(unittest.TestCase):
+    def test_wayland_desktop_does_not_require_display(self):
+        desktop = load_script("start-desktop.py")
+        result = desktop.validate_desktop_environment(
+            {"WAYLAND_DISPLAY": "wayland-1", "XDG_RUNTIME_DIR": "/run/user/1000",
+             "DISPLAY": ":9", "XAUTHORITY": "/stale", "WAYLAND_SOCKET": "7"}, "wayland")
+        self.assertNotIn("DISPLAY", result)
+        self.assertNotIn("XAUTHORITY", result)
+        self.assertNotIn("WAYLAND_SOCKET", result)
+        self.assertEqual("wayland-1", result["WAYLAND_DISPLAY"])
+
+    def test_missing_or_unknown_backend_fails_instead_of_reusing_stale_environment(self):
+        desktop = load_script("start-desktop.py")
+        for backend, environment, diagnostic in (
+            ("wayland", {"DISPLAY": ":0"}, "WAYLAND"),
+            ("x11", {"WAYLAND_DISPLAY": "wayland-1"}, "DISPLAY"),
+            ("unknown", {"DISPLAY": ":0"}, "backend"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, diagnostic):
+                desktop.validate_desktop_environment(environment, backend)
+
+    def test_default_launcher_forces_x11_only_in_the_x11_desktop(self):
+        launcher = load_script("launch-demo.py")
+        self.assertEqual([":dawn4k-demo:run", "--args=--platform=x11"], launcher.default_tasks("x11"))
+        self.assertEqual([":dawn4k-demo:run"], launcher.default_tasks("wayland"))
+
+    def test_health_rejects_stale_compositor_even_if_http_could_be_available(self):
+        health = load_script("check-desktop.py")
+        with self.assertRaises(subprocess.CalledProcessError):
+            with tempfile.TemporaryDirectory() as directory:
+                executable = Path(directory) / "swaymsg"
+                executable.write_text("#!/bin/sh\nexit 7\n")
+                executable.chmod(0o755)
+                health.check_services({"PATH": directory, "SWAYSOCK": "/stale",
+                    "WAYLAND_DISPLAY": "wayland-1", "XDG_RUNTIME_DIR": directory}, "wayland")
+
     def test_display_comes_from_sway_not_a_guessed_number(self):
         desktop = load_script("start-desktop.py")
         self.assertEqual(":3", desktop.extract_display(["OTHER=x", "DISPLAY=:3"]))
@@ -58,6 +94,7 @@ class DesktopTest(unittest.TestCase):
         load_script("start-desktop.py")
         code = f"""
 import importlib.util, subprocess, sys
+sys.path.insert(0, {str(HERE)!r})
 spec = importlib.util.spec_from_file_location('desktop', {str(HERE / 'start-desktop.py')!r})
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)

@@ -1,0 +1,8 @@
+# Requires Docker Compose 2.24.4+ for !override; caches are scoped to this project.
+name: dawn4k-wayland-desktop
+services:
+  desktop:
+    environment:
+      DAWN_DESKTOP_BACKEND: wayland
+    ports: !override
+      - "127.0.0.1:${DAWN_WAYLAND_PORT:-6081}:6080"
