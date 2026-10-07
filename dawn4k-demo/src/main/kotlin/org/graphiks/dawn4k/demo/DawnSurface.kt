@@ -1,6 +1,11 @@
 package org.graphiks.dawn4k.demo
 
 import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.native.WGPUAdapter
+import org.graphiks.dawn4k.native.WGPUSurfaceCapabilities
+import org.graphiks.dawn4k.native.wgpuSurfaceGetCapabilities
+import org.graphiks.dawn4k.native.wgpuSurfaceCapabilitiesFreeMembers
+import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.dawn4k.native.WGPUCompositeAlphaMode_Auto
 import org.graphiks.dawn4k.native.WGPUDevice
 import org.graphiks.dawn4k.native.WGPUInstance
@@ -14,6 +19,8 @@ import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_SuccessOpti
 import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceMetalLayer
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceWindowsHWND
+import org.graphiks.dawn4k.native.WGPUSurfaceSourceXlibWindow
+import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceXlibWindow
 import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceWindowsHWND
 import org.graphiks.dawn4k.native.WGPUChainedStruct
 import org.graphiks.dawn4k.native.WGPUSurfaceTexture
@@ -54,6 +61,49 @@ class DawnSurface private constructor(
     private var configuredWidth: Int = 0
     private var configuredHeight: Int = 0
     private var closed = false
+    private var configuration = SurfaceConfiguration(
+        GPUTextureFormat.BGRA8Unorm, WGPUTextureFormat_BGRA8Unorm,
+        WGPUCompositeAlphaMode_Auto, WGPUPresentMode_Fifo,
+    )
+
+    val textureFormat: GPUTextureFormat get() = configuration.textureFormat
+
+    /** Adapter must remain alive; returned members are copied and then freed. */
+    internal fun configureForAdapter(adapterHandle: Long): SurfaceConfiguration {
+        check(!closed) { "the surface is closed" }
+        require(adapterHandle != 0L) { "the adapter is closed: no adapter handle" }
+        return bridge.call {
+            memoryScope { allocator ->
+                val capabilities = WGPUSurfaceCapabilities.allocate(allocator)
+                capabilities.nextInChain = null
+                capabilities.usages = 0uL
+                capabilities.formatCount = 0uL
+                capabilities.formats = null
+                capabilities.presentModeCount = 0uL
+                capabilities.presentModes = null
+                capabilities.alphaModeCount = 0uL
+                capabilities.alphaModes = null
+                try {
+                    val status = wgpuSurfaceGetCapabilities(handle,
+                        WGPUAdapter(NativeAddress(adapterHandle)), capabilities)
+                    check(status == WGPUStatus_Success) { "wgpuSurfaceGetCapabilities failed (status=$status)" }
+                    check(capabilities.usages and WGPUTextureUsage_RenderAttachment != 0uL) {
+                        "surface does not support RenderAttachment usage"
+                    }
+                    val selected = selectSurfaceConfiguration(
+                        readSurfaceEnums(capabilities.formats, capabilities.formatCount),
+                        readSurfaceEnums(capabilities.alphaModes, capabilities.alphaModeCount),
+                        readSurfaceEnums(capabilities.presentModes, capabilities.presentModeCount),
+                    )
+                    configuration = selected
+                    println("[demo] surface capabilities: $selected")
+                    selected
+                } finally {
+                    wgpuSurfaceCapabilitiesFreeMembers(capabilities)
+                }
+            }
+        }
+    }
 
     /**
      * Creates a surface over [metalLayerPtr] (a `CAMetalLayer*` as a Long).
@@ -86,6 +136,18 @@ class DawnSurface private constructor(
                 source.chain.sType = WGPUSType_SurfaceSourceWindowsHWND
                 source.hwnd = NativeAddress(hwnd)
                 source.hinstance = NativeAddress(hinstance)
+                source.chain
+            }
+        }
+
+        fun createXlib(bridge: NativeBridge, deviceHandle: Long, display: Long, window: Long): DawnSurface {
+            require(display != 0L && window != 0L) { "the X11 display or window handle is null" }
+            return create(bridge, deviceHandle) { allocator ->
+                val source = WGPUSurfaceSourceXlibWindow.allocate(allocator)
+                source.chain.next = null
+                source.chain.sType = WGPUSType_SurfaceSourceXlibWindow
+                source.display = NativeAddress(display)
+                source.window = window.toULong()
                 source.chain
             }
         }
@@ -125,14 +187,14 @@ class DawnSurface private constructor(
                 val config = WGPUSurfaceConfiguration.allocate(allocator)
                 config.nextInChain = null
                 config.device = device
-                config.format = WGPUTextureFormat_BGRA8Unorm
+                config.format = configuration.nativeFormat
                 config.usage = WGPUTextureUsage_RenderAttachment
                 config.width = width.toUInt()
                 config.height = height.toUInt()
                 config.viewFormatCount = 0uL
                 config.viewFormats = null
-                config.alphaMode = WGPUCompositeAlphaMode_Auto
-                config.presentMode = WGPUPresentMode_Fifo
+                config.alphaMode = configuration.alphaMode
+                config.presentMode = configuration.presentMode
                 wgpuSurfaceConfigure(handle, config)
             }
         }

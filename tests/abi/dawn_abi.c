@@ -43,6 +43,33 @@ int main(void) {
     FIELD(WGPUChainedStruct, next);
     FIELD(WGPUChainedStruct, sType);
 
+    TYPE(WGPUSurfaceSourceXlibWindow);
+    FIELD(WGPUSurfaceSourceXlibWindow, chain);
+    FIELD(WGPUSurfaceSourceXlibWindow, display);
+    FIELD(WGPUSurfaceSourceXlibWindow, window);
+
+    TYPE(WGPUSurfaceCapabilities);
+    FIELD(WGPUSurfaceCapabilities, nextInChain);
+    FIELD(WGPUSurfaceCapabilities, usages);
+    FIELD(WGPUSurfaceCapabilities, formatCount);
+    FIELD(WGPUSurfaceCapabilities, formats);
+    FIELD(WGPUSurfaceCapabilities, presentModeCount);
+    FIELD(WGPUSurfaceCapabilities, presentModes);
+    FIELD(WGPUSurfaceCapabilities, alphaModeCount);
+    FIELD(WGPUSurfaceCapabilities, alphaModes);
+
+    TYPE(WGPUSurfaceConfiguration);
+    FIELD(WGPUSurfaceConfiguration, nextInChain);
+    FIELD(WGPUSurfaceConfiguration, device);
+    FIELD(WGPUSurfaceConfiguration, format);
+    FIELD(WGPUSurfaceConfiguration, usage);
+    FIELD(WGPUSurfaceConfiguration, width);
+    FIELD(WGPUSurfaceConfiguration, height);
+    FIELD(WGPUSurfaceConfiguration, viewFormatCount);
+    FIELD(WGPUSurfaceConfiguration, viewFormats);
+    FIELD(WGPUSurfaceConfiguration, alphaMode);
+    FIELD(WGPUSurfaceConfiguration, presentMode);
+
     TYPE(WGPUBufferDescriptor);
     FIELD(WGPUBufferDescriptor, nextInChain);
     FIELD(WGPUBufferDescriptor, label);
@@ -190,4 +217,3 @@ int dawn_abi_invoke_buffer_map(WGPUBufferMapCallbackInfo info, int status) {
     return 1;
 }
 #endif
-
