@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from desktop_environment import validate_desktop_environment
 
 STOPPING = threading.Event()
 
@@ -84,7 +85,11 @@ def main():
     env_file.unlink(missing_ok=True)
     processes = {}
     try:
-        start(processes, "sway", ["dbus-run-session", "--", "sway", "-c", "/etc/demo/sway.conf"])
+        backend = os.environ.get("DAWN_DESKTOP_BACKEND", "x11")
+        if backend not in ("x11", "wayland"):
+            raise RuntimeError(f"unknown desktop backend: {backend}")
+        config = "/etc/demo/sway-wayland.conf" if backend == "wayland" else "/etc/demo/sway.conf"
+        start(processes, "sway", ["dbus-run-session", "--", "sway", "-c", config])
 
         def compositor_environment():
             sockets = list(runtime.glob("sway-ipc.*.sock"))
@@ -98,15 +103,19 @@ def main():
             if result.returncode or not env_file.is_file():
                 return None
             environment = json.loads(env_file.read_text())
-            if not environment.get("DISPLAY") or not environment.get("WAYLAND_DISPLAY"):
+            try:
+                environment = validate_desktop_environment(dict(os.environ, **environment), backend)
+            except RuntimeError:
                 return None
-            extract_display([f"{key}={value}" for key, value in environment.items()])
-            return dict(os.environ, **environment)
+            probe = subprocess.run(["wayland-info"], env=environment,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            return environment if probe.returncode == 0 else None
 
         environment = wait_for_ready(compositor_environment, processes)
         start(processes, "wayvnc", ["wayvnc", "-C", "/etc/demo/wayvnc.conf", "127.0.0.1", "5900"], environment)
         start(processes, "websockify", ["websockify", "--web=/usr/share/novnc", "0.0.0.0:6080", "127.0.0.1:5900"], environment)
-        print(f"[desktop] ready: XWayland {environment['DISPLAY']}, browser port 6080", flush=True)
+        endpoint = environment['DISPLAY'] if backend == "x11" else environment['WAYLAND_DISPLAY']
+        print(f"[desktop] ready: {backend} {endpoint}, browser port 6080", flush=True)
         supervise(processes)
         return 0
     except InterruptedError:

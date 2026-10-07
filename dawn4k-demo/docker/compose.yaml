@@ -12,6 +12,8 @@ services:
       - "127.0.0.1:${DAWN_DESKTOP_PORT:-6080}:6080"
     working_dir: /workspace
     shm_size: 512m
+    environment:
+      DAWN_DESKTOP_BACKEND: x11
     volumes:
       - type: bind
         source: ../..

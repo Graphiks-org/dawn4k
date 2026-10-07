@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 libxi6 libxrender1 libxtst6 libxrandr2 libgl1 libgl1-mesa-dri \
     libegl1 libfontconfig1 fonts-dejavu-core ca-certificates curl python3 \
     gcc libc6-dev binutils procps x11-utils xdotool grim gosu \
-    libwayland-dev wayland-protocols libxkbcommon-dev pkg-config gcc-x86-64-linux-gnu \
+    libwayland-dev wayland-protocols libxkbcommon-dev pkg-config gcc-x86-64-linux-gnu wayland-utils wtype \
     && rm -rf /var/lib/apt/lists/*
 
 # Compile the x64 bridge without executing x64 programs or replacing ARM64 libraries.
@@ -47,7 +47,7 @@ ENV JAVA_HOME=/opt/java PATH=/opt/java/bin:$PATH \
     XDG_RUNTIME_DIR=/run/user/1000 XDG_SESSION_TYPE=wayland \
     _JAVA_AWT_WM_NONREPARENTING=1
 COPY *.py *.sh /opt/demo/
-COPY sway.conf wayvnc.conf /etc/demo/
+COPY sway.conf sway-wayland.conf wayvnc.conf /etc/demo/
 RUN chmod +x /opt/demo/*.sh
 WORKDIR /workspace
 ENTRYPOINT ["/opt/demo/entrypoint.sh"]
