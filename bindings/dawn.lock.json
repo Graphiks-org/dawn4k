@@ -8,6 +8,8 @@
     {"target":"macosArm64","linkage":"static","name":"dawn-chromium-8077-macosArm64-static.tar.gz","sha256":"23333b72888860d87982edea0a637cac9b10c1b8737582eb65f79bc2abd3fbc2"},
     {"target":"linuxX64","linkage":"shared","name":"dawn-chromium-8077-linuxX64-shared.tar.gz","sha256":"942074e2fc77858786b38ebe5661a9f21593fd3a8084eb15a0481a3e369e32a5"},
     {"target":"linuxX64","linkage":"static","name":"dawn-chromium-8077-linuxX64-static.tar.gz","sha256":"047a2c9d88dce11beab42bb5365f1c9d03ee7d249f32217380782095bd260a39"},
+    {"target":"linuxArm64","linkage":"shared","name":"dawn-chromium-8077-linuxArm64-shared.tar.gz","sha256":"e0a3656a9786fdb2855bab20bb54b9d71838726417877d531962376db35b6f05"},
+    {"target":"linuxArm64","linkage":"static","name":"dawn-chromium-8077-linuxArm64-static.tar.gz","sha256":"31815aeaa95ec0b08037686c7008a7353d4f06588336092142da1f37c479f246"},
     {"target":"iosArm64","linkage":"static","name":"dawn-chromium-8077-iosArm64-static.tar.gz","sha256":"6a825012ecc3256911907bde6bc6d102c51b02c2bb2ed1a3cb5c0c546e40e59c"},
     {"target":"iosSimulatorArm64","linkage":"static","name":"dawn-chromium-8077-iosSimulatorArm64-static.tar.gz","sha256":"b5bc75ebeede7377734293f6752e5af2ec1fcff7e22f08db85063e75a8ca34b7"},
     {"target":"iosX64","linkage":"static","name":"dawn-chromium-8077-iosX64-static.tar.gz","sha256":"6fb1bbecff9d25b08269f9330390caa830fa6d060c80d9f50d609d204793ce68"},
