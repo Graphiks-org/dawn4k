@@ -39,5 +39,14 @@ internal class ParticleControls {
         if (it.ready && count in it.availableCounts) it.copy(count = count) else it
     }
 
+    fun stepCount(direction: Int) = mutableState.update { state ->
+        if (!state.ready || direction == 0) state else {
+            val index = state.availableCounts.indexOf(state.count)
+            val next = (index + direction.coerceIn(-1, 1))
+                .coerceIn(0, state.availableCounts.lastIndex)
+            state.copy(count = state.availableCounts[next])
+        }
+    }
+
     fun fail(message: String) = mutableState.update { it.copy(ready = false, error = message) }
 }

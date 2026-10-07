@@ -6,6 +6,34 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ParticleControlsTest {
+    @Test fun steppingSelectsAdjacentCountsAndClampsAtDeviceLimits() {
+        val controls = ParticleControls()
+        controls.stepCount(1)
+        assertEquals(4096, controls.state.value.count)
+        controls.initialize(1024)
+        controls.stepCount(1)
+        assertEquals(1024, controls.state.value.count)
+        controls.stepCount(-1)
+        assertEquals(256, controls.state.value.count)
+        controls.stepCount(-100)
+        assertEquals(256, controls.state.value.count)
+        controls.stepCount(100)
+        assertEquals(1024, controls.state.value.count)
+        controls.stepCount(0)
+        assertEquals(1024, controls.state.value.count)
+        controls.fail("closed")
+        controls.stepCount(-1)
+        assertEquals(1024, controls.state.value.count)
+    }
+
+    @Test fun steppingWorksWhenDeviceSupportsOnlyOneChoice() {
+        val controls = ParticleControls()
+        controls.initialize(128)
+        controls.stepCount(1)
+        controls.stepCount(-1)
+        assertEquals(128, controls.state.value.count)
+    }
+
     @Test
     fun controlsCannotIssueRequestsBeforeGpuInitialization() {
         val controls = ParticleControls()
