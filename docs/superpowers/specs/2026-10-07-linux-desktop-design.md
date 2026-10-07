@@ -19,11 +19,14 @@ macOS/Metal and Windows/D3D12 behavior must remain intact.
   concurrent rendering into Compose's own native target.
 - Dawn already supports Vulkan; generated bindings include
   `WGPUSurfaceSourceXlibWindow`.
-- JVM native resources stage Linux x64 Dawn, and the demo declares Linux x64
-  Skiko. Linux ARM64 is not part of this change.
+- JVM native resources currently stage Linux x64 Dawn, and the demo declares
+  Linux x64 Skiko. Extend both to Linux ARM64 while retaining Linux x64 support.
+- The pinned dawn-packer release `v8077.0.0` publishes both shared and static
+  `linuxArm64` archives. This was verified against the release asset list;
+  their absence from the project's lock is not an upstream limitation.
 - The demo requires JDK 25 and native access for Java FFM.
 - Docker Desktop on this machine runs Linux ARM64. The development container
-  will explicitly target `linux/amd64`, using Docker's emulation.
+  will explicitly target `linux/arm64`, without x64 emulation.
 - Dawn prebuilts require a sufficiently recent glibc/libstdc++. Use Ubuntu 24.04
   as the initial base and verify the actual shared-library requirements during
   implementation; loading the pinned Dawn library is an acceptance gate.
@@ -110,6 +113,22 @@ Generalize platform selection in `Main.kt` and `DemoApp.kt` so Linux and Windows
 share the side-by-side controls/scene layout while macOS preserves its existing
 layout and Metal host.
 
+### ARM64 JVM packaging
+
+Add the pinned Linux ARM64 archives to `bindings/dawn.lock.json` with verified
+archive SHA-256 values from the release and stage the shared library under
+`linux-aarch64`. Add the Linux ARM64 Skiko runtime to the version catalog and
+demo dependencies. The desktop launcher requests `-Pdawn.targets=linuxArm64`.
+
+The generated JVM loader already recognizes `aarch64`/`arm64`, but its embedded
+bundle table currently contains only macOS ARM64 and Linux x64. Extend the
+generated bootstrap through the existing binding-generation workflow so
+`linux-aarch64` resources are extracted and their library-content checksums are
+validated. Preserve existing bundle identities and inspect regeneration diffs;
+do not replace the generated ABI bindings with unrelated changes. Verify the
+ARM64 ABI against the pinned Dawn headers before claiming runtime support.
+This scope adds JVM ARM64 support, not a new Kotlin/Native Linux ARM64 target.
+
 ## Error handling and observability
 
 Desktop startup failures must identify the failing service in container logs.
@@ -130,7 +149,8 @@ request options explicitly rather than silently changing rendering backends.
    a desktop. Platform-native tests are gated appropriately.
 2. Existing demo unit tests remain passing; Linux-specific code must not load
    Xlib during macOS or Windows execution.
-3. Build the amd64 image on this Mac and load the pinned Dawn library inside it.
+3. Build the arm64 image on this Mac, verify its architecture and the ARM64 ABI,
+   and load the pinned Dawn library through the JVM resource loader inside it.
 4. Start Compose and confirm Sway, XWayland, wayvnc, and the browser endpoint
    are ready. Confirm no privileged mode or public port binding is used.
 5. Open noVNC in OpenChamber and confirm a captured desktop, not just the viewer
@@ -149,7 +169,7 @@ request options explicitly rather than silently changing rendering backends.
 Deliver Linux demo support, local desktop-container configuration, automated
 tests, and a README with launch/view/stop/rebuild commands, logs, and limitations.
 
-Not included: native Wayland surfaces, Linux ARM64 Dawn builds, GPU passthrough,
+Not included: native Wayland surfaces, rebuilding Dawn from source, GPU passthrough,
 performance claims, remote hosting, CI desktop infrastructure, or unrelated
 refactoring. If X11 child embedding cannot be made reliable, return to design
 review rather than silently replacing the agreed integrated UI.
