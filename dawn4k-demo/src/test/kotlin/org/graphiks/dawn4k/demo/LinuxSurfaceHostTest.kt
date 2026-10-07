@@ -9,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
+import java.util.concurrent.TimeUnit
 
 class LinuxSurfaceHostTest {
     @Test fun missingDisplayReportsTheDesktopLauncher() {
@@ -47,6 +48,22 @@ class LinuxSurfaceHostTest {
                 bounds.set(Rectangle(20, 30, 200, 150))
                 assertEquals(200 to 150, host.pixelSize())
                 assertTrue(information(child).contains("Map State: IsViewable"))
+                fun changeParentMapState(command: String) {
+                    val process = ProcessBuilder("xdotool", command, parent.toString()).start()
+                    assertTrue(process.waitFor(5, TimeUnit.SECONDS), "parent map command timed out")
+                    assertEquals(0, process.exitValue())
+                }
+                changeParentMapState("windowunmap")
+                try {
+                    assertEquals(Rectangle(20, 30, 200, 150), bounds.get())
+                    assertEquals(0 to 0, host.pixelSize())
+                    assertTrue(information(child).contains("Map State: IsUnMapped"))
+                    changeParentMapState("windowmap")
+                    assertEquals(200 to 150, host.pixelSize())
+                    assertTrue(information(child).contains("Map State: IsViewable"))
+                } finally {
+                    changeParentMapState("windowmap")
+                }
             } finally {
                 host.close()
                 host.close()

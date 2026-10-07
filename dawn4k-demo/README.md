@@ -72,11 +72,15 @@ python3 scripts/test-linux-arm64-packaging.py
 docker compose -f dawn4k-demo/docker/compose.yaml exec -e DAWN_DESKTOP_TESTS=1 desktop /opt/demo/demo.sh :dawn4k-demo:test :dawn4k:jvmTest :dawn4k-native:jvmTest :dawn4k-native:verifyDawnAbi
 # Proves a dry/gated run cannot stand in for an opted-in desktop run
 python3 scripts/test-linux-desktop-opt-in.py
+# Actual standalone application rejects missing DISPLAY before initializing AWT
+python3 scripts/test-linux-demo-entrypoint.py
 ```
 
 Without `DAWN_DESKTOP_TESTS=1`, Linux display tests return before creating native
 windows. With it, missing DISPLAY is a test failure, and Gradle always executes
 the live desktop tests rather than accepting cached/up-to-date results.
+The visibility tests also unmap a nonempty X11 parent: presentation stops while
+hidden, the child is explicitly unmapped, and rendering resumes after restoration.
 
 The launcher reads the actual display environment exported by Sway and selects
 the installed lavapipe ICD by filename. It passes `-Pdawn.targets=linuxArm64`,

@@ -18,7 +18,12 @@ fun main() {
         System.err.println("dawn4k-demo supports macOS, Windows and Linux/X11. Detected: $os")
         return
     }
-    if (platform == DemoPlatform.Linux) initializeLinuxXlibThreading()
+    if (platform == DemoPlatform.Linux) {
+        check(!System.getenv("DISPLAY").isNullOrBlank()) {
+            "missing DISPLAY; launch through dawn4k-demo/docker's /opt/demo/demo.sh"
+        }
+        initializeLinuxXlibThreading()
+    }
     val macos = platform == DemoPlatform.MacOS
     val backend = when (platform) {
         DemoPlatform.MacOS -> "Metal"

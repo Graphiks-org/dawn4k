@@ -42,6 +42,7 @@ internal object Xlib {
     private val synchronize = bind("XSync", JAVA_INT, ADDRESS, JAVA_INT)
     private val getGeometry = bind("XGetGeometry", JAVA_INT, ADDRESS, JAVA_LONG,
         ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS)
+    private val getAttributes = bind("XGetWindowAttributes", JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS)
     private val setErrorHandler = bind("XSetErrorHandler", ADDRESS, ADDRESS)
 
     private data class Error(val code: Int, val request: Int, val resource: Long)
@@ -155,5 +156,15 @@ internal object Xlib {
         sync(display)
         check(status != 0) { "XGetGeometry failed" }
         values.get(JAVA_INT, 16) to values.get(JAVA_INT, 20)
+    }
+
+    /** IsViewable includes ancestor map state, unlike positive drawable geometry. */
+    fun isViewable(display: MemorySegment, window: Long): Boolean = Arena.ofConfined().use { arena ->
+        // LP64 size/offset verified by docker/xlib-layout.c.
+        val attributes = arena.allocate(136, 8)
+        val status = getAttributes.invokeWithArguments(display, window, attributes) as Int
+        sync(display)
+        check(status != 0) { "XGetWindowAttributes failed" }
+        attributes.get(JAVA_INT, 92) == 2 // IsViewable
     }
 }
