@@ -182,4 +182,4 @@ review rather than silently replacing the agreed integrated UI.
 - [x] Write design and review for ambiguity, contradictions, and scope.
 - [x] Obtain user review of this written specification.
 - [x] Write implementation plan after specification approval.
-- [ ] Obtain the user's choice of execution method before implementation.
+- [x] Obtain the user's choice of execution method before implementation (Native).

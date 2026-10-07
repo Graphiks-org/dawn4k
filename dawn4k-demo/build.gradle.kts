@@ -74,4 +74,13 @@ tasks.withType<JavaExec>().configureEach {
 
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
+    // Inherited environment is not otherwise a Gradle test input. An explicit
+    // desktop opt-in must not reuse a successful run that gated native tests out.
+    val desktopTests = providers.environmentVariable("DAWN_DESKTOP_TESTS").orElse("0").get()
+    val missingDisplayTest = providers.environmentVariable("DAWN_MISSING_DISPLAY_TEST").orElse("0").get()
+    inputs.property("dawn.desktopTests", desktopTests)
+    inputs.property("dawn.missingDisplayTest", missingDisplayTest)
+    val liveDesktop = desktopTests == "1" || missingDisplayTest == "1"
+    outputs.upToDateWhen { !liveDesktop }
+    outputs.doNotCacheIf("native desktop tests require a live compositor") { liveDesktop }
 }
