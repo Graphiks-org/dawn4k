@@ -118,9 +118,12 @@ tasks.withType<Test>().configureEach {
     // desktop opt-in must not reuse a successful run that gated native tests out.
     val desktopTests = providers.environmentVariable("DAWN_DESKTOP_TESTS").orElse("0").get()
     val missingDisplayTest = providers.environmentVariable("DAWN_MISSING_DISPLAY_TEST").orElse("0").get()
+    val waylandTests = providers.environmentVariable("DAWN_WAYLAND_TESTS").orElse("0").get()
     inputs.property("dawn.desktopTests", desktopTests)
     inputs.property("dawn.missingDisplayTest", missingDisplayTest)
-    val liveDesktop = desktopTests == "1" || missingDisplayTest == "1"
+    inputs.property("dawn.waylandTests", waylandTests)
+    if (waylandTests == "1" && linuxHost) dependsOn(testWaylandBridge)
+    val liveDesktop = desktopTests == "1" || missingDisplayTest == "1" || waylandTests == "1"
     outputs.upToDateWhen { !liveDesktop }
     outputs.doNotCacheIf("native desktop tests require a live compositor") { liveDesktop }
 }
