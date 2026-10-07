@@ -85,15 +85,7 @@ class WaylandDemoWindowTest {
     @Test fun cancellationDuringGpuStartupDoesNotLeakNativeOwners() {
         if (!waylandTestsEnabled()) return
         repeat(3) {
-            val controls = ParticleControls()
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-            val host = WaylandSurfaceHost.open(controls) { scope.cancel() }
-            try {
-                awaitWaylandSize(host)
-                val rendering = scope.launch { runParticleDemo(host, controls, true) }
-                scope.cancel()
-                runBlocking { withTimeout(10_000) { rendering.join() } }
-            } finally { scope.cancel(); host.close() }
+            verifyActualCloseAt(WaylandCheckpoint.Capabilities)
         }
         assertTrue(Thread.getAllStackTraces().keys.none {
             it.isAlive && it.name.startsWith("dawn-wayland-owner-")

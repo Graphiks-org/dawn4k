@@ -165,10 +165,16 @@ python3 scripts/test-wayland-desktop-opt-in.py
 python3 scripts/test-wayland-demo-entrypoint.py
 # Starts/stops only a disposable project on 6082 for compositor-loss testing
 DAWN_WAYLAND_DISCONNECT_TESTS=1 python3 scripts/test-wayland-demo-entrypoint.py
+# Deterministic disconnect between capability negotiation and control initialization
+# Uses the same disposable project/6082; run serially with the previous test
+python3 scripts/test-wayland-pending-lifecycle.py
 ```
 
 This exercises a real surface, particle rendering, keyboard controls, native
 resize, integer scale changes, close during startup, Escape and compositor close.
+Lifecycle checkpoints hold a real Dawn surface/capability or presentation call
+while a native close arrives; the disposable test disconnects the compositor
+before GPU initialization can overwrite a terminal error.
 The native C tests include protocol failure fixtures, keymaps, cleanup and an ABI
 oracle. Both desktop opt-ins force execution instead of cached/up-to-date results;
 without the relevant opt-in, native test bodies are guarded out.

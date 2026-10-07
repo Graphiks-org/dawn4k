@@ -22,11 +22,15 @@ internal class ParticleControls {
         require(maximum > 0) { "The GPU cannot run the particle scene" }
         val choices = listOf(256, 1024, 4096, 16384, 65536).filter { it <= maximum }
             .ifEmpty { listOf(maximum) }
-        mutableState.value = ParticleControlState(
-            availableCounts = choices,
-            count = choices.lastOrNull { it <= 4096 } ?: choices.first(),
-            ready = true,
-        )
+        mutableState.update { state ->
+            // GPU setup can finish after the event owner has reported a disconnect.
+            // A terminal error wins regardless of the order of these atomic updates.
+            if (state.error != null) state else ParticleControlState(
+                availableCounts = choices,
+                count = choices.lastOrNull { it <= 4096 } ?: choices.first(),
+                ready = true,
+            )
+        }
     }
 
     fun togglePause() = mutableState.update { if (it.ready) it.copy(paused = !it.paused) else it }
@@ -48,5 +52,7 @@ internal class ParticleControls {
         }
     }
 
-    fun fail(message: String) = mutableState.update { it.copy(ready = false, error = message) }
+    fun fail(message: String) = mutableState.update {
+        if (it.error != null) it else it.copy(ready = false, error = message)
+    }
 }
