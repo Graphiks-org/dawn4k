@@ -25,8 +25,8 @@ fun registerWaylandBuild(name: String, target: String, cross: Boolean) = tasks.r
     inputs.files(fileTree("src/main/c"), fileTree("scripts"))
     inputs.property("target", target)
     inputs.property("compiler", if (cross) "x86_64-linux-gnu-gcc" else System.getenv("CC") ?: "gcc")
-    val sysroot = System.getenv("DAWN_WAYLAND_X64_SYSROOT") ?: "/opt/demo/wayland-sysroot"
-    val protocol = System.getenv("WAYLAND_PROTOCOL_XML") ?: "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+    val sysroot = System.getenv("DAWN_WAYLAND_X64_SYSROOT")?.takeIf { it.isNotEmpty() } ?: "/opt/demo/wayland-sysroot"
+    val protocol = System.getenv("WAYLAND_PROTOCOL_XML")?.takeIf { it.isNotEmpty() } ?: "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
     inputs.property("flags", if (cross) "--sysroot=$sysroot" else System.getenv("CFLAGS") ?: "")
     inputs.property("protocolPath", protocol)
     inputs.property("pkgConfigSysroot", if (cross) sysroot else System.getenv("PKG_CONFIG_SYSROOT_DIR") ?: "")
