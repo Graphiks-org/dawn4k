@@ -13,14 +13,21 @@ import androidx.compose.ui.unit.dp
 
 fun main() {
     val os = System.getProperty("os.name").lowercase()
-    val macos = os.contains("mac")
-    if (!macos && !os.startsWith("windows")) {
-        System.err.println("dawn4k-demo supports macOS and Windows. Detected: $os")
+    val platform = detectDemoPlatform(os)
+    if (platform == null) {
+        System.err.println("dawn4k-demo supports macOS, Windows and Linux/X11. Detected: $os")
         return
+    }
+    if (platform == DemoPlatform.Linux) initializeLinuxXlibThreading()
+    val macos = platform == DemoPlatform.MacOS
+    val backend = when (platform) {
+        DemoPlatform.MacOS -> "Metal"
+        DemoPlatform.Windows -> "D3D12"
+        DemoPlatform.Linux -> "Vulkan"
     }
     androidx.compose.ui.window.application {
         androidx.compose.ui.window.Window(
-            title = "dawn4k-demo — ParticleScene (Dawn/${if (macos) "Metal" else "D3D12"})",
+            title = "dawn4k-demo — ParticleScene (Dawn/$backend)",
             onCloseRequest = ::exitApplication,
             undecorated = macos,
             transparent = macos,

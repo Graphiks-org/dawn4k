@@ -42,6 +42,24 @@ class LinuxWindowHandleTest {
             assertEquals(0, process.waitFor(), information)
             assertTrue(information.contains("Class: InputOutput"), information)
             println("[test] Compose native handle $handle: $information")
+            val floatingProbe = """
+                import json, subprocess, sys
+                def find(node, floating=False):
+                    floating = floating or node.get('type') == 'floating_con'
+                    if node.get('window') == int(sys.argv[1]): return floating
+                    for child in node.get('nodes', []) + node.get('floating_nodes', []):
+                        result = find(child, floating)
+                        if result is not None: return result
+                    return None
+                tree = json.loads(subprocess.check_output(['swaymsg', '-t', 'get_tree']))
+                result = find(tree)
+                print('demo window floating:', result)
+                sys.exit(0 if result else 1)
+            """.trimIndent()
+            val probe = ProcessBuilder("python3", "-c", floatingProbe, handle.toString())
+                .redirectErrorStream(true).start()
+            val probeOutput = probe.inputStream.bufferedReader().readText()
+            assertEquals(0, probe.waitFor(), "AWT demo windows must float to avoid clipping: $probeOutput")
         } finally {
             SwingUtilities.invokeAndWait { if (created) window.dispose() }
         }
