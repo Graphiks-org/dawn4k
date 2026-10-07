@@ -65,6 +65,15 @@ private object KextractNativeBootstrap {
                 "webgpu_dawn" to "libwebgpu_dawn.dylib",
             ),
         ),
+        "linux-aarch64" to Bundle(
+            key = "39841aa39e81f987cd65da806c81028d9374d650161539270775ab8a227b912a",
+            resources = kotlin.collections.listOf(
+                Resource("libwebgpu_dawn.so", "e8a0500139186da7fccbaa35ae1077b4bc4b13488e45628ffcd8aa5a1d759635"),
+            ),
+            libraryPaths = kotlin.collections.mapOf(
+                "webgpu_dawn" to "libwebgpu_dawn.so",
+            ),
+        ),
         "linux-x86-64" to Bundle(
             key = "345a4e331de72b199af738c8627315c22ff57fdb5bfa2d4240d536a12191145c",
             resources = kotlin.collections.listOf(
@@ -17862,4 +17871,3 @@ private val __kffiJvmStructLayouts: Unit = run {
     __kffiJvmRegisterStructLayout194()
     __kffiJvmRegisterStructLayout195()
 }
-

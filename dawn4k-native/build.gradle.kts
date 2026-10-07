@@ -19,6 +19,7 @@ val dawnTargets: List<String> =
             "mingwX64",
             "macosArm64",
             "linuxX64",
+            "linuxArm64",
             "androidNativeArm64",
             "androidNativeX64",
             "iosArm64",
@@ -58,6 +59,10 @@ val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     from(layout.buildDirectory.dir("native/linuxX64/shared/lib")) {
         include("libwebgpu_dawn.so")
         into("linux-x86-64")
+    }
+    from(layout.buildDirectory.dir("native/linuxArm64/shared/lib")) {
+        include("libwebgpu_dawn.so")
+        into("linux-aarch64")
     }
 }
 
@@ -134,12 +139,18 @@ val dumpGeneratedAbi = tasks.register<DumpGeneratedAbiTask>("dumpGeneratedAbi") 
     report.set(layout.buildDirectory.file("reports/abi/generated.json"))
 }
 
+val abiHeaderTarget = when (abiHost) {
+    "linux-aarch64" -> "linuxArm64"
+    "linux-x86-64" -> "linuxX64"
+    else -> "macosArm64"
+}
+
 val verifyDawnAbi = tasks.register<VerifyDawnAbiTask>("verifyDawnAbi") {
     group = "verification"
     description = "Compile the C ABI oracle, run it, and compare it with the generated bindings."
     dependsOn(prepareDawn)
     oracleSource.set(rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c"))
-    includeDir.set(layout.buildDirectory.dir("native/macosArm64/shared/include"))
+    includeDir.set(layout.buildDirectory.dir("native/$abiHeaderTarget/shared/include"))
     generatedJvmSource.set(generatedJvmFile)
     hostName.set(abiHost)
     compiler.set(System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc")
@@ -160,7 +171,7 @@ val buildDawnAbiHelper = tasks.register<Exec>("buildDawnAbiHelper") {
     commandLine(
         System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc",
         "-std=c11", "-DDAWN_ABI_NO_MAIN", "-shared", "-fPIC",
-        "-I${layout.buildDirectory.dir("native/macosArm64/shared/include").get().asFile.absolutePath}",
+        "-I${layout.buildDirectory.dir("native/$abiHeaderTarget/shared/include").get().asFile.absolutePath}",
         rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c").asFile.absolutePath,
         "-o", output.absolutePath,
     )

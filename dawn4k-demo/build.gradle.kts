@@ -25,6 +25,7 @@ dependencies {
     runtimeOnly(libs.skiko.awt.runtime.macos.arm64)
     runtimeOnly(libs.skiko.awt.runtime.macos.x64)
     runtimeOnly(libs.skiko.awt.runtime.linux.x64)
+    runtimeOnly(libs.skiko.awt.runtime.linux.arm64)
     runtimeOnly(libs.skiko.awt.runtime.windows.x64)
 
     testImplementation(kotlin("test"))
