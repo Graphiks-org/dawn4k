@@ -11,18 +11,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
-fun main() {
+fun main(args: Array<String>) {
     val os = System.getProperty("os.name").lowercase()
     val platform = detectDemoPlatform(os)
     if (platform == null) {
-        System.err.println("dawn4k-demo supports macOS, Windows and Linux/X11. Detected: $os")
+        System.err.println("dawn4k-demo supports macOS, Windows and Linux/Wayland or X11. Detected: $os")
         return
     }
+    val forced = parseLinuxBackendOverride(args, platform)
     if (platform == DemoPlatform.Linux) {
-        check(!System.getenv("DISPLAY").isNullOrBlank()) {
-            "missing DISPLAY; launch through dawn4k-demo/docker's /opt/demo/demo.sh"
+        val displayBackend = selectLinuxDisplayBackend(System.getenv(), forced)
+        println("[demo] display backend: $displayBackend")
+        println("[demo] process pid=${ProcessHandle.current().pid()}")
+        when (displayBackend) {
+            LinuxDisplayBackend.Wayland -> { runWaylandDemo(); return }
+            LinuxDisplayBackend.X11 -> initializeLinuxXlibThreading()
         }
-        initializeLinuxXlibThreading()
     }
     val macos = platform == DemoPlatform.MacOS
     val backend = when (platform) {

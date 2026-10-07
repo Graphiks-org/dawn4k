@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """An opt-in desktop test must really run after an otherwise identical dry run."""
 from pathlib import Path
+import os
 import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ["docker", "compose", "-f", str(ROOT / "dawn4k-demo/docker/compose.yaml")]
+if os.environ.get("DAWN_X11_TEST_PROJECT"):
+    COMPOSE += ["-p", os.environ["DAWN_X11_TEST_PROJECT"]]
 
 
 class DesktopOptInTest(unittest.TestCase):
