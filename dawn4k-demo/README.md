@@ -178,6 +178,9 @@ before GPU initialization can overwrite a terminal error.
 The native C tests include protocol failure fixtures, keymaps, cleanup and an ABI
 oracle. Both desktop opt-ins force execution instead of cached/up-to-date results;
 without the relevant opt-in, native test bodies are guarded out.
+Run full `--rerun-tasks` matrices serially across desktops: the existing Dawn
+archive preparation uses a checkout-level `.dawn/extract` directory shared by
+the source mount, unlike the per-project Gradle/output volumes.
 
 X11 regression and shared packaging/supervisor checks:
 
