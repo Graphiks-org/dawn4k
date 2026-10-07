@@ -180,6 +180,6 @@ review rather than silently replacing the agreed integrated UI.
 - [x] Clarify XWayland versus native Wayland requirements.
 - [x] Compare alternatives and obtain scope/design approval in conversation.
 - [x] Write design and review for ambiguity, contradictions, and scope.
-- [ ] Obtain user review of this written specification.
-- [ ] Write implementation plan after specification approval.
+- [x] Obtain user review of this written specification.
+- [x] Write implementation plan after specification approval.
 - [ ] Obtain the user's choice of execution method before implementation.
