@@ -484,4 +484,4 @@ Use systematic-debugging for any failure and maintain red/green evidence. On Mac
 - [x] Placeholder scan: no unspecified replacement versions, unowned interfaces, or deferred product requirements.
 - [x] Interface consistency: one platform enum; Xlib factory uses display pointer and XID; surface format negotiated before ParticleScene; existing adapter accessor supplies capabilities.
 - [x] Review Focus: each listed condition has tests owned by its corresponding task.
-- [ ] User reviews plan and selects Native or Subagent-driven execution.
+- [x] User reviews plan and selects Native execution.

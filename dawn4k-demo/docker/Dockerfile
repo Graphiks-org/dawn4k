@@ -23,7 +23,8 @@ RUN if getent passwd 1000 >/dev/null; then \
 
 ENV JAVA_HOME=/opt/java PATH=/opt/java/bin:$PATH \
     WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=pixman \
-    XDG_RUNTIME_DIR=/run/user/1000 XDG_SESSION_TYPE=wayland
+    XDG_RUNTIME_DIR=/run/user/1000 XDG_SESSION_TYPE=wayland \
+    _JAVA_AWT_WM_NONREPARENTING=1
 COPY *.py *.sh /opt/demo/
 COPY sway.conf wayvnc.conf /etc/demo/
 RUN chmod +x /opt/demo/*.sh
