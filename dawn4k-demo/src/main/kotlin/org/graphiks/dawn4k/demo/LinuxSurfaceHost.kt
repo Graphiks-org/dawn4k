@@ -16,6 +16,7 @@ import org.graphiks.dawn4k.NativeBridge
 
 /** Owns an X11 connection/child beside Compose; never borrows AWT's display. */
 internal class LinuxSurfaceHost private constructor(
+    private val parentWindow: Long,
     private val viewport: AtomicReference<Rectangle>,
 ) : SurfaceHost {
     private val closed = AtomicBoolean()
@@ -45,7 +46,7 @@ internal class LinuxSurfaceHost private constructor(
             check(!System.getenv("DISPLAY").isNullOrEmpty()) {
                 "missing DISPLAY; launch through dawn4k-demo/docker's /opt/demo/demo.sh"
             }
-            val host = LinuxSurfaceHost(viewport)
+            val host = LinuxSurfaceHost(parentWindow, viewport)
             try {
                 host.onOwner {
                     host.display = Xlib.openDisplay()
@@ -84,7 +85,7 @@ internal class LinuxSurfaceHost private constructor(
 
     private fun updateBounds(): Pair<Int, Int> {
         val bounds = Rectangle(viewport.get())
-        if (bounds.width <= 0 || bounds.height <= 0) {
+        if (bounds.width <= 0 || bounds.height <= 0 || !Xlib.isViewable(display, parentWindow)) {
             if (mapped) {
                 Xlib.unmap(display, child)
                 Xlib.sync(display)

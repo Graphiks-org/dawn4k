@@ -56,6 +56,26 @@ class LinuxDemoWindowTest {
             }
             controls.togglePause()
             await("resume", controls) { trace.toString().contains("particles=256, paused=false") }
+            fun nativeCommand(vararg arguments: String) {
+                val command = ProcessBuilder(listOf("xdotool") + arguments).start()
+                assertTrue(command.waitFor(5, TimeUnit.SECONDS), "X11 command timed out")
+                assertEquals(0, command.exitValue())
+            }
+            fun lastFrame(): Long = Regex("frame (\\d+) rendered").findAll(trace.toString())
+                .lastOrNull()?.groupValues?.get(1)?.toLong() ?: 0L
+            nativeCommand("windowunmap", nativeWindow.toString())
+            try {
+                // Allow an already acquired frame to finish, then observe the live
+                // render loop rather than treating unchanged geometry as hidden.
+                Thread.sleep(300)
+                val hiddenFrame = lastFrame()
+                Thread.sleep(2000)
+                assertEquals(hiddenFrame, lastFrame(), "hidden windows must stop presenting")
+                nativeCommand("windowmap", nativeWindow.toString())
+                await("presentation after native map restoration", controls) { lastFrame() > hiddenFrame }
+            } finally {
+                nativeCommand("windowmap", nativeWindow.toString())
+            }
             assertEquals(null, controls.state.value.error)
         } finally {
             SwingUtilities.invokeAndWait { if (created && window.isDisplayable) window.dispose() }
