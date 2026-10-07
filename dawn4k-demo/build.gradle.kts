@@ -11,6 +11,46 @@ kotlin {
     jvmToolchain(25)
 }
 
+// Native Wayland windowing belongs to the demo, not the public Dawn bindings.
+val linuxHost = System.getProperty("os.name").lowercase().contains("linux")
+val waylandHostTarget = if (System.getProperty("os.arch") in setOf("aarch64", "arm64")) "linuxArm64" else "linuxX64"
+val waylandTargets = providers.gradleProperty("wayland.targets")
+    .map { it.split(',').map(String::trim).distinct() }
+    .getOrElse(if (linuxHost) listOf(waylandHostTarget) else emptyList())
+require(waylandTargets.all { it in setOf("linuxArm64", "linuxX64") }) { "wayland.targets must be linuxArm64 and/or linuxX64" }
+
+fun registerWaylandBuild(name: String, target: String, cross: Boolean) = tasks.register<Exec>(name) {
+    onlyIf { linuxHost }
+    workingDir(projectDir)
+    inputs.files(fileTree("src/main/c"), fileTree("scripts"))
+    inputs.property("target", target)
+    inputs.property("compiler", if (cross) "x86_64-linux-gnu-gcc" else System.getenv("CC") ?: "gcc")
+    inputs.file("/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml").optional()
+    outputs.file(layout.buildDirectory.file("wayland/$target/libdawn4k_wayland.so"))
+    environment("DAWN_WAYLAND_TARGET", target)
+    commandLine("bash", "scripts/${if (cross) "cross-build-wayland-bridge.sh" else "build-wayland-bridge.sh"}")
+}
+val buildWaylandBridge = registerWaylandBuild("buildWaylandBridge", waylandHostTarget, false)
+val buildWaylandBridgeX64 = registerWaylandBuild("buildWaylandBridgeX64", "linuxX64", waylandHostTarget != "linuxX64")
+val testWaylandBridge = tasks.register<Exec>("testWaylandBridge") {
+    onlyIf { linuxHost }
+    workingDir(projectDir)
+    commandLine("bash", "scripts/build-wayland-bridge.sh", "--test")
+}
+val stageWaylandResources = tasks.register<Sync>("stageWaylandResources") {
+    into(layout.buildDirectory.dir("generated/waylandResources"))
+    waylandTargets.forEach { target ->
+        check(!linuxHost || target == waylandHostTarget || target == "linuxX64") {
+            "cross-compiling the ARM64 bridge from x64 requires an ARM64 build host"
+        }
+        dependsOn(if (target == waylandHostTarget) buildWaylandBridge else buildWaylandBridgeX64)
+        from(layout.buildDirectory.file("wayland/$target/libdawn4k_wayland.so")) {
+            into(if (target == "linuxArm64") "linux-aarch64" else "linux-x86-64")
+        }
+    }
+}
+sourceSets.main { resources.srcDir(stageWaylandResources.map { it.destinationDir }) }
+
 dependencies {
     implementation(project(":dawn4k"))
     implementation(libs.suite.demos.jvm)
