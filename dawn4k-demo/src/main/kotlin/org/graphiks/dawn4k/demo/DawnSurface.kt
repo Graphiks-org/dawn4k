@@ -20,6 +20,8 @@ import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_SuccessSubo
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceMetalLayer
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceWindowsHWND
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceXlibWindow
+import org.graphiks.dawn4k.native.WGPUSurfaceSourceWaylandSurface
+import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceWaylandSurface
 import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceXlibWindow
 import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceWindowsHWND
 import org.graphiks.dawn4k.native.WGPUChainedStruct
@@ -148,6 +150,18 @@ class DawnSurface private constructor(
                 source.chain.sType = WGPUSType_SurfaceSourceXlibWindow
                 source.display = NativeAddress(display)
                 source.window = window.toULong()
+                source.chain
+            }
+        }
+
+        fun createWayland(bridge: NativeBridge, deviceHandle: Long, display: Long, surface: Long): DawnSurface {
+            require(display != 0L && surface != 0L) { "the Wayland display or surface handle is null" }
+            return create(bridge, deviceHandle) { allocator ->
+                val source = WGPUSurfaceSourceWaylandSurface.allocate(allocator)
+                source.chain.next = null
+                source.chain.sType = WGPUSType_SurfaceSourceWaylandSurface
+                source.display = NativeAddress(display)
+                source.surface = NativeAddress(surface)
                 source.chain
             }
         }
