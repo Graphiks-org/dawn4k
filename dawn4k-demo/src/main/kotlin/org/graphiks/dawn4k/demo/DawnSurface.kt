@@ -75,7 +75,7 @@ class DawnSurface private constructor(
     val textureFormat: GPUTextureFormat get() = configuration.textureFormat
 
     /** Adapter must remain alive; returned members are copied and then freed. */
-    internal fun configureForAdapter(adapterHandle: Long): SurfaceConfiguration {
+    internal fun configureForAdapter(adapterHandle: Long, requiredFormat: GPUTextureFormat? = null): SurfaceConfiguration {
         check(!closed) { "the surface is closed" }
         require(adapterHandle != 0L) { "the adapter is closed: no adapter handle" }
         return bridge.call {
@@ -100,6 +100,7 @@ class DawnSurface private constructor(
                         readSurfaceEnums(capabilities.formats, capabilities.formatCount),
                         readSurfaceEnums(capabilities.alphaModes, capabilities.alphaModeCount),
                         readSurfaceEnums(capabilities.presentModes, capabilities.presentModeCount),
+                        requiredFormat,
                     )
                     configuration = selected
                     println("[demo] surface capabilities: $selected")

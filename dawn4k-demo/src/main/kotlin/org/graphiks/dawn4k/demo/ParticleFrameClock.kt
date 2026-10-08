@@ -5,6 +5,8 @@ internal class ParticleFrameClock {
     private var previousState: ParticleControlState? = null
     private var previousTime = 0L
 
+    fun suspend() { previousState = null }
+
     fun advance(state: ParticleControlState, now: Long): Float {
         val previous = previousState
         val transition = previous == null || previous.paused != state.paused ||
