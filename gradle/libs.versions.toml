@@ -51,6 +51,7 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 # Graphiks snapshots (démos + pont ObjC)
 webgpu-descriptors = { module = "org.graphiks:webgpu-descriptors", version.ref = "webgpu" }
 suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
+suite-demos = { module = "org.graphiks:suite-demos", version.ref = "webgpu" }
 kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
 
 # Compose Desktop (application)
