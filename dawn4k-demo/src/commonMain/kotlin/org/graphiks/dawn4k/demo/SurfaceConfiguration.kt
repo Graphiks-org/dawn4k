@@ -10,8 +10,7 @@ import org.graphiks.dawn4k.native.WGPUTextureFormat_BGRA8Unorm
 import org.graphiks.dawn4k.native.WGPUTextureFormat_RGBA8Unorm
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.kffi.NativeAddress
-import java.lang.foreign.MemorySegment
-import java.lang.foreign.ValueLayout.JAVA_INT
+import org.graphiks.kffi.MemoryBuffer
 
 internal data class SurfaceConfiguration(
     val textureFormat: GPUTextureFormat,
@@ -25,8 +24,9 @@ internal fun readSurfaceEnums(address: NativeAddress?, count: ULong): List<UInt>
     check(count <= 4096uL) { "surface capability count is unbounded: $count" }
     if (count == 0uL) return emptyList()
     check(address != null && address.rawValue != 0L) { "surface capability array is null with count=$count" }
-    val values = MemorySegment.ofAddress(address.rawValue).reinterpret(count.toLong() * 4L)
-    return List(count.toInt()) { index -> values.get(JAVA_INT, index * 4L).toUInt() }
+    val values = UIntArray(count.toInt())
+    MemoryBuffer(address, count * 4uL).readUInts(values)
+    return values.toList()
 }
 
 internal fun selectSurfaceConfiguration(

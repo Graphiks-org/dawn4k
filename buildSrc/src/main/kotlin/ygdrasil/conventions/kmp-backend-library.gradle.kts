@@ -4,6 +4,7 @@ package ygdrasil.conventions
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.gradle.api.Action
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -20,7 +21,7 @@ kotlin {
     // GPU-mapped range requires. See docs/docs/architecture.md for the
     // matrix and its bounds.
     jvm()
-    android {}
+    android { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     macosArm64()
     iosArm64()
     iosSimulatorArm64()

@@ -15,14 +15,15 @@ internal fun demoMonotonicNanos(): Long = demoTimeOrigin.elapsedNow().inWholeNan
 internal class DemoSessionController(
     scope: CoroutineScope,
     internal val nowNanos: () -> Long = ::demoMonotonicNanos,
+    val controls: ParticleControls = ParticleControls(),
 ) {
-    val controls = ParticleControls()
     private val mutableState = MutableStateFlow(DemoSessionState())
     val state = mutableState.asStateFlow()
     private val mutableSurface = MutableStateFlow<DemoSurfaceLease?>(null)
     val surface = mutableSurface.asStateFlow()
     val evidence = DemoEvidence(this)
     private val frameLock = Mutex()
+    internal val frameClock = ParticleFrameClock()
     // Accessed only under frameLock, by the frame owner or command owner.
     internal var releasePresentation: (suspend () -> Unit)? = null
     private val commands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
@@ -85,7 +86,10 @@ internal class DemoSessionController(
 
     fun lifecycle(active: Boolean) {
         commands.trySend {
-            if (!finalized) mutableState.value = state.value.copy(lifecycleActive = active)
+            if (!finalized) frameLock.withLock {
+                mutableState.value = state.value.copy(lifecycleActive = active)
+                if (!active) frameClock.suspend()
+            }
         }
     }
 

@@ -20,6 +20,7 @@ import org.graphiks.kffi.objc.NSWindow
 import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 import kotlin.math.roundToInt
+import java.util.concurrent.atomic.AtomicReference
 
 /** Exercises the real transparent Compose → AppKit particle layer → Dawn lifecycle. */
 @OptIn(PlatformAvailability::class)
@@ -89,6 +90,7 @@ class DemoWindowTest {
         if (!System.getProperty("os.name").lowercase().contains("mac")) return
         lateinit var window: ComposeWindow
         var overlay = MemorySegment.NULL
+        val viewport = AtomicReference<LogicalViewport?>(null)
         val originalOutput = System.out
         val trace = ByteArrayOutputStream()
         val capture = PrintStream(trace, true)
@@ -99,7 +101,7 @@ class DemoWindowTest {
                 window.isUndecorated = true
                 window.isTransparent = true
                 window.setSize(420, 320)
-                window.setContent { DemoApp(window) }
+                window.setContent { DemoApp(window, onViewportBounds = { viewport.set(it) }) }
                 window.isVisible = true
             }
             var handle = 0L
@@ -132,16 +134,18 @@ class DemoWindowTest {
                 trace.toString().contains("[demo] frame 1 rendered")
             }
             val initialSize = onAppKitThread { drawableSize(overlay) }
-            SwingUtilities.invokeAndWait { window.setSize(610, 410) }
+            SwingUtilities.invokeAndWait { window.setSize(960, 600) }
             awaitCondition("Dawn resize in physical pixels") {
                 onAppKitThread {
                     val nativeWindow = NSWindow(MemorySegment.ofAddress(handle))
                     val bounds = NSView(nativeWindow.contentView()).bounds()
                     val scale = nativeWindow.backingScaleFactor()
-                    val expected = (bounds.size.width * scale).roundToInt() to
-                        (bounds.size.height * scale).roundToInt()
+                    val area = viewport.get() ?: return@onAppKitThread false
+                    val expected = (area.width * scale).roundToInt() to
+                        (area.height * scale).roundToInt()
                     val actual = drawableSize(overlay)
-                    actual != initialSize && actual == expected
+                    actual != initialSize && actual == expected && area.x >= 300f &&
+                        actual.first < (bounds.size.width * scale).roundToInt()
                 }
             }
             SwingUtilities.invokeAndWait { window.dispose() }

@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.demo
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.GPUMapMode
@@ -38,7 +39,13 @@ internal class DemoEvidence(private val controller: DemoSessionController) {
         lifecycleActive = controller.state.value.lifecycleActive,
         firstError = controller.state.value.error,
     )
-    internal fun publish(value: DemoEvidenceSnapshot) { latest.value = value }
+    internal fun recordViewport(bounds: LogicalViewport) = latest.update { it.copy(viewport = bounds) }
+    internal fun recordControl(label: String, bounds: LogicalViewport) = latest.update {
+        it.copy(buttons = it.buttons + (label to bounds))
+    }
+    internal fun publish(value: DemoEvidenceSnapshot) = latest.update {
+        value.copy(viewport = it.viewport, buttons = it.buttons)
+    }
 }
 
 internal suspend fun particleFingerprint(device: GPUDevice, scene: ParticleScene): String {

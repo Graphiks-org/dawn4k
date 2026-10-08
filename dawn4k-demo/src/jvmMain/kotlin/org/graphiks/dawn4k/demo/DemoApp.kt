@@ -3,6 +3,7 @@ package org.graphiks.dawn4k.demo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.awt.ComposeWindow
 import java.awt.Rectangle
 import java.util.concurrent.atomic.AtomicReference
@@ -29,59 +31,42 @@ internal fun DemoApp(
     window: ComposeWindow,
     controls: ParticleControls = remember { ParticleControls() },
     onClose: () -> Unit = { window.dispose() },
+    onViewportBounds: ((LogicalViewport) -> Unit)? = null,
+    onControlBounds: ((String, LogicalViewport) -> Unit)? = null,
 ) {
     val platform = remember { requireNotNull(detectDemoPlatform(System.getProperty("os.name"))) }
     val viewport = remember { AtomicReference(Rectangle()) }
-    if (platform != DemoPlatform.MacOS) {
-        Row(Modifier.fillMaxSize().background(Color(0xFF101820))) {
-            Box(Modifier.width(300.dp).fillMaxHeight()) { ParticleControlPanel(controls, onClose) }
-            Box(Modifier.weight(1f).fillMaxHeight().onGloballyPositioned {
-                val bounds = it.boundsInWindow()
-                viewport.set(Rectangle(bounds.left.roundToInt(), bounds.top.roundToInt(),
-                    bounds.width.roundToInt(), bounds.height.roundToInt()))
-            })
-        }
-    } else {
-        ParticleControlPanel(controls, onClose)
-    }
+    val scope = rememberCoroutineScope()
+    val controller = remember(window, controls) { DemoSessionController(scope, controls = controls) }
+    val density = LocalDensity.current.density
+    ParticleDemoContent(controller, false, onClose, { bounds ->
+        val backing = window.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
+        val scale = density / backing
+        viewport.set(Rectangle((bounds.x * scale).roundToInt(), (bounds.y * scale).roundToInt(),
+            (bounds.width * scale).roundToInt(), (bounds.height * scale).roundToInt()))
+        onViewportBounds?.invoke(bounds)
+    }, { modifier -> Box(modifier) }, onControlBounds)
 
-    // LaunchedEffect drives the GPU setup + render loop off the UI thread's
-    // composition, but the actual native calls go through the bridge (worker).
-    LaunchedEffect(window, controls) {
+    LaunchedEffect(window, controller) {
         try {
-            withContext(Dispatchers.Default) {
-                runDemo(window, controls, platform, viewport)
+            val host = when (platform) {
+                DemoPlatform.MacOS -> awaitMetalLayerHost(window, viewport)
+                DemoPlatform.Windows -> awaitWindowsSurfaceHost(window, viewport)
+                DemoPlatform.Linux -> awaitLinuxSurfaceHost(window, viewport)
             }
+            controller.attach(DesktopSurfaceLease(1, host))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             failure.printStackTrace()
-            controls.fail(failure.message ?: failure.toString())
+            controller.failed(controller.state.value.id, failure.message ?: failure.toString())
         }
-    }
-}
-
-/**
- * Opens the platform host, Dawn context and device, then renders the particle
- * scene until the composition is cancelled. The native host outlives the surface.
- */
-private suspend fun runDemo(
-    window: ComposeWindow, controls: ParticleControls, platform: DemoPlatform,
-    viewport: AtomicReference<Rectangle>,
-) {
-    val host: SurfaceHost = when (platform) {
-        DemoPlatform.MacOS -> awaitMetalLayerHost(window)
-        DemoPlatform.Windows -> awaitWindowsSurfaceHost(window, viewport)
-        DemoPlatform.Linux -> awaitLinuxSurfaceHost(window, viewport)
-    }
-    host.use {
-        runParticleDemo(host, controls, negotiateCapabilities = platform == DemoPlatform.Linux)
     }
 }
 
 /** Keep handle lookup and native retention in one EDT operation, excluding disposal. */
 @OptIn(org.graphiks.kffi.objc.PlatformAvailability::class)
-internal suspend fun awaitMetalLayerHost(window: ComposeWindow): MetalLayerHost {
+internal suspend fun awaitMetalLayerHost(window: ComposeWindow, viewport: AtomicReference<Rectangle>? = null): MetalLayerHost {
     val deadline = System.nanoTime() + 5_000_000_000L
     while (System.nanoTime() < deadline) {
         var host: MetalLayerHost? = null
@@ -94,7 +79,7 @@ internal suspend fun awaitMetalLayerHost(window: ComposeWindow): MetalLayerHost 
                         val view = org.graphiks.kffi.objc.NSWindow(
                             java.lang.foreign.MemorySegment.ofAddress(handle)
                         ).contentView()
-                        MetalLayerHost.attach(view.address())
+                        MetalLayerHost.attach(view.address(), viewport)
                     }
                 }
             }

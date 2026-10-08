@@ -41,9 +41,11 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
     val firstLease = controller.surface.first { it?.valid == true }!!
     DawnContext.create(DawnConfig(backend = firstLease.backend)).use { context ->
         context.requestAdapter().getOrThrow().use { adapter ->
+            val info = adapter.info
+            println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
             (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                 val bridge = context.nativeBridge()
-                val clock = ParticleFrameClock()
+                val clock = controller.frameClock
                 var scene: ParticleScene? = null
                 var presentation: DawnSurface? = null
                 var presentationFormat: org.graphiks.webgpu.GPUTextureFormat? = null
@@ -100,14 +102,18 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                                 scene = replacement
                                 activeScene.close()
                                 activeScene = replacement
+                                println("[demo] scene changed (${activeScene.count} particles)")
                             }
                             if (requested.resetGeneration != resetGeneration) {
                                 activeScene.reset(initialParticles(activeScene.count))
                                 resetGeneration = requested.resetGeneration
+                                println("[demo] scene reset (${activeScene.count} particles)")
                             }
                             val delta = clock.advance(requested, controller.nowNanos())
-                            if (surface.width != extent.width || surface.height != extent.height)
+                            if (surface.width != extent.width || surface.height != extent.height) {
+                                println("[demo] configuring surface ${extent.width}x${extent.height}")
                                 surface.configure(extent.width, extent.height)
+                            }
                             if (!lease.valid) { clock.suspend(); return@withSurface }
                             try {
                                 surface.acquireFrame().use { texture ->
@@ -121,6 +127,8 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                                 }
                                 if (!lease.valid) { clock.suspend(); return@withSurface }
                                 frameCount++
+                                if (frameCount == 1L || frameCount % 120L == 0L)
+                                    println("[demo] frame $frameCount rendered (${extent.width}x${extent.height}, particles=${activeScene.count}, paused=${requested.paused}, delta=${delta}s)")
                                 val fingerprint = if (controller.evidence.wantsFingerprint)
                                     particleFingerprint(device, activeScene) else null
                                 controller.evidence.publish(DemoEvidenceSnapshot(
@@ -195,7 +203,7 @@ private suspend fun renderLoop(device: DawnDevice, surface: DawnSurface, host: S
                 }
                 frameCount++
                 if (frameCount == 1L || frameCount % 120L == 0L)
-                    println("[demo] frame $frameCount rendered (${width}x${height}, particles=${scene.count}, paused=${requested.paused}, delta=${"%.3f".format(delta)}s)")
+                    println("[demo] frame $frameCount rendered (${width}x${height}, particles=${scene.count}, paused=${requested.paused}, delta=${delta}s)")
             } catch (outdated: SurfaceOutdatedException) {
                 println("[demo] surface outdated — reconfiguring ${width}x${height}")
                 surface.configure(width, height)
