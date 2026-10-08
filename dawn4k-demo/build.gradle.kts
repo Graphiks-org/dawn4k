@@ -123,6 +123,22 @@ tasks.withType<JavaExec>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
+tasks.register<Exec>("runComposeWaylandProbe") {
+    dependsOn(tasks.testClasses)
+    // Skiko gives the environment precedence over the system property. The
+    // regular desktop launcher sets SOFTWARE; isolate this probe's renderer.
+    environment("SKIKO_RENDER_API", "SOFTWARE_COMPAT")
+    val candidate = providers.gradleProperty("qualification.java")
+    doFirst {
+        commandLine(candidate.get(), "--enable-native-access=ALL-UNNAMED",
+            "-Dawt.toolkit.name=WLToolkit", "-Dskiko.renderApi=SOFTWARE_COMPAT",
+            "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
+            "--add-opens=java.desktop/sun.awt.wl=ALL-UNNAMED",
+            "-cp", sourceSets.test.get().runtimeClasspath.asPath,
+            "org.graphiks.dawn4k.demo.ComposeWaylandProbeKt")
+    }
+}
+
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
     // Inherited environment is not otherwise a Gradle test input. An explicit
