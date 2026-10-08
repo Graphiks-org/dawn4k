@@ -530,7 +530,7 @@ sets, not a platform-specific JUnit dependency in commonTest.
   in dependency verification/lock evidence; do not stage broad unrelated lock
   changes. Commit migration/adaptive content. No Wayland production switch yet.
 
-### Task 5: Qualify Compose Scene Raster and Real Input Without AWT Toolkit
+### Task 5: Qualify Compose Scene Raster and Real Input Without AWT Window Hosting
 
 **Files:** Create jvmMain ParticleComposeScene.kt/WaylandRasterFrames.kt and
 jvmTest ParticleComposeSceneTest.kt/ComposeSceneWaylandProbe.kt; add opt-in Exec
@@ -588,7 +588,11 @@ scene.setContent { ParticleDemoContent(controller, false, onClose, onViewportBou
 
 Use actual pinned Surface.makeRasterN32Premul/readPixels signatures, successful
 checked allocation/readback and resource close. No SkiaLayer/HardwareLayer,
-ComposeWindow, Toolkit or reflection. Use InternalComposeUiApi opt-in explicitly.
+ComposeWindow, direct Toolkit calls or reflection. Use InternalComposeUiApi opt-in explicitly.
+Approved 2026-10-09 qualification exception: the pinned global snapshot manager's
+headless Swing/HeadlessToolkit notification queue is permitted. Keep DISPLAY absent
+and java.awt.headless=true; verify class-init traces show no AWT Window or
+SkiaLayer/HardwareLayer/JAWT host, and report awtToolkitFree=false explicitly.
 Implement required PlatformContext focus/input-mode defaults; test them rather
 than assuming Empty context supplies working keyboard focus.
 - [ ] At scale2, assert physical1600x1200/stride6400, same logical button bounds,

@@ -237,6 +237,38 @@ tasks.register<Exec>("runComposeWaylandProbe") {
     }
 }
 
+tasks.register<Exec>("runComposeSceneWaylandProbe") {
+    dependsOn("jvmTestClasses")
+    // Normal toolchain JVM; no JBR/WLToolkit, display or JAWT surface.
+    environment.remove("DISPLAY")
+    val report = layout.buildDirectory.file("ui-qualification/compose-scene/result.json")
+    environment("DAWN_SCENE_PROBE_REPORT", report.get().asFile.absolutePath)
+    doFirst {
+        report.get().asFile.parentFile.mkdirs()
+        report.get().asFile.writeText("{\"status\":\"running\",\"sceneRaster\":false,\"awtToolkitFree\":false}\n")
+        val java = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) }.get()
+        commandLine(java.executablePath.asFile.absolutePath, "--enable-native-access=ALL-UNNAMED",
+            "-Djava.awt.headless=true",
+            "-Xlog:class+init=info:file=${report.get().asFile.parent}/class-init.log",
+            "-cp", files(jvmTestCompilation.output.allOutputs, jvmTestCompilation.runtimeDependencyFiles).asPath,
+            "org.graphiks.dawn4k.demo.ComposeSceneWaylandProbeKt")
+    }
+    doLast {
+        val file = report.get().asFile
+        val trace = file.parentFile.resolve("class-init.log").readText()
+        val toolkit = trace.contains("Initializing 'java/awt/Toolkit'")
+        val headlessToolkit = trace.contains("Initializing 'sun/awt/HeadlessToolkit'")
+        val window = trace.contains("Initializing 'java/awt/Window'")
+        val hardware = trace.contains("Initializing 'org/jetbrains/skiko/HardwareLayer'") ||
+            trace.contains("Initializing 'org/jetbrains/skiko/SkiaLayer'")
+        file.writeText(file.readText().trimEnd().removeSuffix("}") +
+            ",\"awtToolkitFree\":${!toolkit},\"headlessSnapshotDispatcher\":$headlessToolkit,\"awtWindowFree\":${!window},\"jawtHostFree\":${!hardware}}\n")
+        check((!toolkit || headlessToolkit) && !window && !hardware) {
+            "Only headless snapshot notifications are approved; AWT window/SkiaLayer/JAWT hosting is forbidden. See ${file.parent}."
+        }
+    }
+}
+
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
     // Inherited environment is not otherwise a Gradle test input. An explicit
