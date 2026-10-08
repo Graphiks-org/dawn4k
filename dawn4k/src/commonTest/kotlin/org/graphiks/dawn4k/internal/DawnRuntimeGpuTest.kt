@@ -129,7 +129,7 @@ class DawnRuntimeGpuTest {
             // abandoned shape — but a creation may legitimately settle first,
             // so this must not be load-bearing.
             withTimeout(CREATION_HANDOFF_TIMEOUT_MS) {
-                while (runtime.debugOpenCallbacks() < 2) yield()
+                while (runtime.debugOpenCallbacks() < 2 && !compute.isCompleted && !render.isCompleted) yield()
             }
             runtime.close()
 

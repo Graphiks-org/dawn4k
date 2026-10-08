@@ -8,8 +8,6 @@ import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnDevice
 import org.graphiks.dawn4k.NativeBridge
-import org.graphiks.dawn4k.native.wgpuTextureCreateView
-import org.graphiks.webgpu.GPUTextureView
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
 import org.graphiks.webgpu.suite.demos.particles.initialParticles
 import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
@@ -67,7 +65,7 @@ private suspend fun renderLoop(device: DawnDevice, surface: DawnSurface, host: S
             }
             try {
                 surface.acquireFrame().use { texture ->
-                    bridge.call { createDawnTextureView(device, texture) }.use { view ->
+                    texture.createView(device).use { view ->
                         device.createCommandEncoder().use { encoder ->
                             scene.encodeFrame(encoder, view, width, height, delta)
                             encoder.finish().use { device.queue.submit(listOf(it)) }
@@ -86,16 +84,4 @@ private suspend fun renderLoop(device: DawnDevice, surface: DawnSurface, host: S
         }
     } finally { scene.close() }
     println("[demo] render loop ended after $frameCount frames")
-}
-
-/** Wraps the borrowed surface texture view in Dawn's internal resource-owner type. */
-private fun createDawnTextureView(device: DawnDevice, texture: BorrowedSurfaceTexture): GPUTextureView {
-    val session = device.javaClass.getDeclaredField("session").apply { isAccessible = true }.get(device)
-        ?: error("could not read DawnDevice.session")
-    val viewHandle = wgpuTextureCreateView(texture.handle, null) ?: error("wgpuTextureCreateView returned no view")
-    val dawnTextureViewClass = Class.forName("org.graphiks.dawn4k.DawnTextureView")
-    val deviceSessionClass = Class.forName("org.graphiks.dawn4k.internal.DeviceSession")
-    val constructor = dawnTextureViewClass.getDeclaredConstructor(deviceSessionClass,
-        Long::class.javaPrimitiveType, String::class.java).apply { isAccessible = true }
-    return constructor.newInstance(session, viewHandle.handler.rawValue, "surface-view") as GPUTextureView
 }

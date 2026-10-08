@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.demo
 
 import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.DawnDevice
 import org.graphiks.dawn4k.native.WGPUAdapter
 import org.graphiks.dawn4k.native.WGPUSurfaceCapabilities
 import org.graphiks.dawn4k.native.wgpuSurfaceGetCapabilities
@@ -38,6 +39,9 @@ import org.graphiks.dawn4k.native.wgpuSurfacePresent
 import org.graphiks.dawn4k.native.wgpuSurfaceRelease
 import org.graphiks.dawn4k.native.wgpuSurfaceUnconfigure
 import org.graphiks.dawn4k.native.wgpuTextureRelease
+import org.graphiks.dawn4k.native.wgpuTextureCreateView
+import org.graphiks.dawn4k.native.wgpuTextureViewRelease
+import org.graphiks.webgpu.GPUTextureView
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.kffi.memoryScope
@@ -294,6 +298,19 @@ class BorrowedSurfaceTexture internal constructor(
 ) : AutoCloseable {
     internal var released = false
         private set
+
+    /** Creates an owned view while keeping this surface texture borrowed. */
+    fun createView(device: DawnDevice): GPUTextureView = bridge.call {
+        check(!released) { "the surface texture is released" }
+        val view = wgpuTextureCreateView(handle, null)
+            ?: error("wgpuTextureCreateView returned no view")
+        try {
+            device.adoptSurfaceTextureView(view.handler.rawValue)
+        } catch (failure: Throwable) {
+            wgpuTextureViewRelease(view)
+            throw failure
+        }
+    }
 
     override fun close() = bridge.call {
         if (!released) {
