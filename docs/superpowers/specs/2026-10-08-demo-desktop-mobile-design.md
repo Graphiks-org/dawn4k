@@ -52,6 +52,15 @@ CanvasLayersComposeScene under InternalComposeUiApi opt-in; its native raster,
 input and Dawn coexistence still require qualification. Do not confuse inspected
 API availability with a working host.
 
+Qualification clarification approved on 2026-10-09: pinned Compose's global
+snapshot dispatcher starts Skiko's Swing event queue and HeadlessToolkit even
+when CanvasLayersComposeScene receives an explicit owner dispatcher. Headless
+snapshot notifications are permitted; this is not a windowing backend. The
+Wayland process must remain headless and DISPLAY-free, create no AWT window,
+SkiaLayer/HardwareLayer/JAWT host or X11 fallback, and use native C Wayland
+surfaces for both UI presentation and Dawn's viewport. Reports explicitly retain
+`awtToolkitFree=false` rather than claiming that no AWT class is initialized.
+
 ## User-visible contract
 
 ### Shared controls and state
