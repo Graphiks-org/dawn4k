@@ -31,10 +31,17 @@ internal fun readSurfaceEnums(address: NativeAddress?, count: ULong): List<UInt>
 
 internal fun selectSurfaceConfiguration(
     formats: List<UInt>, alphaModes: List<UInt>, presentModes: List<UInt>,
+    requiredFormat: GPUTextureFormat? = null,
 ): SurfaceConfiguration {
-    val format = listOf(WGPUTextureFormat_BGRA8Unorm, WGPUTextureFormat_RGBA8Unorm)
+    val candidates = when (requiredFormat) {
+        null -> listOf(WGPUTextureFormat_BGRA8Unorm, WGPUTextureFormat_RGBA8Unorm)
+        GPUTextureFormat.BGRA8Unorm -> listOf(WGPUTextureFormat_BGRA8Unorm)
+        GPUTextureFormat.RGBA8Unorm -> listOf(WGPUTextureFormat_RGBA8Unorm)
+        else -> error("unsupported required surface format: $requiredFormat")
+    }
+    val format = candidates
         .firstOrNull { it in formats }
-        ?: error("surface supports neither BGRA8Unorm nor RGBA8Unorm: $formats")
+        ?: error("surface cannot preserve required format $requiredFormat (supported: $formats)")
     check(WGPUPresentMode_Fifo in presentModes) { "surface does not advertise Fifo presentation" }
     val alpha = listOf(WGPUCompositeAlphaMode_Auto, WGPUCompositeAlphaMode_Opaque,
         WGPUCompositeAlphaMode_Premultiplied, WGPUCompositeAlphaMode_Unpremultiplied,

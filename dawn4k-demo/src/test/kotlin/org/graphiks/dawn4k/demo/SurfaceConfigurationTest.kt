@@ -10,6 +10,22 @@ import java.lang.foreign.Arena
 import java.lang.foreign.ValueLayout.JAVA_INT
 
 class SurfaceConfigurationTest {
+    @Test fun replacementPreservesRequiredRgbaEvenWhenBgraIsPreferred() {
+        val selected = selectSurfaceConfiguration(
+            listOf(WGPUTextureFormat_BGRA8Unorm, WGPUTextureFormat_RGBA8Unorm),
+            listOf(WGPUCompositeAlphaMode_Opaque), listOf(WGPUPresentMode_Fifo),
+            requiredFormat = GPUTextureFormat.RGBA8Unorm,
+        )
+        assertEquals(GPUTextureFormat.RGBA8Unorm, selected.textureFormat)
+    }
+
+    @Test fun replacementRejectsUnsupportedRequiredFormatInsteadOfResettingScene() {
+        assertFailsWith<IllegalStateException> {
+            selectSurfaceConfiguration(listOf(WGPUTextureFormat_BGRA8Unorm),
+                listOf(WGPUCompositeAlphaMode_Opaque), listOf(WGPUPresentMode_Fifo),
+                requiredFormat = GPUTextureFormat.RGBA8Unorm)
+        }
+    }
     @Test fun capabilityMembersAreCopiedBeforeBeingFreed() {
         Arena.ofConfined().use { arena ->
             val values = arena.allocate(8, 4)
