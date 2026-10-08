@@ -2,6 +2,7 @@
 package ygdrasil.conventions
 
 import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -12,7 +13,7 @@ kotlin {
     jvmToolchain(25)
 
     jvm()
-    android {}
+    android { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
     macosArm64()
     iosArm64()
     iosSimulatorArm64()

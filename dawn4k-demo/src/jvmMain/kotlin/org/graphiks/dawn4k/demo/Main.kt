@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.demo
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
@@ -41,8 +42,7 @@ fun main(args: Array<String>) {
             undecorated = macos,
             transparent = macos,
         ) {
-            Box(Modifier.fillMaxSize()) {
-                DemoApp(window, onClose = ::exitApplication)
+            Column(Modifier.fillMaxSize()) {
                 if (macos) WindowDraggableArea {
                     BasicText(
                         "ParticleScene · Dawn / Metal — drag to move",
@@ -50,6 +50,7 @@ fun main(args: Array<String>) {
                         style = TextStyle(color = Color.White),
                     )
                 }
+                Box(Modifier.weight(1f)) { DemoApp(window, onClose = ::exitApplication) }
             }
         }
     }

@@ -6,8 +6,7 @@ import kotlin.test.assertFailsWith
 import org.graphiks.dawn4k.native.*
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.kffi.NativeAddress
-import java.lang.foreign.Arena
-import java.lang.foreign.ValueLayout.JAVA_INT
+import org.graphiks.kffi.memoryScope
 
 class SurfaceConfigurationTest {
     @Test fun replacementPreservesRequiredRgbaEvenWhenBgraIsPreferred() {
@@ -27,14 +26,14 @@ class SurfaceConfigurationTest {
         }
     }
     @Test fun capabilityMembersAreCopiedBeforeBeingFreed() {
-        Arena.ofConfined().use { arena ->
-            val values = arena.allocate(8, 4)
-            values.set(JAVA_INT, 0, 23)
-            values.set(JAVA_INT, 4, 19)
-            val snapshot = readSurfaceEnums(NativeAddress(values.address()), 2uL)
-            values.set(JAVA_INT, 0, 0)
-            assertEquals(listOf(23u, 19u), snapshot)
+        val snapshot = memoryScope { allocator ->
+            val values = allocator.allocateBuffer(8uL)
+            values.writeUInts(uintArrayOf(23u, 19u))
+            val copied = readSurfaceEnums(values.handler, 2uL)
+            values.writeUInts(uintArrayOf(0u, 0u))
+            copied
         }
+        assertEquals(listOf(23u, 19u), snapshot)
     }
 
     @Test fun rejectsInvalidCapabilityPointersAndUnboundedCounts() {
