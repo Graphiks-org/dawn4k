@@ -21,6 +21,7 @@ import org.graphiks.dawn4k.native.WGPUPopErrorScopeCallbackInfo
 import org.graphiks.dawn4k.native.WGPUPopErrorScopeStatus
 import org.graphiks.dawn4k.native.WGPUPopErrorScopeStatus_Success
 import org.graphiks.dawn4k.native.WGPUSupportedFeatures
+import org.graphiks.dawn4k.native.WGPUTextureView
 import org.graphiks.dawn4k.native.wgpuAdapterGetInfo
 import org.graphiks.dawn4k.native.wgpuAdapterInfoFreeMembers
 import org.graphiks.dawn4k.native.wgpuDeviceGetFeatures
@@ -32,6 +33,7 @@ import org.graphiks.dawn4k.native.allocate
 import org.graphiks.dawn4k.native.register
 import org.graphiks.kffi.CallbackPolicy
 import org.graphiks.kffi.CallbackRegistration
+import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.memoryScope
 import org.graphiks.webgpu.GPUAddressMode
 import org.graphiks.webgpu.GPUBindGroup
@@ -68,6 +70,7 @@ import org.graphiks.webgpu.GPUSupportedFeatures
 import org.graphiks.webgpu.GPUSupportedLimits
 import org.graphiks.webgpu.GPUTexture
 import org.graphiks.webgpu.GPUTextureDescriptor
+import org.graphiks.webgpu.GPUTextureView
 import org.graphiks.webgpu.GPUAdapterInfo
 
 /**
@@ -157,6 +160,23 @@ class DawnDevice internal constructor(
      * context's [NativeBridge.call].
      */
     fun nativeHandle(): Long = session.handle.handler.rawValue
+
+    /**
+     * Adopts one owned `WGPUTextureView` reference created for this device by a
+     * platform surface integrator. Not part of the WebGPU contract.
+     *
+     * The caller must supply a live nonzero view from this exact device; a raw
+     * address cannot establish device provenance. On successful return the
+     * session owns the reference and releases it through [GPUTextureView.close]
+     * or device teardown. On failure ownership remains with the caller.
+     * Registration runs on the native worker, serialized with device teardown.
+     */
+    fun adoptSurfaceTextureView(handle: Long, label: String = "surface-view"): GPUTextureView =
+        session.runtime.dispatcher.call {
+            require(handle != 0L) { "the surface texture view is null" }
+            session.requireOpen()
+            DawnTextureView(session, WGPUTextureView(NativeAddress(handle)), label)
+        }
 
     override fun createBuffer(descriptor: GPUBufferDescriptor): GPUBuffer = session.createBuffer(descriptor)
 

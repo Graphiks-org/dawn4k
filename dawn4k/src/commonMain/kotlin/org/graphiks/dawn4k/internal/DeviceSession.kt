@@ -51,6 +51,11 @@ internal class DeviceSession internal constructor(
     /** Worker-confined; every close routes through the dispatcher. */
     private var closed = false
 
+    /** Worker-confined guard for native-reference ownership transfers. */
+    internal fun requireOpen() {
+        check(!closed) { "the device session is closed" }
+    }
+
     override fun close() {
         runtime.dispatcher.call {
             if (closed) return@call
