@@ -13,7 +13,6 @@ depend on the higher-level `webgpu-api` module.
 | Raw C API | `dawn4k-native/generated/src` | kextract output; never edited by hand |
 | JVM bootstrap | generated `KextractNativeBootstrap` | extracts and loads the bundled shared library |
 | Kotlin/Native cinterop | `dawn4k-native/src/nativeInterop/cinterop/dawn.def` | internal `webgpu.native` package linked against the static library |
-| ABI oracle | `tests/abi/dawn_abi.c` | measures the real C layout |
 
 The generated sources are versioned. Ordinary compilation consumes them and never
 runs kextract.
@@ -71,13 +70,12 @@ Not yet available, pending upstream work:
   with a newer libc++ than Kotlin/Native links, so the K/N Android targets do not
   link (see dawn-packer's `docs/spikes/android.md`).
 
-## ABI verification
+## Generated layout report
 
 ```bash
-./gradlew :dawn4k-native:verifyDawnAbi
+./gradlew :dawn4k-native:dumpGeneratedAbi
 ```
 
-compiles `tests/abi/dawn_abi.c` against the original header, runs it, and compares
-sizes, alignments and field offsets with the layout baked into the generated JVM
-bindings. `dumpGeneratedAbi` writes the same schema from the generated sources.
-Reports land in `dawn4k-native/build/reports/abi/`.
+writes sizes, alignments and field offsets from the generated JVM sources to
+`dawn4k-native/build/reports/abi/generated.json`. This report does not independently
+verify the layouts against the native C header.

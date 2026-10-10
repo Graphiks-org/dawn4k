@@ -24,7 +24,6 @@ Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 ./gradlew allTests                      # cibles hôte
 ./gradlew :dawn4k-native:compileAndroidMain  # la cible Android/JVM compile
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # la cible iOS compile
-./gradlew :dawn4k-native:verifyDawnAbi  # oracle ABI C vs disposition générée
 ```
 
 ## Régénérer les bindings
@@ -51,5 +50,4 @@ n'exécute jamais le générateur.
 ## Vérification finale
 
 - [ ] `./gradlew allTests` réussit.
-- [ ] `./gradlew :dawn4k-native:verifyDawnAbi` réussit.
 - [ ] `mkdocs build -f docs/mkdocs.yml` fonctionne.

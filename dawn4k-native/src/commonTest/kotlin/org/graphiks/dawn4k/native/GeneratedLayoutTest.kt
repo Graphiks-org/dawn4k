@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 
 /**
  * Runtime layout checks on the generated value types. These exercise the offsets baked into
- * the generated accessors (a wrong offset would alias another field); the C oracle task
- * `verifyDawnAbi` is what proves the exact numbers against the real header.
+ * the generated accessors (a wrong offset would alias another field). These checks do not
+ * compare the generated layouts with the real C header.
  */
 class GeneratedLayoutTest {
 
