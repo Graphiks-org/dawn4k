@@ -32,6 +32,8 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "dawn4k"
+include(":dawn4k-demo-androidApp")
+project(":dawn4k-demo-androidApp").projectDir = file("dawn4k-demo/androidApp")
 include(":dawn4k")
 include(":dawn4k-demo")
 include(":dawn4k-native")

@@ -23,3 +23,10 @@ docs/planning/
 /dawn4k-demo/docker/
 /dawn4k-demo/qualification/
 /dawn4k-demo/scripts/
+/.openchamber/
+/dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/project.xcworkspace/xcuserdata/
+/dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/xcuserdata/
+# Generated demo JNI libraries, Python caches and local qualification runner.
+/dawn4k-demo/src/androidMain/jniLibs/
+__pycache__/
+/scripts/test-demo-mobile.py

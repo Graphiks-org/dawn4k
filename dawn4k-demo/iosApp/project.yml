@@ -1,0 +1,78 @@
+name: Dawn4kDemo
+options:
+  bundleIdPrefix: org.graphiks.dawn4k.demo
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ARCHS: arm64
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CODE_SIGNING_ALLOWED: NO
+    GENERATE_INFOPLIST_FILE: YES
+targets:
+  Dawn4kDemo:
+    type: application
+    platform: iOS
+    sources: [Dawn4kDemo]
+    dependencies:
+      - framework: $(BUILT_PRODUCTS_DIR)/Dawn4kDemo.framework
+        embed: false
+    info:
+      path: Dawn4kDemo/Info.plist
+      properties:
+        CADisableMinimumFrameDurationOnPhone: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.graphiks.dawn4k.demo.ios
+        PRODUCT_MODULE_NAME: Dawn4kDemoApp
+        INFOPLIST_KEY_CFBundleDisplayName: Dawn4k
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        FRAMEWORK_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../../dawn4k-native/build/native/$(DAWN_NATIVE_TARGET)/static/lib"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lwebgpu_dawn", "-lc++", "-framework", Metal, "-framework", QuartzCore, "-framework", CoreGraphics, "-framework", IOKit, "-framework", IOSurface]
+        "DAWN_NATIVE_TARGET[sdk=iphonesimulator*]": iosSimulatorArm64
+        "DAWN_NATIVE_TARGET[sdk=iphoneos*]": iosArm64
+    preBuildScripts:
+      - name: Build Kotlin demo framework
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/Dawn4kDemo.framework/Dawn4kDemo
+        script: |
+          cd "$SRCROOT/../.."
+          ./gradlew :dawn4k-demo:embedAndSignAppleFrameworkForXcode --console=plain
+  Dawn4kDemoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Dawn4kDemoTests]
+    dependencies:
+      - target: Dawn4kDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.graphiks.dawn4k.demo.ios.tests
+  Dawn4kDemoUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Dawn4kDemoUITests]
+    dependencies:
+      - target: Dawn4kDemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.graphiks.dawn4k.demo.ios.uitests
+schemes:
+  Dawn4kDemo:
+    build:
+      targets:
+        Dawn4kDemo: all
+        Dawn4kDemoTests: [test]
+        Dawn4kDemoUITests: [test]
+    test:
+      targets: [Dawn4kDemoTests, Dawn4kDemoUITests]

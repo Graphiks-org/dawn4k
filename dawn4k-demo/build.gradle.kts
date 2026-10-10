@@ -23,7 +23,8 @@ kotlin {
     android {
         namespace = "org.graphiks.dawn4k.demo"
         compileSdk = 37
-        minSdk = 24
+        minSdk = 28
+        androidResources { enable = true }
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         withHostTestBuilder {}.configure {}
         withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
@@ -44,11 +45,20 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.ui)
         }
+        androidMain.dependencies { implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.10.0") }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
-            implementation("org.jetbrains.compose.ui:ui-test:1.11.1")
         }
+        // Android host tests use SDK stubs, not a Compose UI runtime. Keep
+        // pure common tests there; UI tests still run on desktop and the device.
+        val composeUiTest = create("composeUiTest") {
+            dependsOn(commonTest.get())
+            dependencies { implementation("org.jetbrains.compose.ui:ui-test:1.11.1") }
+        }
+        jvmTest.get().dependsOn(composeUiTest)
+        getByName("androidDeviceTest").dependsOn(composeUiTest)
+        getByName("iosTest").dependsOn(composeUiTest)
         jvmMain {
             dependencies {
                 implementation(libs.kffi.objc.jvm)
@@ -69,6 +79,10 @@ kotlin {
         }
     }
     targets.withType<KotlinNativeTarget>().configureEach {
+        binaries.framework {
+            baseName = "Dawn4kDemo"
+            isStatic = true
+        }
         val dawn = project(":dawn4k-native")
         compilations.getByName("main").cinterops.create("dawn") {
             defFile(dawn.file("src/nativeInterop/cinterop/dawn.def"))
@@ -84,6 +98,27 @@ kotlin {
 }
 
 tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach { dependsOn(":dawn4k-native:prepareDawn") }
+val androidSdk = providers.environmentVariable("ANDROID_HOME")
+    .orElse(providers.environmentVariable("ANDROID_SDK_ROOT"))
+    .orElse("${System.getProperty("user.home")}/Library/Android/sdk")
+val buildAndroidWindow = listOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android").map { (abi, triple) ->
+    tasks.register<Exec>("buildAndroidWindow${if (abi == "arm64-v8a") "Arm64" else "X64"}") {
+        val output = layout.projectDirectory.file("src/androidMain/jniLibs/$abi/libdawn4k_demo_window.so")
+        inputs.file("src/androidMain/c/android_window.c")
+        inputs.property("ndk", "28.2.13676358")
+        outputs.file(output)
+        doFirst {
+            val host = if (System.getProperty("os.name").lowercase().contains("mac")) "darwin-x86_64" else "linux-x86_64"
+            val compiler = "${androidSdk.get()}/ndk/28.2.13676358/toolchains/llvm/prebuilt/$host/bin/${triple}24-clang"
+            output.asFile.parentFile.mkdirs()
+            commandLine(compiler, "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
+                "src/androidMain/c/android_window.c", "-landroid", "-o", output.asFile.absolutePath)
+        }
+    }
+}
+tasks.matching { it.name == "mergeAndroidMainJniLibFolders" || it.name == "bundleAndroidMainAar" }.configureEach {
+    dependsOn(buildAndroidWindow)
+}
 val jvmTarget = kotlin.targets.getByName("jvm") as KotlinJvmTarget
 val jvmMainCompilation = jvmTarget.compilations.getByName("main")
 val jvmTestCompilation = jvmTarget.compilations.getByName("test")
