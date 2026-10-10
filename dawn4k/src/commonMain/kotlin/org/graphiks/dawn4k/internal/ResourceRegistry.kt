@@ -15,99 +15,66 @@ package org.graphiks.dawn4k.internal
  *   device/adapter/instance references. It is idempotent, and a closed owner
  *   refuses new acquisitions.
  *
- * All calls happen on the owner's dispatcher, never on arbitrary threads: when
- * a dispatcher is provided every mutation routes through its worker (the
- * destroy and release callbacks make native calls), and without one — the pure
- * single-threaded tests — the calls run inline.
+ * Bookkeeping is synchronized; native actions run on the caller, outside the
+ * monitor. Consumers must join resource users before destroying or closing.
  */
-internal class ResourceRegistry(private val dispatcher: NativeDispatcher? = null) {
+internal class ResourceRegistry {
+
+    private val lock = SynchronizedObject()
 
     private class Entry(val destroy: (() -> Unit)?, val release: () -> Unit) {
         var destroyed = false
         var released = false
     }
 
-    /** Insertion-ordered; mutated only on the dispatcher worker. */
+    /** Insertion-ordered; protected by [lock]. */
     private val owned = LinkedHashMap<Any, Entry>()
 
-    /** Worker-confined; published to foreign threads by the routing join. */
     private var closed = false
 
     /** Registers a newly acquired reference: [destroy] is optional (refcount-only objects), [release] is not. */
     fun own(key: Any, destroy: (() -> Unit)?, release: () -> Unit) {
-        routed { ownOnOwner(key, destroy, release) }
+        lock.withLock {
+            check(!closed) { "the resource registry is closed; a closed owner refuses new acquisitions" }
+            check(key !in owned) { "the resource registry already owns $key" }
+            owned[key] = Entry(destroy, release)
+        }
     }
 
     /** Destroys the object behind [key] once; the entry stays as a tombstone until teardown. */
     fun destroy(key: Any) {
-        routed { destroyOnOwner(key) }
+        val action = lock.withLock {
+            val entry = owned[key]
+            if (entry == null || entry.destroyed) null else {
+                entry.destroyed = true
+                entry.destroy
+            }
+        }
+        action?.invoke()
     }
 
     /** Releases the refcount-only object behind [key]; no-op afterwards. */
     fun release(key: Any) {
-        routed { releaseOnOwner(key) }
+        val entry = lock.withLock { owned.remove(key)?.also { it.released = true } }
+        entry?.release?.invoke()
     }
 
     /** Runs every outstanding release exactly once, then closes the owner. */
     fun close() {
-        routed { closeOnOwner() }
-    }
-
-    /**
-     * Test visibility: entries not released yet (alive or tombstoned). Zero
-     * after teardown. Routed through the dispatcher while it is alive; after
-     * [close] the state is final and read directly.
-     */
-    internal fun debugRemainingRefs(): Int =
-        if (closed) owned.size else routed { owned.size }
-
-    /**
-     * Routes [block] through the dispatcher when one exists, inline otherwise —
-     * exactly once either way: a null result from a routed block belongs to the
-     * block and must never be mistaken for absent routing and re-run inline off
-     * the worker. Internal so the tests can pin that exactly-once contract
-     * directly, the way [debugRemainingRefs] exposes the ref bookkeeping.
-     */
-    internal fun <R> routed(block: () -> R): R =
-        if (dispatcher != null) dispatcher.call(block) else block()
-
-    private fun ownOnOwner(key: Any, destroy: (() -> Unit)?, release: () -> Unit) {
-        check(!closed) { "the resource registry is closed; a closed owner refuses new acquisitions" }
-        check(key !in owned) { "the resource registry already owns $key" }
-        owned[key] = Entry(destroy, release)
-    }
-
-    private fun destroyOnOwner(key: Any) {
-        val entry = owned[key] ?: return
-        if (!entry.destroyed) {
-            entry.destroyed = true
-            entry.destroy?.invoke()
+        val entries = lock.withLock {
+            if (closed) emptyList() else {
+                closed = true
+                owned.values.toList().asReversed().also { owned.clear() }
+            }
         }
-    }
-
-    private fun releaseOnOwner(key: Any) {
-        val entry = owned[key] ?: return
-        if (entry.released) return
-        entry.released = true
-        owned.remove(key)
-        entry.release()
-    }
-
-    private fun closeOnOwner() {
-        if (closed) return
-        closed = true
         var firstFailure: Throwable? = null
-        // Reverse acquisition order: dependants release before their owners.
-        for (entry in owned.values.reversed()) {
-            if (entry.released) continue
-            entry.released = true
-            try {
-                entry.release()
-            } catch (failure: Throwable) {
+        for (entry in entries) {
+            try { entry.release() } catch (failure: Throwable) {
                 if (firstFailure == null) firstFailure = failure
             }
         }
-        owned.clear()
         firstFailure?.let { throw it }
     }
+
+    internal fun debugRemainingRefs(): Int = lock.withLock { owned.size }
 }

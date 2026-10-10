@@ -13,6 +13,19 @@ import kotlin.test.assertNull
  */
 class ResourceRegistryTest {
 
+    @Test fun releasesRunInReverseOrderAndMayReenterRegistry() {
+        val registry = ResourceRegistry()
+        val calls = mutableListOf<Int>()
+        repeat(3) { index ->
+            registry.own(Any(), null) {
+                assertEquals(0, registry.debugRemainingRefs())
+                calls += index
+            }
+        }
+        registry.close()
+        assertEquals(listOf(2, 1, 0), calls)
+    }
+
     @Test fun destroyIsIdempotentAndReleaseWaitsForOwner() {
         val calls = mutableListOf<String>()
         val registry = ResourceRegistry()
@@ -47,25 +60,4 @@ class ResourceRegistryTest {
         assertEquals(listOf("release"), calls)
     }
 
-    @Test fun routedBlockReturningNullRunsExactlyOnce() {
-        // A null result from a routed block is the block's own result: it must
-        // run exactly once and never be re-run inline off the worker.
-        var calls = 0
-        val inline = ResourceRegistry()
-        assertNull(inline.routed {
-            calls += 1
-            null
-        })
-        assertEquals(1, calls)
-
-        calls = 0
-        createNativeDispatcher().use { dispatcher ->
-            val serialized = ResourceRegistry(dispatcher)
-            assertNull(serialized.routed {
-                calls += 1
-                null
-            })
-            assertEquals(1, calls)
-        }
-    }
 }
