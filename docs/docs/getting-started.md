@@ -26,6 +26,66 @@ See [Native Dawn binding](native-binding.md) for generation and linkage.
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # iOS target compiles
 ```
 
+## Using the WebGPU backend
+
+`:dawn4k` implements `org.graphiks.webgpu`. It does not schedule native work or
+pump callbacks for you. A complete minimal bootstrap (success path) is:
+
+```kotlin
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import org.graphiks.dawn4k.DawnConfig
+import org.graphiks.dawn4k.DawnContext
+
+suspend fun useGpu() = coroutineScope {
+    DawnContext.create(DawnConfig(implicitDeviceSynchronization = true)).use { context ->
+        val events = launch {
+            while (isActive) { context.processEvents(); delay(1) }
+        }
+        try {
+            context.requestAdapter().getOrThrow().use { adapter ->
+                adapter.requestDevice().getOrThrow().use { device ->
+                    // Application-owned encoding threads and queue ordering.
+                }
+            }
+        } finally {
+            withContext(NonCancellable) {
+                events.cancelAndJoin()
+                withTimeout(10_000) {
+                    while (context.hasPendingOperations()) {
+                        context.processEvents()
+                        delay(1)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+The feature is opt-in (default `false`); enable it when a shared device is called
+concurrently. Otherwise externally synchronize non-encoding calls and device
+event progression. Use independent encoders, join encoding tasks before submitting
+their command buffers, and never race resource closure or mapping against users.
+
+After cancellation, stop/join producers and waiters, keep progression alive during
+any `NonCancellable` GPU-awaiting cleanup, then drain late results and device
+teardown under an application timeout. A timeout is **not** permission to free
+active handles: context closure refuses pending operations or open children.
+This sample is not a complete recovery strategy for a stuck driver.
+
+Migration: replace reliance on automatic pumping with explicit `processEvents()`;
+`drainEvents()` is a deprecated alias. `NativeBridge.call` is deprecated and now
+executes inline, not as a lock or dispatcher. Error-scope push, validated calls
+and pop issuance must retain one **OS thread**, not merely serial coroutine
+execution. See [Architecture](architecture.md).
+
 ## Regenerating the bindings
 
 ```bash

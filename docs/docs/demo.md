@@ -7,6 +7,14 @@ through the `:dawn4k` backend (Dawn/Metal on macOS, Dawn/D3D12 on Windows).
 
 ## Run
 
+The demo owns its event-progression coroutine, on its consumer dispatcher.
+It starts before adapter/device discovery and stays alive through idle/pause,
+surface replacement, readback and `NonCancellable` GPU-awaiting cleanup.
+It is joined before the final explicit teardown drain and context close.
+Shared-device synchronization is explicitly opted into with
+`DawnConfig(implicitDeviceSynchronization = true)`; dawn4k itself creates no
+worker or scheduling job. See [the migration guide](getting-started.md).
+
 ```bash
 ./gradlew :dawn4k-demo:run
 ```

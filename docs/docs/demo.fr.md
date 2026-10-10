@@ -7,6 +7,14 @@ via le backend `:dawn4k` (Dawn/Metal sur macOS, Dawn/D3D12 sur Windows).
 
 ## Lancer
 
+La démo possède sa coroutine de progression, sur son dispatcher consommateur.
+Elle démarre avant les requêtes adapter/device et reste vivante pendant
+pause/inactivité, remplacement de surface, readback et cleanup GPU sous
+`NonCancellable`. Elle est jointe avant le drain explicite final et close du
+contexte. La synchronisation native du device est demandée explicitement via
+`DawnConfig(implicitDeviceSynchronization = true)` ; dawn4k ne crée ni worker
+ni job de scheduling. Voir [le guide de migration](getting-started.fr.md).
+
 ```bash
 ./gradlew :dawn4k-demo:run
 ```

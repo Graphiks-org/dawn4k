@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Behavioral breaking change:** dawn4k native calls and async issuance now execute on the caller, without a backend worker or event pump. Consumers must call `DawnContext.processEvents()`; `drainEvents()` is a deprecated alias, and deprecated `NativeBridge.call` executes inline without synchronization. Premature `close()` now refuses pending operations, active progression and open context children before freeing handles; device teardown must be explicitly drained.
 - Adopt the published Graphiks WebGPU contract: typed resource usage masks, partial required limits, nullable descriptor slots with stable indices, and cancellable shared `GPUDevice.awaitLost()` observation with explicit native destruction on close.
 - Kotlin 2.4.0 → 2.4.10
 - Gradle 9.5.0 → 9.6.1 → 9.8.0
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
 
 ### Added
+- `DawnContext.hasPendingOperations()` and opt-in `DawnConfig.implicitDeviceSynchronization` (default `false`), requesting Dawn's native shared-device synchronization feature. Independent-encoder/readback and OS-thread-local error-scope witnesses run on JVM and Kotlin/Native; no performance gain is claimed.
 - Android Vulkan and iOS Metal demo applications sharing the adaptive Compose UI, native surface ownership, lifecycle controls and mobile tests.
 - Compose controls above the Metal particle demo: pause/resume, reset and GPU-limited particle counts, with a draggable title strip and close button for the transparent undecorated window.
 - `:dawn4k-demo`: macOS desktop demo (Compose Desktop) rendering the `suite-demos` `ParticleScene` through the `:dawn4k` backend — a real window over a Dawn Metal surface, with the surface living inside the demo module and `:dawn4k` exposing only minimal platform-integrator accessors (`DawnContext.nativeBridge()`, `DawnDevice.nativeHandle()`, `DawnAdapter.nativeHandle()`).
