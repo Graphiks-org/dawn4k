@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.testing.NativeFixture
 import org.graphiks.webgpu.GPUBufferBindingType
@@ -26,13 +28,14 @@ import kotlin.test.assertTrue
 
 /**
  * Real-GPU compute resources: shader modules, compute pipelines, bind groups and
- * their layouts, with a real dispatch oracle. Runs only through the gpuTest*
- * tasks; a host without an adapter fails these tests (no silent skip).
+ * their layouts, with a real dispatch oracle. Standard tasks run these tests;
+ * adapter absence is reported explicitly (or fails in strict mode).
  */
 class ComputeResourcesGpuTest {
 
     @Test
     fun computeConstantsAreApplied() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.computeConstantsAreApplied")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -47,6 +50,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun explicitPipelineLayoutAppliesConstants() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.explicitPipelineLayoutAppliesConstants")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -78,6 +82,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun bufferBindingOffsetAndSizeAreApplied() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.bufferBindingOffsetAndSizeAreApplied")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -110,6 +115,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun dynamicOffsetsAreApplied() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.dynamicOffsetsAreApplied")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -154,6 +160,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun invalidShaderReportsCompilationDiagnostics() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.invalidShaderReportsCompilationDiagnostics")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(BROKEN_SHADER)).use { shader ->
@@ -165,6 +172,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun validShaderCompilationInfoSucceeds() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.validShaderCompilationInfoSucceeds")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -177,6 +185,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun asyncPipelineRejectionIsABoundedFailure() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.asyncPipelineRejectionIsABoundedFailure")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -191,6 +200,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun foreignBufferFromAnotherSessionIsRefused() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.foreignBufferFromAnotherSessionIsRefused")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val otherSession = fixture.runtime.openSession()
@@ -219,6 +229,7 @@ class ComputeResourcesGpuTest {
 
     @Test
     fun temporaryBindGroupLayoutReferenceIsReleasedOnClose() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.temporaryBindGroupLayoutReferenceIsReleasedOnClose")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->

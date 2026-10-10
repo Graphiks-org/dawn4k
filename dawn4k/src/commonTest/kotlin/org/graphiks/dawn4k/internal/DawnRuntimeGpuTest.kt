@@ -7,12 +7,13 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.graphiks.dawn4k.DawnComputePipeline
-import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnRenderPipeline
 import org.graphiks.dawn4k.createComputePipelineAsync
 import org.graphiks.dawn4k.createRenderPipelineAsync
 import org.graphiks.dawn4k.createShaderModule
 import org.graphiks.dawn4k.testing.NativeFixture
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
 import org.graphiks.webgpu.GPUShaderModule
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.descriptors.ColorTargetState
@@ -32,20 +33,21 @@ import kotlin.test.assertTrue
  * leave no open callback registration and no owned reference behind, and a wait
  * in flight when the runtime closes fails with the close diagnostic instead of
  * hanging — the async pipeline creations racing that close fold into their
- * [Result] contract instead of throwing out of it. Runs only through the
- * gpuTest* tasks; a host without an adapter fails these tests (no silent skip).
+ * [Result] contract instead of throwing out of it. Standard tasks run these
+ * tests, with named warnings on adapter absence (or failure in strict mode).
  */
 class DawnRuntimeGpuTest {
 
     @Test
     fun twentySessionsOpenAndCloseLeavingNoRegistrationsOrRemainingRefs() = runBlocking {
+        if (!gpuTestEnvironment("DawnRuntimeGpuTest.twentySessionsOpenAndCloseLeavingNoRegistrationsOrRemainingRefs")) return@runBlocking
         // The fixture raw-opens once first: it is the entry point of the later
         // tasks and delegates to exactly the machinery stressed below.
         NativeFixture.open().use { fixture ->
             assertEquals(0, fixture.runtime.debugOpenCallbacks())
         }
 
-        val runtime = DawnRuntime(DawnConfig())
+        val runtime = DawnRuntime(gpuTestConfig())
         try {
             repeat(20) {
                 val session = runtime.openSession()
@@ -65,9 +67,10 @@ class DawnRuntimeGpuTest {
 
     @Test
     fun waitInterruptedByRuntimeCloseFailsWithTheCloseDiagnostic() = runBlocking {
-        val runtime = DawnRuntime(DawnConfig())
+        if (!gpuTestEnvironment("DawnRuntimeGpuTest.waitInterruptedByRuntimeCloseFailsWithTheCloseDiagnostic")) return@runBlocking
+        val runtime = DawnRuntime(gpuTestConfig())
         try {
-            // Prove the GPU first: a host without an adapter fails here.
+            // Device creation must succeed after the availability probe.
             runtime.openSession().close()
 
             val interrupted = runtime.dispatcher.call {
@@ -107,7 +110,8 @@ class DawnRuntimeGpuTest {
      */
     @Test
     fun asyncPipelineCreationsFoldAcrossRuntimeClose() = runBlocking {
-        val runtime = DawnRuntime(DawnConfig())
+        if (!gpuTestEnvironment("DawnRuntimeGpuTest.asyncPipelineCreationsFoldAcrossRuntimeClose")) return@runBlocking
+        val runtime = DawnRuntime(gpuTestConfig())
         try {
             val session = runtime.openSession()
             // The close below deliberately breaks the ownership order — sessions

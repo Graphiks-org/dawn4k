@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.testing.NativeFixture
 import org.graphiks.webgpu.ArrayBuffer
@@ -49,7 +51,7 @@ import kotlin.test.assertTrue
 /**
  * Real-GPU command-surface tests: queue writes and submits, command encoders and
  * their passes, indirect dispatch/draw, queries, and render bundles. Runs only
- * through the gpuTest* tasks; a host without an adapter fails these tests.
+ * through standard tasks, with explicit availability warnings or strict-mode failures.
  */
 class CommandsGpuTest {
 
@@ -57,6 +59,7 @@ class CommandsGpuTest {
 
     @Test
     fun writeBufferWithDataOffsetAndSizePreservesSentinels() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.writeBufferWithDataOffsetAndSizePreservesSentinels")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
@@ -80,6 +83,7 @@ class CommandsGpuTest {
 
     @Test
     fun copyWithNullSizeCopiesTheRemainderAndPreservesSentinels() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.copyWithNullSizeCopiesTheRemainderAndPreservesSentinels")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -114,6 +118,7 @@ class CommandsGpuTest {
 
     @Test
     fun commandsExecuteInSubmissionOrder() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.commandsExecuteInSubmissionOrder")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -142,6 +147,7 @@ class CommandsGpuTest {
 
     @Test
     fun clearBufferClearsOnlyTheRequestedRange() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.clearBufferClearsOnlyTheRequestedRange")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
@@ -171,6 +177,7 @@ class CommandsGpuTest {
 
     @Test
     fun writeTextureRoundTripsTightAndPaddedRows() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.writeTextureRoundTripsTightAndPaddedRows")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val texture = fixture.createTexture(
@@ -216,6 +223,7 @@ class CommandsGpuTest {
 
     @Test
     fun finishingAnEncoderTwiceObservesAValidationError() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.finishingAnEncoderTwiceObservesAValidationError")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val before = fixture.uncapturedErrorCount()
@@ -231,6 +239,7 @@ class CommandsGpuTest {
 
     @Test
     fun aSubmittedCommandBufferCannotBeSubmittedAgain() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.aSubmittedCommandBufferCannotBeSubmittedAgain")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val scratch = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.CopyDst))
@@ -255,6 +264,7 @@ class CommandsGpuTest {
 
     @Test
     fun submittingACommandBufferReferencingADestroyedTextureFails() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.submittingACommandBufferReferencingADestroyedTextureFails")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val texture = fixture.createTexture(
@@ -298,6 +308,7 @@ class CommandsGpuTest {
 
     @Test
     fun endingAPassTwiceIsRefusedWithoutANativeCall() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.endingAPassTwiceIsRefusedWithoutANativeCall")) return@runTest
         val fixture = NativeFixture.open()
         try {
             // Compute pass.
@@ -342,6 +353,7 @@ class CommandsGpuTest {
 
     @Test
     fun aCommandAfterEndingAPassIsRefusedWithoutANativeCall() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.aCommandAfterEndingAPassIsRefusedWithoutANativeCall")) return@runTest
         val fixture = NativeFixture.open()
         try {
             // Compute pass.
@@ -388,6 +400,7 @@ class CommandsGpuTest {
 
     @Test
     fun setBindGroupWithEmptyAndPopulatedDynamicOffsets() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.setBindGroupWithEmptyAndPopulatedDynamicOffsets")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -423,6 +436,7 @@ class CommandsGpuTest {
 
     @Test
     fun dispatchWorkgroupsIndirectReadsTheDispatchArguments() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.dispatchWorkgroupsIndirectReadsTheDispatchArguments")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
@@ -463,6 +477,7 @@ class CommandsGpuTest {
 
     @Test
     fun drawIndexedWithSignedBaseVertexAndFirstInstanceRenders() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.drawIndexedWithSignedBaseVertexAndFirstInstanceRenders")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(INDEXED_SHADER)).use { shader ->
@@ -547,6 +562,7 @@ class CommandsGpuTest {
 
     @Test
     fun drawIndirectReadsTheDrawArguments() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.drawIndirectReadsTheDrawArguments")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(TRIANGLE_SHADER)).use { shader ->
@@ -616,6 +632,7 @@ class CommandsGpuTest {
 
     @Test
     fun occlusionQueryBeginEndAndResolve() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.occlusionQueryBeginEndAndResolve")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(TRIANGLE_SHADER)).use { shader ->
@@ -686,6 +703,7 @@ class CommandsGpuTest {
 
     @Test
     fun renderBundleRecordedAndReusedAcrossEncoders() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.renderBundleRecordedAndReusedAcrossEncoders")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(TRIANGLE_SHADER)).use { shader ->

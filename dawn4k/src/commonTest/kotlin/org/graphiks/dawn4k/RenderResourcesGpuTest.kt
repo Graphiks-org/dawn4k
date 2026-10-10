@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.testing.NativeFixture
 import org.graphiks.webgpu.GPUCompareFunction
@@ -25,13 +27,14 @@ import kotlin.test.assertTrue
 
 /**
  * Real-GPU render resources: textures, texture views, samplers, render pipelines
- * and query sets, with a real offscreen render color oracle. Runs only through
- * the gpuTest* tasks; a host without an adapter fails these tests (no silent skip).
+ * and query sets, with a real offscreen render color oracle. Standard tasks run
+ * these tests with explicit availability warnings or strict-mode failures.
  */
 class RenderResourcesGpuTest {
 
     @Test
     fun offscreenRenderHasAColorOracle() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.offscreenRenderHasAColorOracle")) return@runTest
         val fixture = NativeFixture.open()
         try {
             assertContentEquals(byteArrayOf(-1, 0, 0, -1), fixture.renderPixel(GPUTextureFormat.RGBA8Unorm))
@@ -40,6 +43,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun textureMetadataAndNullViewDescriptorAreCorrect() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.textureMetadataAndNullViewDescriptorAreCorrect")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createTexture(
@@ -72,6 +76,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun depthStencilTextureAndAspectViewsAreCreated() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.depthStencilTextureAndAspectViewsAreCreated")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createTexture(
@@ -89,6 +94,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun mipmappedAndLayeredTextureViewsAreCreated() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.mipmappedAndLayeredTextureViewsAreCreated")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createTexture(
@@ -115,6 +121,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun samplerCompareNullAndMaxAnisotropyAreCreated() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.samplerCompareNullAndMaxAnisotropyAreCreated")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createSampler(SamplerDescriptor(compare = null, maxAnisotropy = 8u)).use { }
@@ -126,6 +133,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun renderPipelineWithDepthStencilAndNullableDepthWriteIsCreated() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.renderPipelineWithDepthStencilAndNullableDepthWriteIsCreated")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(VERTEX_SHADER)).use { shader ->
@@ -157,6 +165,7 @@ class RenderResourcesGpuTest {
 
     @Test
     fun occlusionQuerySetReportsTypeAndCount() = runTest {
+        if (!gpuTestEnvironment("RenderResourcesGpuTest.occlusionQuerySetReportsTypeAndCount")) return@runTest
         val fixture = NativeFixture.open()
         try {
             fixture.createQuerySet(QuerySetDescriptor(type = GPUQueryType.Occlusion, count = 2u)).use { querySet ->

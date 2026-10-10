@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -52,8 +55,8 @@ import kotlin.test.assertTrue
  *
  * Ownership states end with zero registered references — asserted through the
  * session's debug counters (debugRemainingRefs / debugOpenCallbacks), never by
- * dereferencing released memory. Runs only through the gpuTest* tasks; a host
- * without an adapter fails these tests (no silent skip).
+ * dereferencing released memory. Standard tasks run these tests; adapter
+ * absence is reported explicitly (or fails in strict mode).
  */
 class LifecycleStressGpuTest {
 
@@ -61,7 +64,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().let { publicDevice ->
@@ -149,7 +153,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun lateCallbackAfterACancelledMapSettlesWithOneRelease() = runBlocking {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.lateCallbackAfterACancelledMapSettlesWithOneRelease")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
@@ -201,7 +206,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             val adapterA = context.requestAdapter().getOrThrow()
             val adapterB = context.requestAdapter().getOrThrow()
@@ -272,7 +278,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs() = runBlocking {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
         var runtime: org.graphiks.dawn4k.internal.DawnRuntime? = null
         try {
             repeat(100) { index ->
@@ -316,7 +323,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun foreignThreadInteractionsAreRoutedThroughTheWorker() = runBlocking {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.foreignThreadInteractionsAreRoutedThroughTheWorker")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
@@ -372,6 +380,7 @@ class LifecycleStressGpuTest {
 
     @Test
     fun invalidBufferSourceSurfacesTheNativeValidationError() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.invalidBufferSourceSurfacesTheNativeValidationError")) return@runTest
         withDawnDevice { device ->
             // A buffer without COPY_DST cannot be written: the backend has no
             // Kotlin-side usage check, so Dawn's own validation must observe it.
@@ -395,6 +404,7 @@ class LifecycleStressGpuTest {
 
     @Test
     fun setImmediatesReachTheShaderWhenTheAnnouncedMaxImmediateSizeAllowsIt() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.setImmediatesReachTheShaderWhenTheAnnouncedMaxImmediateSizeAllowsIt")) return@runTest
         withDawnDevice { device ->
             val announced = device.limits.maxImmediateSize
             assertTrue(
@@ -490,6 +500,7 @@ class LifecycleStressGpuTest {
 
     @Test
     fun nullableDepthWriteAndDepthCompareReachNativeValidation() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.nullableDepthWriteAndDepthCompareReachNativeValidation")) return@runTest
         withDawnDevice { device ->
             device.createShaderModule(ShaderModuleDescriptor(VERTEX_SHADER)).use { shader ->
                 // Explicit values on both nullable signatures: valid pipelines,
@@ -543,7 +554,8 @@ class LifecycleStressGpuTest {
 
     @Test
     fun optionalTimestampFeatureStaysCheckablePresentOrAbsent() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.optionalTimestampFeatureStaysCheckablePresentOrAbsent")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 // Metadata/signature witnesses that hold on every host, feature
@@ -596,6 +608,7 @@ class LifecycleStressGpuTest {
 
     @Test
     fun bundleEncoderCommandsAfterCloseAreRefusedWithoutANativeCall() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.bundleEncoderCommandsAfterCloseAreRefusedWithoutANativeCall")) return@runTest
         withDawnDevice { device ->
             device.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
                 device.createRenderPipeline(
@@ -649,6 +662,7 @@ class LifecycleStressGpuTest {
 
     @Test
     fun finishingABundleEncoderTwiceWithoutCloseObservesAValidationError() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.finishingABundleEncoderTwiceWithoutCloseObservesAValidationError")) return@runTest
         withDawnDevice { device ->
             device.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
                 device.createRenderPipeline(
@@ -698,7 +712,7 @@ class LifecycleStressGpuTest {
      * default device, closed in reverse order.
      */
     private suspend fun withDawnDevice(block: suspend (DawnDevice) -> Unit) {
-        val context = DawnContext.create()
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().let { publicDevice ->

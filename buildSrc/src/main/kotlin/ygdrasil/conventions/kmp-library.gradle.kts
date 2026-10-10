@@ -3,6 +3,7 @@ package ygdrasil.conventions
 
 import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -27,6 +28,20 @@ kotlin {
     sourceSets.commonTest.dependencies { implementation(kotlin("test")) }
 }
 
+tasks.withType<KotlinNativeSimulatorTest>().configureEach {
+    // Standalone simctl has no service access: Metal returns nil and Dawn can crash.
+    // scripts/boot-apple-simulators.py boots devices and exports their dynamic selection.
+    standalone.set(false)
+    val simulatorVariable = when {
+        name.startsWith("ios") -> "DAWN_IOS_SIMULATOR"
+        name.startsWith("tvos") -> "DAWN_TVOS_SIMULATOR"
+        else -> null
+    }
+    simulatorVariable?.let { variable ->
+        providers.environmentVariable(variable).orNull?.let { device.set(it) }
+    }
+}
+
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
         Action<com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension> {
@@ -34,13 +49,4 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
             minSdk = 24
         }
     )
-}
-
-// iOS/tvOS tests require a device or a booted simulator; this project compiles those
-// targets but runs its host-native tests on macOS/Linux. The targets stay, the test
-// binaries are skipped.
-tasks.matching {
-    it.name.contains("Test") && (it.name.contains("Ios") || it.name.contains("Tvos"))
-}.configureEach {
-    enabled = false
 }
