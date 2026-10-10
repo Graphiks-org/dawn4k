@@ -29,7 +29,7 @@ kotlin {
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
-        org.gradle.api.Action<com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension> {
+        Action<com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension> {
             compileSdk = 37
             minSdk = 24
         }
