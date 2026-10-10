@@ -11,7 +11,7 @@ mapped range, and the absence of a common `GPUDevice.lost`.
 | Layer | Location | Role |
 | --- | --- | --- |
 | Generated bindings | `:dawn4k-native` → `org.graphiks.dawn4k.native` | kextract output over the pinned Dawn release; never edited by hand |
-| Dispatcher & runtime | `dawn4k/.../internal/NativeDispatcher.kt`, `DawnRuntime.kt`, `PendingOperation.kt` | one dedicated worker per runtime; serialized native operations, callback choreography and the event pump |
+| Runtime & mailbox | `dawn4k/.../internal/DawnRuntime.kt`, `CallbackMailbox.kt`, `PendingOperation.kt` | direct caller-thread operations, explicitly progressed callback settlements and ownership tracking |
 | Device sessions & registry | `dawn4k/.../internal/DeviceSession.kt`, `ResourceRegistry.kt` | per-device ownership of the adapter/device/queue references and of every reference acquired afterwards |
 | Wrappers & mappers | `dawn4k/.../*.kt`, `dawn4k/.../mapper/*` | one `Dawn*` class per WebGPU interface; explicit name-based descriptor/enum tables |
 | Public entry point | `dawn4k/.../DawnContext.kt`, `Adapter.kt`, `Device.kt` | `DawnContext.create(config)` → `requestAdapter` → `requestDevice` |
@@ -24,23 +24,37 @@ release pinned in `bindings/dawn.lock.json` (see
 numeric constant is ever assumed, and every enum/flag conversion goes through a
 named-constant table in `mapper/Enums.kt` and friends.
 
-### The serialized dispatcher and runtime
+### Caller-owned threading and progression
 
-Every native downcall and every callback settle runs through **one dedicated
-worker thread per runtime** (`NativeDispatcher`): a single-thread executor on
-the JVM, a dedicated `kotlin.native.Worker` on Kotlin/Native. The affinity is a
-Dawn contract, not an optimization — Dawn keys `WGPUDevice` error-scope stacks
-per calling thread, so the push, the validated calls and the pop must share one
-thread. Calls from any other thread are *routed* onto the worker, never
-confined to or rejected by the calling thread.
+dawn4k creates **no worker, dispatcher or event-pump job**. Native downcalls,
+including async request issuance, execute on their caller. The application
+chooses threads, ordering, event frequency and cancellation policy.
 
-`DawnRuntime` owns the `WGPUInstance`, discovers adapters and devices through
-callback-bearing requests, and runs a periodic event pump
-(`wgpuInstanceProcessEvents`) **only while callback registrations are open**.
-Each in-flight operation is a `PendingOperation`: a native outcome that races
-the coroutine waiting for it without ever leaking the native reference it
-carries — a cancelled or abandoned wait still settles its late delivery on the
-worker, releasing exactly once.
+Call `DawnContext.processEvents()` explicitly: it drains one finite mailbox batch,
+calls `wgpuInstanceProcessEvents`, then drains another batch. Concurrent or
+reentrant progression is refused. User error callbacks run on this caller;
+none of the suspend/await methods implicitly pumps events. `drainEvents()` is a
+deprecated suspend alias. Cancelling a wait does not cancel native delivery:
+late owned results are released during explicit progression. Native completion
+and Kotlin ownership transfer are tracked independently.
+
+For shared-device concurrency request
+`DawnConfig(implicitDeviceSynchronization = true)` **before requesting devices**.
+It checks and requests Dawn's native `ImplicitDeviceSynchronization` feature,
+merged with descriptor-required features. Default is `false`: the consumer must
+then externally synchronize non-encoding calls too, including progression that
+ticks devices. This is native synchronization, not a Kotlin scheduler or a
+performance guarantee.
+
+Each concurrent task exclusively owns its encoder and passes. Shared immutable
+resources may be referenced by independent encoders. Join tasks before publishing
+command buffers; order queue operations yourself. Never race map/unmap, mapped
+memory access, destroy or close against resource use.
+
+Dawn error scopes are **OS-thread-local**: push, validated calls and native pop
+issuance must use the same OS thread. A consumer-owned single-thread executor
+works on JVM; `Dispatchers.Default.limitedParallelism(1)` is serial but does not
+guarantee thread identity.
 
 ### Device sessions and the resource registry
 
@@ -56,7 +70,8 @@ mandatory release callback:
   back error objects whose handles must stay valid for late native errors.
 
 Closing a session releases every registered reference — in reverse acquisition
-order, before the device and adapter references — all on the dispatcher. The
+order, on the closing caller. Device/adapter references remain owned until
+explicit progression settles device loss and proves callback quiescence. The
 debug counters (`debugRemainingRefs`, `debugOpenCallbacks`) are how the tests
 assert ownership states without ever dereferencing released memory.
 
@@ -91,13 +106,16 @@ formats retain their indices and use the corresponding native empty-slot form.
 
 `GPUDevice.awaitLost()` observes a shared native `GPUDeviceLostInfo` result.
 Cancelling one observer neither destroys the device nor cancels other observers.
-The event pump progresses loss notifications while observers wait, even when no
-other GPU operation is pending. Both callback routes are closed and proven
-quiescent before the terminal result completes; later observers receive that
-same result. Device `close()` explicitly destroys the native device, drains its
-loss notification and releases owned references. A received native loss takes
-precedence over a subsequent reentrant context close, without skipping callback
-quiescence. The descriptor's uncaptured-error callback remains dispatcher-ordered.
+The consumer must progress loss notifications, even when no other GPU operation
+is pending. Both callback routes are closed and proven quiescent before the
+terminal result completes; later observers receive that same result. Device
+`close()` explicitly destroys the native device; further `processEvents()` calls
+settle its loss and release device/adapter references. Closing during progression,
+with outstanding relevant operations, or with open context children throws before
+mutating ownership. Stop/join producers, settle pending results, close devices
+and adapters, drain teardown, then close the context. `hasPendingOperations()` is
+a snapshot, not a shutdown barrier; idle permanent callback routes and loss
+observers do not make it permanently true.
 
 ## Target coverage versus `:dawn4k-native`
 
@@ -127,7 +145,7 @@ mobile variants. The public-contract acid witness (`PublicContractGpuTest`)
 runs through standard desktop test tasks; common GPU tests also run on Apple
 simulators. Test utilities report missing adapters, while strict CPU CI requires
 an adapter. The JVM and Android runtimes share their
-dispatcher and lock actuals through a `jvmSharedMain` source set.
+lock actuals through a `jvmSharedMain` source set.
 
 ## Ownership rules for callers
 
