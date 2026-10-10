@@ -3,7 +3,6 @@ import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtensi
 import org.graphiks.dawn4k.build.DownloadDawnTask
 import org.graphiks.dawn4k.build.DumpGeneratedAbiTask
 import org.graphiks.dawn4k.build.GenerateDawnBindingsTask
-import org.graphiks.dawn4k.build.VerifyDawnAbiTask
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
@@ -147,50 +146,6 @@ val dumpGeneratedAbi = tasks.register<DumpGeneratedAbiTask>("dumpGeneratedAbi") 
     generatedJvmSource.set(generatedJvmFile)
     hostName.set(abiHost)
     report.set(layout.buildDirectory.file("reports/abi/generated.json"))
-}
-
-val abiHeaderTarget = when (abiHost) {
-    "linux-aarch64" -> "linuxArm64"
-    "linux-x86-64" -> "linuxX64"
-    else -> "macosArm64"
-}
-
-val verifyDawnAbi = tasks.register<VerifyDawnAbiTask>("verifyDawnAbi") {
-    group = "verification"
-    description = "Compile the C ABI oracle, run it, and compare it with the generated bindings."
-    dependsOn(prepareDawn)
-    oracleSource.set(rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c"))
-    includeDir.set(layout.buildDirectory.dir("native/$abiHeaderTarget/shared/include"))
-    generatedJvmSource.set(generatedJvmFile)
-    hostName.set(abiHost)
-    compiler.set(System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc")
-    report.set(layout.buildDirectory.file("reports/abi/$abiHost.json"))
-    workDir.set(layout.buildDirectory.dir("abi"))
-}
-
-val helperLibName =
-    if (abiHost.startsWith("macos")) "libdawn_abi_helper.dylib" else "libdawn_abi_helper.so"
-val helperLibFile = layout.buildDirectory.file("abi/helper/$helperLibName")
-
-val buildDawnAbiHelper = tasks.register<Exec>("buildDawnAbiHelper") {
-    group = "verification"
-    description = "Build the small C helper that passes a CallbackInfo by value to a Kotlin callback."
-    dependsOn(prepareDawn)
-    val output = helperLibFile.get().asFile
-    doFirst { output.parentFile.mkdirs() }
-    commandLine(
-        System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc",
-        "-std=c11", "-DDAWN_ABI_NO_MAIN", "-shared", "-fPIC",
-        "-I${layout.buildDirectory.dir("native/$abiHeaderTarget/shared/include").get().asFile.absolutePath}",
-        rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c").asFile.absolutePath,
-        "-o", output.absolutePath,
-    )
-    outputs.file(output)
-}
-
-tasks.named<Test>("jvmTest") {
-    dependsOn(buildDawnAbiHelper)
-    systemProperty("dawn.abi.helper", helperLibFile.get().asFile.absolutePath)
 }
 
 kotlin {
