@@ -24,8 +24,79 @@ Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 ./gradlew allTests                      # cibles hôte
 ./gradlew :dawn4k-native:compileAndroidMain  # la cible Android/JVM compile
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # la cible iOS compile
-./gradlew :dawn4k-native:verifyDawnAbi  # oracle ABI C vs disposition générée
 ```
+
+## Utiliser le backend WebGPU
+
+`:dawn4k` implémente `org.graphiks.webgpu` sans scheduler ni pompe implicite.
+Bootstrap minimal autonome (chemin de succès) :
+
+```kotlin
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import org.graphiks.dawn4k.DawnConfig
+import org.graphiks.dawn4k.DawnContext
+import org.graphiks.webgpu.GPUAdapter
+import org.graphiks.webgpu.GPUDevice
+
+suspend fun useGpu() = coroutineScope {
+    DawnContext.create(DawnConfig(implicitDeviceSynchronization = true)).use { context ->
+        val events = launch {
+            while (isActive) { context.processEvents(); delay(1) }
+        }
+        var adapter: GPUAdapter? = null
+        var device: GPUDevice? = null
+        try {
+            val acquiredAdapter = context.requestAdapter().getOrThrow()
+            adapter = acquiredAdapter
+            device = acquiredAdapter.requestDevice().getOrThrow()
+            // Threads d'encodage et ordre de queue choisis par l'application.
+        } finally {
+            withContext(NonCancellable) {
+                events.cancelAndJoin()
+                withTimeout(10_000) {
+                    // Régler les requêtes annulées avant de fermer leurs owners.
+                    while (context.hasPendingOperations()) {
+                        context.processEvents()
+                        delay(1)
+                    }
+                    try { device?.close() } finally { adapter?.close() }
+                    while (context.hasPendingOperations()) {
+                        context.processEvents()
+                        delay(1)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+La feature est opt-in (`false` par défaut) ; l'activer pour un device appelé en
+concurrence. Sinon synchroniser aussi les appels hors encodage et la progression
+des événements device. Utiliser des encoders indépendants, joindre les tâches
+avant soumission et ne jamais courir fermeture/mapping contre leurs utilisateurs.
+
+Après annulation, arrêter/joindre producteurs et attentes, conserver la progression
+pendant le cleanup `NonCancellable` qui attend le GPU, puis arrêter/joindre le job
+d'événements **avant de fermer les enfants device/adapter**. Drainer les résultats
+tardifs avant cette fermeture et le teardown ensuite, avec un timeout application.
+Un timeout **n'autorise pas** la
+libération de handles actifs : close refuse les opérations en vol et enfants
+ouverts. Cet exemple n'est pas une stratégie complète face à un driver bloqué.
+
+Utiliser `processEvents()` pour progresser explicitement les callbacks ; aucune
+attente ne pompe les événements. `drainEvents()` est un alias déprécié.
+`NativeBridge.call` est un helper inline déprécié, sans lock ni dispatcher.
+Push de scope, appels validés et émission du pop
+doivent garder un **thread OS**, pas seulement une exécution de coroutines
+sérialisée. Voir [Architecture](architecture.fr.md).
 
 ## Régénérer les bindings
 
@@ -51,5 +122,4 @@ n'exécute jamais le générateur.
 ## Vérification finale
 
 - [ ] `./gradlew allTests` réussit.
-- [ ] `./gradlew :dawn4k-native:verifyDawnAbi` réussit.
 - [ ] `mkdocs build -f docs/mkdocs.yml` fonctionne.

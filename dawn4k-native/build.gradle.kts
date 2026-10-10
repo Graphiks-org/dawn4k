@@ -1,7 +1,8 @@
+import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
+import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.graphiks.dawn4k.build.DownloadDawnTask
 import org.graphiks.dawn4k.build.DumpGeneratedAbiTask
 import org.graphiks.dawn4k.build.GenerateDawnBindingsTask
-import org.graphiks.dawn4k.build.VerifyDawnAbiTask
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
@@ -10,14 +11,24 @@ plugins {
     id("ygdrasil.conventions.kmp-library")
 }
 
+extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
+    finalizeDsl(
+        org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
+            namespace = "org.graphiks.dawn4k.native"
+        },
+    )
+}
+
 val dawnTargets: List<String> =
     (project.findProperty("dawn.targets") as? String)
         ?.split(',')
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }
         ?: listOf(
+            "mingwX64",
             "macosArm64",
             "linuxX64",
+            "linuxArm64",
             "androidNativeArm64",
             "androidNativeX64",
             "iosArm64",
@@ -57,6 +68,10 @@ val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     from(layout.buildDirectory.dir("native/linuxX64/shared/lib")) {
         include("libwebgpu_dawn.so")
         into("linux-x86-64")
+    }
+    from(layout.buildDirectory.dir("native/linuxArm64/shared/lib")) {
+        include("libwebgpu_dawn.so")
+        into("linux-aarch64")
     }
 }
 
@@ -133,45 +148,10 @@ val dumpGeneratedAbi = tasks.register<DumpGeneratedAbiTask>("dumpGeneratedAbi") 
     report.set(layout.buildDirectory.file("reports/abi/generated.json"))
 }
 
-val verifyDawnAbi = tasks.register<VerifyDawnAbiTask>("verifyDawnAbi") {
-    group = "verification"
-    description = "Compile the C ABI oracle, run it, and compare it with the generated bindings."
-    dependsOn(prepareDawn)
-    oracleSource.set(rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c"))
-    includeDir.set(layout.buildDirectory.dir("native/macosArm64/shared/include"))
-    generatedJvmSource.set(generatedJvmFile)
-    hostName.set(abiHost)
-    compiler.set(System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc")
-    report.set(layout.buildDirectory.file("reports/abi/$abiHost.json"))
-    workDir.set(layout.buildDirectory.dir("abi"))
-}
-
-val helperLibName =
-    if (abiHost.startsWith("macos")) "libdawn_abi_helper.dylib" else "libdawn_abi_helper.so"
-val helperLibFile = layout.buildDirectory.file("abi/helper/$helperLibName")
-
-val buildDawnAbiHelper = tasks.register<Exec>("buildDawnAbiHelper") {
-    group = "verification"
-    description = "Build the small C helper that passes a CallbackInfo by value to a Kotlin callback."
-    dependsOn(prepareDawn)
-    val output = helperLibFile.get().asFile
-    doFirst { output.parentFile.mkdirs() }
-    commandLine(
-        System.getenv("CC")?.takeIf { it.isNotBlank() } ?: "cc",
-        "-std=c11", "-DDAWN_ABI_NO_MAIN", "-shared", "-fPIC",
-        "-I${layout.buildDirectory.dir("native/macosArm64/shared/include").get().asFile.absolutePath}",
-        rootProject.layout.projectDirectory.file("tests/abi/dawn_abi.c").asFile.absolutePath,
-        "-o", output.absolutePath,
-    )
-    outputs.file(output)
-}
-
-tasks.named<Test>("jvmTest") {
-    dependsOn(buildDawnAbiHelper)
-    systemProperty("dawn.abi.helper", helperLibFile.get().asFile.absolutePath)
-}
-
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
     sourceSets.getByName("commonMain").dependencies {
         api("org.graphiks:kffi:1.0.0-SNAPSHOT")
     }

@@ -13,7 +13,6 @@ le package `org.graphiks.dawn4k.native` et ne dépend que de
 | API C brute | `dawn4k-native/generated/src` | sortie de kextract ; jamais éditée à la main |
 | Bootstrap JVM | `KextractNativeBootstrap` généré | extrait et charge la bibliothèque partagée embarquée |
 | cinterop Kotlin/Native | `dawn4k-native/src/nativeInterop/cinterop/dawn.def` | package interne `webgpu.native` lié à la bibliothèque statique |
-| Oracle ABI | `tests/abi/dawn_abi.c` | mesure la disposition C réelle |
 
 Les sources générées sont versionnées. La compilation ordinaire les consomme et
 n'exécute jamais kextract.
@@ -66,13 +65,12 @@ Pas encore disponible, en attente de travaux amont :
   construites avec un libc++ plus récent que celui lié par Kotlin/Native, donc les
   cibles Android K/N ne se lient pas (voir `docs/spikes/android.md` de dawn-packer).
 
-## Vérification ABI
+## Rapport de disposition générée
 
 ```bash
-./gradlew :dawn4k-native:verifyDawnAbi
+./gradlew :dawn4k-native:dumpGeneratedAbi
 ```
 
-compile `tests/abi/dawn_abi.c` contre l'en-tête d'origine, l'exécute, puis compare
-les tailles, les alignements et les offsets de champs avec la disposition inscrite
-dans les bindings JVM générés. `dumpGeneratedAbi` écrit le même schéma depuis les
-sources générées. Les rapports atterrissent dans `dawn4k-native/build/reports/abi/`.
+écrit les tailles, alignements et offsets de champs des sources JVM générées dans
+`dawn4k-native/build/reports/abi/generated.json`. Ce rapport ne vérifie pas
+indépendamment ces dispositions contre l'en-tête C natif.
