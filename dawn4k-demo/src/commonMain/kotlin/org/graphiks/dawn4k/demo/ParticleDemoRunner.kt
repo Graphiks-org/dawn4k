@@ -18,32 +18,24 @@ import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
 /** Borrows the host; all GPU resources are released before the caller destroys its window. */
 internal suspend fun runParticleDemo(host: SurfaceHost, controls: ParticleControls, negotiateCapabilities: Boolean) {
     println("[demo] creating Dawn context (${host.backend} backend)")
-    DawnContext.create(DawnConfig(backend = host.backend, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-        println("[demo] requesting adapter")
-        context.requestAdapter().getOrThrow().use { adapter ->
+    DawnContext.create(DawnConfig(backend = host.backend, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, adapter, device ->
             val info = adapter.info
             println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
-            println("[demo] requesting device")
-            (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                 val bridge = context.nativeBridge()
                 host.createSurface(bridge, device.nativeHandle()).use { surface ->
                     if (negotiateCapabilities) surface.configureForAdapter((adapter as DawnAdapter).nativeHandle())
                     controls.initialize(maxParticleCount(device.limits))
                     renderLoop(device, surface, host, bridge, controls)
                 }
-            }
-        }
     }
 }
 
 /** The simulation survives presentation-target replacement within one session. */
 internal suspend fun runParticleDemo(controller: DemoSessionController, sessionId: Long) {
     val firstLease = controller.surface.first { it?.valid == true }!!
-    DawnContext.create(DawnConfig(backend = firstLease.backend, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-        context.requestAdapter().getOrThrow().use { adapter ->
+    DawnContext.create(DawnConfig(backend = firstLease.backend, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, adapter, device ->
             val info = adapter.info
             println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
-            (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                 val bridge = context.nativeBridge()
                 val clock = controller.frameClock
                 var scene: ParticleScene? = null
@@ -156,8 +148,6 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                         }
                     }
                 }
-            }
-        }
     }
 }
 

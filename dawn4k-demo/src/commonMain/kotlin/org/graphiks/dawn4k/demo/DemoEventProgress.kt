@@ -13,9 +13,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.DawnAdapter
+import org.graphiks.dawn4k.DawnDevice
 
 /** Demo-owned scheduling, on the consumer's dispatcher. The backend creates no job. */
-internal suspend fun <T> withEventProgress(progress: () -> Unit, block: suspend () -> T): T {
+internal suspend fun <T> withEventProgress(
+    progress: () -> Unit,
+    afterProgress: suspend () -> Unit = {},
+    block: suspend () -> T,
+): T {
     val consumer = currentCoroutineContext()
     // Only the progression lifetime is shielded. The consumer still observes
     // its original cancellation, and can await GPU completion in its finally.
@@ -36,20 +42,44 @@ internal suspend fun <T> withEventProgress(progress: () -> Unit, block: suspend 
                     blockJob.complete(checkNotNull(currentCoroutineContext()[Job]))
                     block()
                 }
-            } finally { withContext(NonCancellable) { events.cancelAndJoin() } }
-        }
-    }
-}
-
-internal suspend fun <T> DawnContext.withDemoEventProgress(block: suspend () -> T): T {
-    try { return withEventProgress(::processEvents, block) } finally {
-        withContext(NonCancellable) {
-            withTimeout(10_000) {
-                while (hasPendingOperations()) { processEvents(); delay(1) }
+            } finally {
+                withContext(NonCancellable) {
+                    events.cancelAndJoin()
+                    afterProgress()
+                }
             }
         }
     }
 }
 
-internal suspend fun <T> DawnContext.useWithDemoEventProgress(block: suspend (DawnContext) -> T): T =
-    use { context -> context.withDemoEventProgress { block(context) } }
+internal suspend fun <T> DawnContext.withDemoEventProgress(
+    closeChildren: () -> Unit = {},
+    block: suspend () -> T,
+): T = withEventProgress(::processEvents, afterProgress = {
+    settleDemoEvents()
+    closeChildren()
+    settleDemoEvents()
+}, block = block)
+
+private suspend fun DawnContext.settleDemoEvents() {
+    withTimeout(10_000) {
+        while (hasPendingOperations()) { processEvents(); delay(1) }
+    }
+}
+
+/** Owns child closure outside the running event job, including failed bootstrap. */
+internal suspend fun <T> DawnContext.useWithDemoEventProgress(
+    block: suspend (DawnContext, DawnAdapter, DawnDevice) -> T,
+): T = use { context ->
+    var adapter: DawnAdapter? = null
+    var device: DawnDevice? = null
+    context.withDemoEventProgress(closeChildren = {
+        try { device?.close() } finally { adapter?.close() }
+    }) {
+        val acquiredAdapter = context.requestAdapter().getOrThrow() as DawnAdapter
+        adapter = acquiredAdapter
+        val acquiredDevice = acquiredAdapter.requestDevice().getOrThrow() as DawnDevice
+        device = acquiredDevice
+        block(context, acquiredAdapter, acquiredDevice)
+    }
+}

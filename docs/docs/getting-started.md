@@ -42,22 +42,31 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.webgpu.GPUAdapter
+import org.graphiks.webgpu.GPUDevice
 
 suspend fun useGpu() = coroutineScope {
     DawnContext.create(DawnConfig(implicitDeviceSynchronization = true)).use { context ->
         val events = launch {
             while (isActive) { context.processEvents(); delay(1) }
         }
+        var adapter: GPUAdapter? = null
+        var device: GPUDevice? = null
         try {
-            context.requestAdapter().getOrThrow().use { adapter ->
-                adapter.requestDevice().getOrThrow().use { device ->
-                    // Application-owned encoding threads and queue ordering.
-                }
-            }
+            val acquiredAdapter = context.requestAdapter().getOrThrow()
+            adapter = acquiredAdapter
+            device = acquiredAdapter.requestDevice().getOrThrow()
+            // Application-owned encoding threads and queue ordering.
         } finally {
             withContext(NonCancellable) {
                 events.cancelAndJoin()
                 withTimeout(10_000) {
+                    // Settle cancelled requests before closing their owners.
+                    while (context.hasPendingOperations()) {
+                        context.processEvents()
+                        delay(1)
+                    }
+                    try { device?.close() } finally { adapter?.close() }
                     while (context.hasPendingOperations()) {
                         context.processEvents()
                         delay(1)
@@ -75,8 +84,9 @@ event progression. Use independent encoders, join encoding tasks before submitti
 their command buffers, and never race resource closure or mapping against users.
 
 After cancellation, stop/join producers and waiters, keep progression alive during
-any `NonCancellable` GPU-awaiting cleanup, then drain late results and device
-teardown under an application timeout. A timeout is **not** permission to free
+any `NonCancellable` GPU-awaiting cleanup, then stop/join the event job **before
+closing device/adapter children**. Drain late results first and device teardown
+after child closure, under an application timeout. A timeout is **not** permission to free
 active handles: context closure refuses pending operations or open children.
 This sample is not a complete recovery strategy for a stuck driver.
 

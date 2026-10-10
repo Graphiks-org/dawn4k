@@ -56,10 +56,8 @@ class LinuxSurfaceTest {
                     .invokeWithArguments(display, window)
                 function("XSync", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT))
                     .invokeWithArguments(display, 0)
-                DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-                    context.requestAdapter().getOrThrow().use { adapter ->
+                DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, adapter, device ->
                         println("[test] Vulkan adapter: ${adapter.info}")
-                        (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                             DawnSurface.createXlib(context.nativeBridge(), device.nativeHandle(), display.address(), window).use { surface ->
                                 val configuration = surface.configureForAdapter((adapter as DawnAdapter).nativeHandle())
                                 assertEquals(configuration.textureFormat, surface.textureFormat)
@@ -67,8 +65,6 @@ class LinuxSurfaceTest {
                                 assertEquals(128, surface.width)
                                 surface.acquireFrame().use { surface.present(it) }
                             }
-                        }
-                    }
                 }
             } finally {
                 destroy.invokeWithArguments(display, window)
