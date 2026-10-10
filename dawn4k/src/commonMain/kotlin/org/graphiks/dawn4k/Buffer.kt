@@ -230,7 +230,7 @@ internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBu
 
 /**
  * Suspends until every work submitted to the session's queue so far is done.
- * Routed through the runtime's event pump via a queue work-done callback.
+ * Settled by explicit event progression through a queue work-done callback.
  */
 internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
     val operation = runtime.pending<Unit>(this) { }

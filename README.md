@@ -56,7 +56,7 @@ Contributions are welcome! See:
 ## 🏗️ Project Architecture
 
 - **`:dawn4k-native`** — generated low-level Dawn (WebGPU) bindings for JVM, Android, iOS/tvOS (device + simulator), macOS ARM64 and Linux x64, the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
-- **`:dawn4k`** — WebGPU wrappers with caller-owned threading. No worker or implicit event pump: call `DawnContext.processEvents()`, drain teardown before context close, and opt into `DawnConfig(implicitDeviceSynchronization = true)` for concurrent shared-device calls. See the [bootstrap and migration guide](docs/docs/getting-started.md) ([FR](docs/docs/getting-started.fr.md)).
+- **`:dawn4k`** — WebGPU wrappers with caller-owned threading. No worker or implicit event pump: call `DawnContext.processEvents()`, drain teardown before context close, and opt into `DawnConfig(implicitDeviceSynchronization = true)` for concurrent shared-device calls. See the [usage guide](docs/docs/getting-started.md) ([FR](docs/docs/getting-started.fr.md)).
 
 The generated sources live in `dawn4k-native/generated/src` and are produced by the pinned kextract; ordinary compilation never runs the generator. See [Native Dawn binding](docs/docs/native-binding.md).
 

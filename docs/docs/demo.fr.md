@@ -14,7 +14,7 @@ pause/inactivité, remplacement de surface, readback et cleanup GPU sous
 résultats en vol sont drainés avant leur fermeture, puis le teardown est progressé
 explicitement avant close du contexte. La synchronisation native est demandée via
 `DawnConfig(implicitDeviceSynchronization = true)` ; dawn4k ne crée ni worker
-ni job de scheduling. Voir [le guide de migration](getting-started.fr.md).
+ni job de scheduling. Voir [le guide d'utilisation](getting-started.fr.md).
 
 ```bash
 ./gradlew :dawn4k-demo:run

@@ -77,11 +77,11 @@ internal fun GPUComputePipeline.requireDawnComputePipeline(owner: DeviceSession)
 
 /**
  * Creates a [DawnComputePipeline] asynchronously, resolving the returned [Result]
- * once the native callback fires (progressed by the runtime's event pump — no
- * fixed sleep). A rejected creation returns [Result.failure] with a
- * [DawnPipelineException]; a wait abandoned by a runtime close — or a creation
- * issued against a closed runtime — is a [Result.failure] too, and only a
- * cancellation stays a cancellation.
+ * when the caller explicitly progresses the callback through
+ * [org.graphiks.dawn4k.DawnContext.processEvents]. A rejected creation returns
+ * [Result.failure] with a [DawnPipelineException]. A creation issued against a
+ * closed runtime returns failure; closure with an outstanding operation is
+ * refused. Coroutine cancellation stays a cancellation.
  */
 internal suspend fun DeviceSession.createComputePipelineAsync(
     descriptor: GPUComputePipelineDescriptor,
