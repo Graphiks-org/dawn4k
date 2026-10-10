@@ -113,7 +113,7 @@ class DawnDevice internal constructor(
     }
 
     override val features: GPUSupportedFeatures
-        get() = session.runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val supported = WGPUSupportedFeatures.allocate(allocator)
                 supported.featureCount = 0uL
@@ -129,7 +129,7 @@ class DawnDevice internal constructor(
         }
 
     override val limits: GPUSupportedLimits
-        get() = session.runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val native = allocator.allocateLimitsSnapshot()
                 requireWgpuSuccess(wgpuDeviceGetLimits(session.handle, native), "wgpuDeviceGetLimits")
@@ -138,7 +138,7 @@ class DawnDevice internal constructor(
         }
 
     override val adapterInfo: GPUAdapterInfo
-        get() = session.runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val native = allocator.allocateAdapterInfoSnapshot()
                 requireWgpuSuccess(wgpuAdapterGetInfo(session.adapter, native), "wgpuAdapterGetInfo")
@@ -178,10 +178,10 @@ class DawnDevice internal constructor(
      * address cannot establish device provenance. On successful return the
      * session owns the reference and releases it through [GPUTextureView.close]
      * or device teardown. On failure ownership remains with the caller.
-     * Registration runs on the native worker, serialized with device teardown.
+      * Registration is inline; callers must not race it with device teardown.
      */
     fun adoptSurfaceTextureView(handle: Long, label: String = "surface-view"): GPUTextureView =
-        session.runtime.dispatcher.call {
+        run {
             require(handle != 0L) { "the surface texture view is null" }
             session.requireOpen()
             DawnTextureView(session, WGPUTextureView(NativeAddress(handle)), label)
@@ -226,7 +226,7 @@ class DawnDevice internal constructor(
     override fun createQuerySet(descriptor: GPUQuerySetDescriptor): GPUQuerySet = session.createQuerySet(descriptor)
 
     override fun pushErrorScope(filter: GPUErrorFilter) {
-        session.runtime.dispatcher.call {
+        run {
             wgpuDevicePushErrorScope(session.handle, filter.toNativeErrorFilter())
         }
     }
@@ -258,8 +258,8 @@ class DawnDevice internal constructor(
     /** Issues the native pop and maps its settled outcome onto the contract. */
     private suspend fun popErrorScopeOnSession(): Result<GPUError?> {
         val runtime = session.runtime
-        val operation = PendingOperation<ErrorScopeOutcome> { }
-        runtime.dispatcher.call {
+        val operation = runtime.pending<ErrorScopeOutcome>(session) { }
+        run {
             var registration: CallbackRegistration<WGPUPopErrorScopeCallback>? = null
             runtime.beginSubdeviceOperation(
                 operation = operation,
@@ -269,7 +269,7 @@ class DawnDevice internal constructor(
                         callback = { status, type, message, _ ->
                             // Callback thread: copy the borrowed message before returning.
                             val outcome = ErrorScopeOutcome(status, type, message.copyToString())
-                            runtime.dispatcher.post {
+                            runtime.postCallback {
                                 runtime.finishSubdeviceOperation(operation, registration!!, Result.success(outcome))
                             }
                         },
@@ -286,7 +286,9 @@ class DawnDevice internal constructor(
                 closeRegistration = { registration?.close() },
             )
         }
-        val outcome = operation.await().getOrThrow()
+        val result = operation.await()
+        operation.acceptOwnership()
+        val outcome = result.getOrThrow()
         if (outcome.status != WGPUPopErrorScopeStatus_Success) {
             return Result.failure(DawnPopErrorScopeException(outcome.status, outcome.message))
         }

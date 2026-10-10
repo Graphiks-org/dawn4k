@@ -33,7 +33,7 @@ class DawnQueue internal constructor(
     override var label: String = ""
 
     override fun submit(commandBuffers: List<GPUCommandBuffer>) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val buffers = commandBuffers.map { it.requireDawnCommandBuffer(session).handle }
                 val commands = if (buffers.isEmpty()) {
@@ -57,7 +57,7 @@ class DawnQueue internal constructor(
     ) {
         val slice = dataSlice(data.size, dataOffset, size)
         val dawn = buffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val address = uploadAddress(allocator, data, slice.offset, slice.size)
                 wgpuQueueWriteBuffer(handle, dawn.handle, bufferOffset, address, slice.size)
@@ -71,7 +71,7 @@ class DawnQueue internal constructor(
         dataLayout: GPUTexelCopyBufferLayout,
         size: GPUExtent3D,
     ) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val nativeDestination = allocator.allocateTexelCopyTextureInfo(destination, session)
                 val nativeLayout = allocator.allocateTexelCopyBufferLayout(dataLayout)

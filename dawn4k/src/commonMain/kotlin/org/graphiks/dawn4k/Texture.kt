@@ -56,7 +56,7 @@ class DawnTexture internal constructor(
      * reference; its [GPUTextureView.close] releases it.
      */
     override fun createView(descriptor: GPUTextureViewDescriptor?): GPUTextureView =
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val native = descriptor?.let { allocator.allocateTextureViewDescriptor(it) }
                 val viewHandle = wgpuTextureCreateView(handle, native)
@@ -80,7 +80,7 @@ internal fun GPUTexture.requireDawnTexture(owner: DeviceSession): DawnTexture {
 
 /** Creates a [DawnTexture] on [this] session and registers it with the resource registry. */
 internal fun DeviceSession.createTexture(descriptor: GPUTextureDescriptor): DawnTexture =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateTextureDescriptor(descriptor)
             val handle = wgpuDeviceCreateTexture(this.handle, native)

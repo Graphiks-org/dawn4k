@@ -1,5 +1,11 @@
 package org.graphiks.dawn4k.testing
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import org.graphiks.dawn4k.startTestProgress
+import org.graphiks.dawn4k.settleTestEvents
+
 import org.graphiks.dawn4k.DawnBindGroup
 import org.graphiks.dawn4k.DawnBuffer
 import org.graphiks.dawn4k.DawnCommandEncoder
@@ -66,6 +72,7 @@ import kotlin.test.assertContentEquals
 internal class NativeFixture(
     internal val runtime: DawnRuntime,
     internal val session: DeviceSession,
+    private val events: Job,
 ) : AutoCloseable {
 
     /** The session's owned queue, wrapped. */
@@ -75,10 +82,12 @@ internal class NativeFixture(
     companion object {
         suspend fun open(): NativeFixture {
             val runtime = DawnRuntime(gpuTestConfig())
+            val events = runtime.startTestProgress(CoroutineScope(currentCoroutineContext()))
             try {
                 val session = runtime.openSession()
-                return NativeFixture(runtime, session)
+                return NativeFixture(runtime, session, events)
             } catch (failure: Throwable) {
+                events.cancel()
                 try {
                     runtime.close()
                 } catch (cleanup: Throwable) {
@@ -277,7 +286,10 @@ internal class NativeFixture(
     }
 
     override fun close() {
+        events.cancel()
+        runtime.settleTestEvents()
         session.close()
+        runtime.settleTestEvents()
         runtime.close()
     }
 }

@@ -53,6 +53,7 @@ class PublicContractGpuTest {
     fun publicBuffersMatchTheSharedContract() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.publicBuffersMatchTheSharedContract")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
@@ -61,6 +62,8 @@ class PublicContractGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -69,6 +72,7 @@ class PublicContractGpuTest {
     fun eachAdapterRequestYieldsAFreshAdapter() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.eachAdapterRequestYieldsAFreshAdapter")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             val first = context.requestAdapter().getOrThrow()
             try {
@@ -85,6 +89,8 @@ class PublicContractGpuTest {
                 first.close()
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -93,6 +99,7 @@ class PublicContractGpuTest {
     fun requiredFeaturesAreHonoured() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.requiredFeaturesAreHonoured")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val supported = adapter.features
@@ -111,6 +118,8 @@ class PublicContractGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -119,6 +128,7 @@ class PublicContractGpuTest {
     fun unsupportedRequiredFeatureIsRefused() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.unsupportedRequiredFeatureIsRefused")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 // The refusal's target: a feature the adapter lacks when one
@@ -144,6 +154,8 @@ class PublicContractGpuTest {
                 )
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -152,6 +164,7 @@ class PublicContractGpuTest {
     fun requiredLimitsAtAdapterValuesAreAccepted() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.requiredLimitsAtAdapterValuesAreAccepted")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val required = RequiredLimits(maxComputeWorkgroupSizeX = adapter.limits.maxComputeWorkgroupSizeX)
@@ -164,6 +177,8 @@ class PublicContractGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -172,6 +187,7 @@ class PublicContractGpuTest {
     fun excessiveRequiredLimitsAreRefused() = runTest {
         if (!gpuTestEnvironment("PublicContractGpuTest.excessiveRequiredLimitsAreRefused")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val base = adapter.limits.maxComputeWorkgroupSizeX
@@ -183,6 +199,8 @@ class PublicContractGpuTest {
                 )
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -325,6 +343,7 @@ class PublicContractGpuTest {
         block: suspend (GPUDevice) -> Unit,
     ) {
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter: GPUAdapter ->
                 adapter.requestDevice(descriptor).getOrThrow().use { device ->
@@ -332,6 +351,8 @@ class PublicContractGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }

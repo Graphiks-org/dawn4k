@@ -21,7 +21,7 @@ import kotlin.coroutines.resume
  * the owner's behalf (device loss, runtime shutdown) while leaving the native
  * facet untouched; only [nativeTerminal] authorizes cleaning up the native
  * registration. All transitions are thread-safe: an outcome may complete on the
- * dispatcher worker, on the awaiting coroutine, or on any thread a native
+ * event-processing caller, on the awaiting coroutine, or on any thread a native
  * callback arrives from.
  *
  * The waiter facet is an explicit state machine serialized by [lock] (see
@@ -35,6 +35,10 @@ import kotlin.coroutines.resume
  * cancellation handler takes it out under the monitor.
  */
 internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
+
+    /** Ownership is acknowledged after wrapper registration or actual deferred release. */
+    internal val ownershipCompletion = CompletableDeferred<Unit>()
+    internal fun acceptOwnership() { ownershipCompletion.complete(Unit) }
 
     /**
      * The states of the waiter facet, all transitions under [lock]:
@@ -63,6 +67,7 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
     private var state: WaitState = WaitState.EMPTY
     private var value: Result<T>? = null
     private var waiter: CancellableContinuation<Unit>? = null
+    private var nativeOutcomeReceived = false
 
     /** Terminal marker of the native facet, independent from the outcome. */
     private val nativeFacet: CompletableDeferred<Unit> = CompletableDeferred()
@@ -157,7 +162,9 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
         var rejected: Result<T>? = null
         lock.withLock {
             when (state) {
-                WaitState.REGISTERED -> state = WaitState.FINISHED
+                WaitState.REGISTERED -> {
+                    state = WaitState.FINISHED
+                }
                 WaitState.RESERVED -> {
                     rejected = value
                     value = null
@@ -173,6 +180,7 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
         }
         // Outside the monitor: user code must never run under the lock.
         rejected?.onSuccess(releaseRejected)
+        if (rejected?.isFailure == true) acceptOwnership()
     }
 
     /**
@@ -192,7 +200,10 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
     fun complete(result: Result<T>) {
         var wake: CancellableContinuation<Unit>? = null
         var rejected = false
+        var firstNativeOutcome = false
         lock.withLock {
+            firstNativeOutcome = !nativeOutcomeReceived
+            nativeOutcomeReceived = true
             when (state) {
                 WaitState.EMPTY -> {
                     state = WaitState.BUFFERED
@@ -210,6 +221,7 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
         if (rejected) {
             // This value owns a reference nobody will consume.
             result.onSuccess(releaseRejected)
+            if (result.isFailure && firstNativeOutcome) acceptOwnership()
             return
         }
         // Lossy wake-up, deliberately: resuming a cancelled continuation is a

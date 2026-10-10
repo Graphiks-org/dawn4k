@@ -292,7 +292,7 @@ class BufferGpuTest {
             // still close the registration: the registered callback never fires,
             // so nothing else would ever revoke it.
             assertFailsWith<IllegalStateException> {
-                runtime.dispatcher.call {
+                run {
                     runtime.beginSubdeviceOperation(
                         operation = operation,
                         issue = {

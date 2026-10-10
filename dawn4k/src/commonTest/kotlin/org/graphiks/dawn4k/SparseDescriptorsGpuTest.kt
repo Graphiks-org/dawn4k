@@ -54,7 +54,7 @@ class SparseDescriptorsGpuTest {
     @Test
     fun sparseNativeArraysKeepTheirIndicesAndUseThePinnedHeaderEmptySlots() = runTest {
         if (!gpuTestEnvironment("SparseDescriptorsGpuTest.sparseNativeArraysKeepTheirIndicesAndUseThePinnedHeaderEmptySlots")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val session = device.session

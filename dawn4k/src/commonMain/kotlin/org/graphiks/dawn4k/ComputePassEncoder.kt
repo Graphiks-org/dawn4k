@@ -29,6 +29,7 @@ import org.graphiks.webgpu.GPUSize32
 import org.graphiks.webgpu.GPUSize64
 
 /**
+ * The pass and its parent encoder require exclusive caller use, without scheduling.
  * A raw [GPUComputePassEncoder] borrowed from its owning command encoder. It has
  * no [close]: the pass handle is released when [end] is called, or by the session
  * teardown if the pass is never ended.
@@ -60,12 +61,12 @@ class DawnComputePassEncoder internal constructor(
     override fun setPipeline(pipeline: GPUComputePipeline) {
         requireOpen()
         val dawn = pipeline.requireDawnComputePipeline(session)
-        session.runtime.dispatcher.call { wgpuComputePassEncoderSetPipeline(handle, dawn.handle) }
+        wgpuComputePassEncoderSetPipeline(handle, dawn.handle)
     }
 
     override fun dispatchWorkgroups(workgroupCountX: GPUSize32, workgroupCountY: GPUSize32, workgroupCountZ: GPUSize32) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             wgpuComputePassEncoderDispatchWorkgroups(handle, workgroupCountX, workgroupCountY, workgroupCountZ)
         }
     }
@@ -73,7 +74,7 @@ class DawnComputePassEncoder internal constructor(
     override fun dispatchWorkgroupsIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuComputePassEncoderDispatchWorkgroupsIndirect(handle, dawn.handle, indirectOffset)
         }
     }
@@ -81,7 +82,7 @@ class DawnComputePassEncoder internal constructor(
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
         requireOpen()
         val dawn = bindGroup?.requireDawnBindGroup(session)
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuComputePassEncoderSetBindGroup(
                     handle,
@@ -99,7 +100,7 @@ class DawnComputePassEncoder internal constructor(
         // pipeline layout's immediate size and the device's maxImmediateSize.
         requireOpen()
         val slice = dataSlice(data.size, dataOffset, dataSize)
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val address = uploadAddress(allocator, data, slice.offset, slice.size)
                 wgpuComputePassEncoderSetImmediates(handle, rangeOffset, address, slice.size)
@@ -109,7 +110,7 @@ class DawnComputePassEncoder internal constructor(
 
     override fun pushDebugGroup(groupLabel: String) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuComputePassEncoderPushDebugGroup(handle, allocator.allocateLabel(groupLabel))
             }
@@ -118,12 +119,12 @@ class DawnComputePassEncoder internal constructor(
 
     override fun popDebugGroup() {
         requireOpen()
-        session.runtime.dispatcher.call { wgpuComputePassEncoderPopDebugGroup(handle) }
+        wgpuComputePassEncoderPopDebugGroup(handle)
     }
 
     override fun insertDebugMarker(markerLabel: String) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuComputePassEncoderInsertDebugMarker(handle, allocator.allocateLabel(markerLabel))
             }
@@ -133,7 +134,7 @@ class DawnComputePassEncoder internal constructor(
     override fun end() {
         requireOpen()
         ended = true
-        session.runtime.dispatcher.call { wgpuComputePassEncoderEnd(handle) }
+        wgpuComputePassEncoderEnd(handle)
         session.resources.release(this)
     }
 }

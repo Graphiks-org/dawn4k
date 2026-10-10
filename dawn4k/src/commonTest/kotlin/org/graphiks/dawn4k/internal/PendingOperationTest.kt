@@ -19,6 +19,52 @@ import kotlin.test.assertTrue
  */
 class PendingOperationTest {
 
+    @Test fun duplicateFailureCannotAcknowledgeAnUnconsumedOwnedOutcome() = runTest {
+        val operation = PendingOperation<Int> { }
+        operation.complete(Result.success(7))
+        operation.complete(Result.failure(IllegalStateException("duplicate")))
+        assertFalse(operation.ownershipCompletion.isCompleted)
+        assertEquals(7, operation.await().getOrThrow())
+        operation.acceptOwnership()
+        assertTrue(operation.ownershipCompletion.isCompleted)
+    }
+
+    @Test fun cancellationAfterReservationDefersReleaseAndAckUntilMailboxDrain() = runTest {
+        val mailbox = CallbackMailbox()
+        val releases = mutableListOf<Int>()
+        lateinit var operation: PendingOperation<Int>
+        operation = PendingOperation { value ->
+            mailbox.post { releases += value; operation.acceptOwnership() }
+        }
+        var acks = 0
+        operation.ownershipCompletion.invokeOnCompletion { acks++ }
+        val waiter = async { operation.await() }
+        runCurrent()
+        operation.complete(Result.success(11))
+        waiter.cancelAndJoin()
+        assertTrue(releases.isEmpty())
+        assertEquals(0, acks)
+        mailbox.drain()
+        assertEquals(listOf(11), releases)
+        assertEquals(1, acks)
+        operation.acceptOwnership()
+        assertEquals(1, acks)
+    }
+
+    @Test fun cancelledWaiterKeepsOwnershipPendingUntilLateResultIsReleased() = runTest {
+        val mailbox = CallbackMailbox()
+        lateinit var operation: PendingOperation<Int>
+        operation = PendingOperation { mailbox.post { operation.acceptOwnership() } }
+        val waiter = async { operation.await() }
+        runCurrent()
+        waiter.cancelAndJoin()
+        assertFalse(operation.ownershipCompletion.isCompleted)
+        operation.complete(Result.success(17))
+        assertFalse(operation.ownershipCompletion.isCompleted)
+        mailbox.drain()
+        assertTrue(operation.ownershipCompletion.isCompleted)
+    }
+
     @Test
     fun resultAfterCancellationIsReleasedExactlyOnce() = runTest {
         val released = mutableListOf<Int>()

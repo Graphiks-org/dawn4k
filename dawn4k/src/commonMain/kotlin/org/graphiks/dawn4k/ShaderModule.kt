@@ -38,8 +38,8 @@ class DawnShaderModule internal constructor(
     }
 
     override suspend fun getCompilationInfo(): Result<GPUCompilationInfo> {
-        val operation = PendingOperation<GPUCompilationInfo> { }
-        session.runtime.dispatcher.call {
+        val operation = session.runtime.pending<GPUCompilationInfo>(session) { }
+        run {
             var registration: CallbackRegistration<WGPUCompilationInfoCallback>? = null
             session.runtime.beginSubdeviceOperation(
                 operation = operation,
@@ -54,7 +54,7 @@ class DawnShaderModule internal constructor(
                                 IllegalStateException("wgpuShaderModuleGetCompilationInfo failed (status=$status)"),
                             )
                         }
-                        session.runtime.dispatcher.post {
+                        session.runtime.postCallback {
                             session.runtime.finishSubdeviceOperation(operation, registration!!, result)
                         }
                     }
@@ -70,7 +70,7 @@ class DawnShaderModule internal constructor(
                 closeRegistration = { registration?.close() },
             )
         }
-        return operation.await()
+        return operation.await().also { operation.acceptOwnership() }
     }
 
     override fun close() {
@@ -88,7 +88,7 @@ internal fun GPUShaderModule.requireDawnShaderModule(owner: DeviceSession): Dawn
 
 /** Creates a [DawnShaderModule] on [this] session and registers its reference. */
 internal fun DeviceSession.createShaderModule(descriptor: GPUShaderModuleDescriptor): DawnShaderModule =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateShaderModuleDescriptor(descriptor)
             val handle = wgpuDeviceCreateShaderModule(this.handle, native)

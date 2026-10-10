@@ -39,7 +39,7 @@ class SurfaceTextureViewGpuTest {
             val device = DawnDevice(fixture.session, null, false)
             texture(fixture).use { texture ->
                 val before = fixture.session.resources.debugRemainingRefs()
-                val raw = fixture.runtime.dispatcher.call { assertNotNull(wgpuTextureCreateView(texture.handle, null)) }
+                val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
                 val view = device.adoptSurfaceTextureView(raw.handler.rawValue, "adopted")
                 assertEquals("adopted", view.label)
                 assertEquals(before + 1, fixture.session.resources.debugRemainingRefs())
@@ -59,7 +59,7 @@ class SurfaceTextureViewGpuTest {
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             val texture = texture(fixture)
-            val raw = fixture.runtime.dispatcher.call { assertNotNull(wgpuTextureCreateView(texture.handle, null)) }
+            val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
             val view = device.adoptSurfaceTextureView(raw.handler.rawValue)
             assertEquals(3, fixture.session.resources.debugRemainingRefs(), "queue, texture and adopted view")
             device.close()
@@ -76,14 +76,14 @@ class SurfaceTextureViewGpuTest {
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             val texture = texture(fixture)
-            val raw = fixture.runtime.dispatcher.call { assertNotNull(wgpuTextureCreateView(texture.handle, null)) }
+            val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
             try {
                 device.close()
                 assertFailsWith<IllegalStateException> { device.adoptSurfaceTextureView(raw.handler.rawValue) }
                 assertEquals(0, fixture.session.resources.debugRemainingRefs())
             } finally {
                 // Failure must not transfer/release the raw reference. Caller still owns it.
-                fixture.runtime.dispatcher.call { wgpuTextureViewRelease(raw) }
+                wgpuTextureViewRelease(raw)
             }
         }
     }
@@ -94,7 +94,7 @@ class SurfaceTextureViewGpuTest {
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             texture(fixture).use { texture ->
-                val raw = fixture.runtime.dispatcher.call { assertNotNull(wgpuTextureCreateView(texture.handle, null)) }
+                val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
                 device.adoptSurfaceTextureView(raw.handler.rawValue).use { view ->
                     fixture.createBuffer(BufferDescriptor(1024uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst)).use { staging ->
                         fixture.createEncoder().use { encoder ->

@@ -40,6 +40,8 @@ import org.graphiks.webgpu.GPUSignedOffset32
 
 /**
  * A raw [GPURenderBundleEncoder] backed by a Dawn `WGPURenderBundleEncoder`.
+ * Exclusively owned by one caller; independent bundle encoders may run on
+ * different consumer threads. Join users before closing resources.
  * Refcount-only: [close] releases the reference immediately, so any command or
  * [finish] after it would dereference a freed handle. A Kotlin [closed] flag
  * refuses them with an [IllegalStateException] before a downcall — mirroring
@@ -69,13 +71,13 @@ class DawnRenderBundleEncoder internal constructor(
     override fun setPipeline(pipeline: GPURenderPipeline) {
         requireOpen()
         val dawn = pipeline.requireDawnRenderPipeline(session)
-        session.runtime.dispatcher.call { wgpuRenderBundleEncoderSetPipeline(handle, dawn.handle) }
+        wgpuRenderBundleEncoderSetPipeline(handle, dawn.handle)
     }
 
     override fun setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
         val dawn = buffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuRenderBundleEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
         }
     }
@@ -83,14 +85,14 @@ class DawnRenderBundleEncoder internal constructor(
     override fun setVertexBuffer(slot: GPUIndex32, buffer: GPUBuffer?, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
         val dawn = buffer?.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuRenderBundleEncoderSetVertexBuffer(handle, slot, dawn?.handle, offset, size ?: WGPU_WHOLE_SIZE)
         }
     }
 
     override fun draw(vertexCount: GPUSize32, instanceCount: GPUSize32, firstVertex: GPUSize32, firstInstance: GPUSize32) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             wgpuRenderBundleEncoderDraw(handle, vertexCount, instanceCount, firstVertex, firstInstance)
         }
     }
@@ -103,7 +105,7 @@ class DawnRenderBundleEncoder internal constructor(
         firstInstance: GPUSize32,
     ) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             wgpuRenderBundleEncoderDrawIndexed(handle, indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
         }
     }
@@ -111,19 +113,19 @@ class DawnRenderBundleEncoder internal constructor(
     override fun drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call { wgpuRenderBundleEncoderDrawIndirect(handle, dawn.handle, indirectOffset) }
+        wgpuRenderBundleEncoderDrawIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun drawIndexedIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
         val dawn = indirectBuffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call { wgpuRenderBundleEncoderDrawIndexedIndirect(handle, dawn.handle, indirectOffset) }
+        wgpuRenderBundleEncoderDrawIndexedIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
         requireOpen()
         val dawn = bindGroup?.requireDawnBindGroup(session)
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuRenderBundleEncoderSetBindGroup(
                     handle,
@@ -139,7 +141,7 @@ class DawnRenderBundleEncoder internal constructor(
     override fun setImmediates(rangeOffset: GPUSize32, data: ArrayBuffer, dataOffset: GPUSize64, dataSize: GPUSize64?) {
         requireOpen()
         val slice = dataSlice(data.size, dataOffset, dataSize)
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val address = uploadAddress(allocator, data, slice.offset, slice.size)
                 wgpuRenderBundleEncoderSetImmediates(handle, rangeOffset, address, slice.size)
@@ -149,26 +151,26 @@ class DawnRenderBundleEncoder internal constructor(
 
     override fun pushDebugGroup(groupLabel: String) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator -> wgpuRenderBundleEncoderPushDebugGroup(handle, allocator.allocateLabel(groupLabel)) }
         }
     }
 
     override fun popDebugGroup() {
         requireOpen()
-        session.runtime.dispatcher.call { wgpuRenderBundleEncoderPopDebugGroup(handle) }
+        wgpuRenderBundleEncoderPopDebugGroup(handle)
     }
 
     override fun insertDebugMarker(markerLabel: String) {
         requireOpen()
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator -> wgpuRenderBundleEncoderInsertDebugMarker(handle, allocator.allocateLabel(markerLabel)) }
         }
     }
 
     override fun finish(descriptor: GPURenderBundleDescriptor?): GPURenderBundle {
         requireOpen()
-        val bundle = session.runtime.dispatcher.call {
+        val bundle = run {
             memoryScope { allocator ->
                 wgpuRenderBundleEncoderFinish(handle, descriptor?.let { allocator.allocateRenderBundleDescriptor(it) })
             }
@@ -185,7 +187,7 @@ class DawnRenderBundleEncoder internal constructor(
 
 /** Creates a [DawnRenderBundleEncoder] on [this] session and registers its reference. */
 internal fun DeviceSession.createRenderBundleEncoder(descriptor: GPURenderBundleEncoderDescriptor): DawnRenderBundleEncoder =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateRenderBundleEncoderDescriptor(descriptor)
             val handle = wgpuDeviceCreateRenderBundleEncoder(this.handle, native)

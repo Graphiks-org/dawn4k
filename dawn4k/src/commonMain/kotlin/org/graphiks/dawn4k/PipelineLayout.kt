@@ -40,7 +40,7 @@ internal fun GPUPipelineLayout.requireDawnPipelineLayout(owner: DeviceSession): 
 
 /** Creates a [DawnPipelineLayout] on [this] session and registers its reference. */
 internal fun DeviceSession.createPipelineLayout(descriptor: GPUPipelineLayoutDescriptor): DawnPipelineLayout =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocatePipelineLayoutDescriptor(descriptor, this)
             val handle = wgpuDeviceCreatePipelineLayout(this.handle, native)
