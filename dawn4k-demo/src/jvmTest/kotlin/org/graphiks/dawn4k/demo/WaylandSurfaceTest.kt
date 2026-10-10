@@ -28,10 +28,8 @@ class WaylandSurfaceTest {
         assertTrue(System.getenv("DISPLAY").isNullOrBlank(), "Wayland validation must not use DISPLAY")
         WaylandSurfaceHost.open(ParticleControls()) {}.use { host ->
             val initial = awaitWaylandSize(host)
-            DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-                context.requestAdapter().getOrThrow().use { adapter ->
+            DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, adapter, device ->
                     println("[test] Wayland Vulkan adapter: ${adapter.info}")
-                    (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                         host.createSurface(context.nativeBridge(), device.nativeHandle()).use { surface ->
                             surface.configureForAdapter((adapter as DawnAdapter).nativeHandle())
                             surface.configure(initial.first, initial.second)
@@ -45,8 +43,6 @@ class WaylandSurfaceTest {
                             assertEquals(changed.first, surface.width)
                             assertEquals(changed.second, surface.height)
                         }
-                    }
-                }
             }
         }
     }

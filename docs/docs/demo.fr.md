@@ -10,8 +10,9 @@ via le backend `:dawn4k` (Dawn/Metal sur macOS, Dawn/D3D12 sur Windows).
 La démo possède sa coroutine de progression, sur son dispatcher consommateur.
 Elle démarre avant les requêtes adapter/device et reste vivante pendant
 pause/inactivité, remplacement de surface, readback et cleanup GPU sous
-`NonCancellable`. Elle est jointe avant le drain explicite final et close du
-contexte. La synchronisation native du device est demandée explicitement via
+`NonCancellable`. Elle est jointe avant close des enfants device/adapter : les
+résultats en vol sont drainés avant leur fermeture, puis le teardown est progressé
+explicitement avant close du contexte. La synchronisation native est demandée via
 `DawnConfig(implicitDeviceSynchronization = true)` ; dawn4k ne crée ni worker
 ni job de scheduling. Voir [le guide de migration](getting-started.fr.md).
 

@@ -13,9 +13,7 @@ import kotlin.test.assertTrue
 
 class AndroidParticleRenderTest {
     @Test fun vulkanParticleDrawProducesNonblackPixelsNotJustSuccessfulPresent() = runBlocking {
-        DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-            context.requestAdapter().getOrThrow().use { adapter ->
-                adapter.requestDevice().getOrThrow().use { device ->
+        DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { _, _, device ->
                     device.pushErrorScope(GPUErrorFilter.Validation)
                     device.createTexture(TextureDescriptor(size = Extent3D(64u, 64u),
                         format = GPUTextureFormat.RGBA8Unorm,
@@ -46,8 +44,6 @@ class AndroidParticleRenderTest {
                             }
                         }
                     }
-                }
-            }
         }
     }
 }

@@ -20,9 +20,7 @@ import kotlin.test.assertTrue
 class BorrowedSurfaceTextureTest {
     @Test
     fun closingBorrowedReferenceDoesNotDestroyTextureAndRefusesAnotherView() = runBlocking {
-        DawnContext.create(org.graphiks.dawn4k.DawnConfig(implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
-            context.requestAdapter().getOrThrow().use { adapter ->
-                (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
+        DawnContext.create(org.graphiks.dawn4k.DawnConfig(implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, _, device ->
                     val bridge = context.nativeBridge()
                     val raw = bridge.call {
                         memoryScope { allocator ->
@@ -67,8 +65,6 @@ class BorrowedSurfaceTextureTest {
                             assertTrue(device.popErrorScope().getOrThrow() == null, "borrowed close must not destroy")
                         }
                     } finally { bridge.call { wgpuTextureRelease(raw) } }
-                }
-            }
         }
     }
 }

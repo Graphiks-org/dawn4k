@@ -42,22 +42,31 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.webgpu.GPUAdapter
+import org.graphiks.webgpu.GPUDevice
 
 suspend fun useGpu() = coroutineScope {
     DawnContext.create(DawnConfig(implicitDeviceSynchronization = true)).use { context ->
         val events = launch {
             while (isActive) { context.processEvents(); delay(1) }
         }
+        var adapter: GPUAdapter? = null
+        var device: GPUDevice? = null
         try {
-            context.requestAdapter().getOrThrow().use { adapter ->
-                adapter.requestDevice().getOrThrow().use { device ->
-                    // Threads d'encodage et ordre de queue choisis par l'application.
-                }
-            }
+            val acquiredAdapter = context.requestAdapter().getOrThrow()
+            adapter = acquiredAdapter
+            device = acquiredAdapter.requestDevice().getOrThrow()
+            // Threads d'encodage et ordre de queue choisis par l'application.
         } finally {
             withContext(NonCancellable) {
                 events.cancelAndJoin()
                 withTimeout(10_000) {
+                    // Régler les requêtes annulées avant de fermer leurs owners.
+                    while (context.hasPendingOperations()) {
+                        context.processEvents()
+                        delay(1)
+                    }
+                    try { device?.close() } finally { adapter?.close() }
                     while (context.hasPendingOperations()) {
                         context.processEvents()
                         delay(1)
@@ -75,8 +84,10 @@ des événements device. Utiliser des encoders indépendants, joindre les tâche
 avant soumission et ne jamais courir fermeture/mapping contre leurs utilisateurs.
 
 Après annulation, arrêter/joindre producteurs et attentes, conserver la progression
-pendant le cleanup `NonCancellable` qui attend le GPU, puis drainer résultats
-tardifs et teardown avec un timeout application. Un timeout **n'autorise pas** la
+pendant le cleanup `NonCancellable` qui attend le GPU, puis arrêter/joindre le job
+d'événements **avant de fermer les enfants device/adapter**. Drainer les résultats
+tardifs avant cette fermeture et le teardown ensuite, avec un timeout application.
+Un timeout **n'autorise pas** la
 libération de handles actifs : close refuse les opérations en vol et enfants
 ouverts. Cet exemple n'est pas une stratégie complète face à un driver bloqué.
 
