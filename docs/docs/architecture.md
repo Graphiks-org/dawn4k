@@ -122,9 +122,11 @@ On Android the borrowed `getMappedRange` view and the upload fast path ride
 and the direct `ByteBuffer` address for uploads, with a copy fallback whenever
 the address accessor is unavailable — the same degradation contract as the
 JVM actual. The `suite-acid-tests` dependency lives in a desktop-only
-intermediate test source set: the iOS and tvOS test binaries are disabled, so
-the public-contract acid witness (`PublicContractGpuTest`) runs on the host
-targets through the `gpuTest*` tasks. The JVM and Android runtimes share their
+intermediate test source set because the published acid suite has no Apple
+mobile variants. The public-contract acid witness (`PublicContractGpuTest`)
+runs through standard desktop test tasks; common GPU tests also run on Apple
+simulators. Test utilities report missing adapters, while strict CPU CI requires
+an adapter. The JVM and Android runtimes share their
 dispatcher and lock actuals through a `jvmSharedMain` source set.
 
 ## Ownership rules for callers

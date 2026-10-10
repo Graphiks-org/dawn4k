@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.native.wgpuTextureCreateView
 import org.graphiks.dawn4k.native.wgpuTextureViewRelease
@@ -32,6 +34,7 @@ class SurfaceTextureViewGpuTest {
 
     @Test
     fun explicitCloseRemovesAdoptedReferenceOnceBeforeDeviceTeardown() = runTest {
+        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.explicitCloseRemovesAdoptedReferenceOnceBeforeDeviceTeardown")) return@runTest
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             texture(fixture).use { texture ->
@@ -52,6 +55,7 @@ class SurfaceTextureViewGpuTest {
 
     @Test
     fun deviceTeardownReleasesUnclosedAdoptedViewAndLateCloseIsHarmless() = runTest {
+        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.deviceTeardownReleasesUnclosedAdoptedViewAndLateCloseIsHarmless")) return@runTest
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             val texture = texture(fixture)
@@ -68,6 +72,7 @@ class SurfaceTextureViewGpuTest {
 
     @Test
     fun rejectedAdoptionLeavesLiveViewReferenceWithCaller() = runTest {
+        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.rejectedAdoptionLeavesLiveViewReferenceWithCaller")) return@runTest
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             val texture = texture(fixture)
@@ -85,6 +90,7 @@ class SurfaceTextureViewGpuTest {
 
     @Test
     fun adoptedViewCanRenderAndReadBackRealAttachmentPixels() = runTest {
+        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.adoptedViewCanRenderAndReadBackRealAttachmentPixels")) return@runTest
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             texture(fixture).use { texture ->

@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -41,14 +44,15 @@ import kotlin.time.Duration.Companion.seconds
  * required features and limits, error scopes, the uncaptured-error callback,
  * labels, and async pipeline creation.
  *
- * Runs only through the gpuTest* tasks; a host without an adapter fails these
- * tests (no silent skip).
+ * Standard tasks run these cases. Missing adapters produce named warnings;
+ * strict CPU CI requires an adapter and executes the actual assertions.
  */
 class PublicContractGpuTest {
 
     @Test
     fun publicBuffersMatchTheSharedContract() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.publicBuffersMatchTheSharedContract")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
@@ -63,7 +67,8 @@ class PublicContractGpuTest {
 
     @Test
     fun eachAdapterRequestYieldsAFreshAdapter() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.eachAdapterRequestYieldsAFreshAdapter")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             val first = context.requestAdapter().getOrThrow()
             try {
@@ -86,7 +91,8 @@ class PublicContractGpuTest {
 
     @Test
     fun requiredFeaturesAreHonoured() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.requiredFeaturesAreHonoured")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val supported = adapter.features
@@ -111,7 +117,8 @@ class PublicContractGpuTest {
 
     @Test
     fun unsupportedRequiredFeatureIsRefused() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.unsupportedRequiredFeatureIsRefused")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 // The refusal's target: a feature the adapter lacks when one
@@ -143,7 +150,8 @@ class PublicContractGpuTest {
 
     @Test
     fun requiredLimitsAtAdapterValuesAreAccepted() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.requiredLimitsAtAdapterValuesAreAccepted")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val required = RequiredLimits(maxComputeWorkgroupSizeX = adapter.limits.maxComputeWorkgroupSizeX)
@@ -162,7 +170,8 @@ class PublicContractGpuTest {
 
     @Test
     fun excessiveRequiredLimitsAreRefused() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("PublicContractGpuTest.excessiveRequiredLimitsAreRefused")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val base = adapter.limits.maxComputeWorkgroupSizeX
@@ -180,6 +189,7 @@ class PublicContractGpuTest {
 
     @Test
     fun emptyErrorScopesPopWithoutError() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.emptyErrorScopesPopWithoutError")) return@runTest
         withPublicDevice { device ->
             device.pushErrorScope(GPUErrorFilter.Validation)
             assertNull(
@@ -191,6 +201,7 @@ class PublicContractGpuTest {
 
     @Test
     fun nestedErrorScopesPopInReverseOrder() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.nestedErrorScopesPopInReverseOrder")) return@runTest
         withPublicDevice { device ->
             device.pushErrorScope(GPUErrorFilter.Validation)
             device.pushErrorScope(GPUErrorFilter.Validation)
@@ -212,6 +223,7 @@ class PublicContractGpuTest {
 
     @Test
     fun uncapturedErrorReachesTheDescriptorCallback() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.uncapturedErrorReachesTheDescriptorCallback")) return@runTest
         val received = CompletableDeferred<GPUError>()
         withPublicDevice(
             DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { received.complete(it) }),
@@ -232,6 +244,7 @@ class PublicContractGpuTest {
 
     @Test
     fun deviceAndQueueKeepTheirDescriptorLabels() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.deviceAndQueueKeepTheirDescriptorLabels")) return@runTest
         withPublicDevice(
             DeviceDescriptor(
                 label = "public-device-λ",
@@ -255,6 +268,7 @@ class PublicContractGpuTest {
 
     @Test
     fun asyncComputePipelineCreationResolvesAndRejects() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.asyncComputePipelineCreationResolvesAndRejects")) return@runTest
         withPublicDevice { device ->
             device.createShaderModule(ShaderModuleDescriptor(COMPUTE_SHADER)).use { shader ->
                 device.createComputePipelineAsync(
@@ -282,6 +296,7 @@ class PublicContractGpuTest {
 
     @Test
     fun asyncRenderPipelineCreationResolvesAndRejects() = runTest {
+        if (!gpuTestEnvironment("PublicContractGpuTest.asyncRenderPipelineCreationResolvesAndRejects")) return@runTest
         withPublicDevice { device ->
             device.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
                 device.createRenderPipelineAsync(renderDescriptor(shader, "vs_main")).getOrThrow().use { pipeline ->
@@ -309,7 +324,7 @@ class PublicContractGpuTest {
         descriptor: GPUDeviceDescriptor? = null,
         block: suspend (GPUDevice) -> Unit,
     ) {
-        val context = DawnContext.create()
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter: GPUAdapter ->
                 adapter.requestDevice(descriptor).getOrThrow().use { device ->

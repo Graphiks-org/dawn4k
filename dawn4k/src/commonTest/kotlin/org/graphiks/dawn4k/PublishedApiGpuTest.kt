@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -27,7 +30,8 @@ import kotlin.time.Duration.Companion.seconds
 class PublishedApiGpuTest {
     @Test
     fun reentrantDeviceThenContextClosePreservesTheSameLossForExistingAndLateObservers() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("PublishedApiGpuTest.reentrantDeviceThenContextClosePreservesTheSameLossForExistingAndLateObservers")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow()
             var resourcesClosed = false
@@ -54,7 +58,8 @@ class PublishedApiGpuTest {
 
     @Test
     fun nativeLossWhileIdleIsProgressedWithoutAnotherGpuOperation() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("PublishedApiGpuTest.nativeLossWhileIdleIsProgressedWithoutAnotherGpuOperation")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val observer = async(start = CoroutineStart.UNDISPATCHED) { device.awaitLost().getOrThrow() }
@@ -68,7 +73,8 @@ class PublishedApiGpuTest {
 
     @Test
     fun cancellingOneLossObserverLeavesTheDeviceAndOtherObserversAlive() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("PublishedApiGpuTest.cancellingOneLossObserverLeavesTheDeviceAndOtherObserversAlive")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
                     val cancelled = async(start = CoroutineStart.UNDISPATCHED) { device.awaitLost().getOrThrow() }
@@ -90,7 +96,8 @@ class PublishedApiGpuTest {
 
     @Test
     fun resourceUsageReturnsTheFullMaskIncludingUnknownMetadataBits() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("PublishedApiGpuTest.resourceUsageReturnsTheFullMaskIncludingUnknownMetadataBits")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
                     // Unknown bits must survive metadata projection, irrespective
@@ -115,7 +122,8 @@ class PublishedApiGpuTest {
 
     @Test
     fun aSingleRequestedLimitDoesNotRequestUndefinedCapabilities() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("PublishedApiGpuTest.aSingleRequestedLimitDoesNotRequestUndefinedCapabilities")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice(DeviceDescriptor(requiredLimits = RequiredLimits(maxBindGroups = 1u)))
                     .getOrThrow().use { device ->

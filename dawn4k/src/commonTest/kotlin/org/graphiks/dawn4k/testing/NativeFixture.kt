@@ -4,7 +4,6 @@ import org.graphiks.dawn4k.DawnBindGroup
 import org.graphiks.dawn4k.DawnBuffer
 import org.graphiks.dawn4k.DawnCommandEncoder
 import org.graphiks.dawn4k.DawnComputePipeline
-import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnQuerySet
 import org.graphiks.dawn4k.DawnQueue
 import org.graphiks.dawn4k.DawnRenderBundleEncoder
@@ -75,9 +74,18 @@ internal class NativeFixture(
 
     companion object {
         suspend fun open(): NativeFixture {
-            val runtime = DawnRuntime(DawnConfig())
-            val session = runtime.openSession()
-            return NativeFixture(runtime, session)
+            val runtime = DawnRuntime(gpuTestConfig())
+            try {
+                val session = runtime.openSession()
+                return NativeFixture(runtime, session)
+            } catch (failure: Throwable) {
+                try {
+                    runtime.close()
+                } catch (cleanup: Throwable) {
+                    failure.addSuppressed(cleanup)
+                }
+                throw failure
+            }
         }
     }
 

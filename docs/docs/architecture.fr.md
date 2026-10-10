@@ -132,9 +132,11 @@ d'upload passent par les fabriques publiques de `webgpu-api` :
 direct pour l'upload, avec repli par copie dès que l'accesseur d'adresse est
 indisponible — le même contrat de dégradation que l'actual JVM. La dépendance
 `suite-acid-tests` vit dans un source set de test intermédiaire desktop
-uniquement : les binaires de test iOS et tvOS sont désactivés, donc le témoin
-acid du contrat public (`PublicContractGpuTest`) tourne sur les cibles hôtes
-via les tâches `gpuTest*`. Les runtimes JVM et Android partagent leurs
+uniquement, car la suite acid publiée n'a pas de variantes Apple mobiles.
+Le témoin acid du contrat public (`PublicContractGpuTest`) tourne via les tâches
+desktop standards ; les tests GPU communs tournent aussi sur les simulateurs
+Apple. Les utilitaires de test signalent l'absence d'adapter, tandis que la CI
+CPU stricte exige un adapter. Les runtimes JVM et Android partagent leurs
 actuals de dispatcher et de verrou via un source set `jvmSharedMain`.
 
 ## Règles de possession pour l'appelant

@@ -65,8 +65,9 @@ The generated sources live in `dawn4k-native/generated/src` and are produced by 
 
 The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) implements a dual-speed system optimized for bandwidth and compute time:
 
-- **Fast-Track (Feature branches)**: Compiles and tests only the local JVM target (`./gradlew :dawn4k-native:jvmTest`).
+- **Fast-Track (Feature branches)**: Compiles and tests the JVM targets (`./gradlew jvmTest`), including adapter-dependent tests.
 - **Deep-Testing (Branches / Pull Requests to `master`)**: Runs the full test suite (`./gradlew allTests`) on all simulators and target platforms to validate code quality before production.
+- **CPU Vulkan (all branches and pull requests)**: Runs `:dawn4k:jvmTest` and `:dawn4k:linuxX64Test` on Ubuntu with Mesa lavapipe. Adapter availability is mandatory; a missing driver/adapter fails the job.
 
 ---
 
@@ -78,9 +79,41 @@ The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) impleme
 ```
 
 ### Run all tests (All targets)
+On macOS, GPU tests need booted iOS/tvOS simulators with access to Metal services.
+The helper selects available devices dynamically; Gradle runs them without
+`simctl --standalone` (which makes Metal return a null device).
+
 ```bash
+python3 scripts/boot-apple-simulators.py
+set -a
+source build/apple-simulators.env
+set +a
 ./gradlew allTests
 ```
+
+### Adapter-dependent tests
+
+GPU tests run through the standard test tasks, without Gradle class filters.
+They probe adapter availability before executing. Only Dawn's adapter-request
+`Unavailable` status permits non-execution, with a named
+`WARNING: GPU_TEST_NOT_EXECUTED` diagnostic. JVM reports an ignored test via a
+JUnit assumption. Kotlin/Native has no dynamic assumption API: it returns before
+the test body, but its standard report may count that invocation as passed.
+These warnings mean **no GPU coverage**, not a successful GPU assertion.
+Adapter errors, device failures, assertion failures and native crashes remain failures.
+
+Set `DAWN_REQUIRE_ADAPTER=1` to fail instead of allowing missing adapters.
+`DAWN_TEST_BACKEND` optionally selects `Metal`, `Vulkan` or `D3D12`; unset uses
+Dawn's default selection. A CPU Vulkan adapter can exercise buffer, compute and
+offscreen rendering tests, but does not replace Apple Metal or window-system coverage.
+
+```bash
+DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test
+```
+
+On Linux, install `libvulkan1`, `mesa-vulkan-drivers` and `vulkan-tools`, then
+point `VK_DRIVER_FILES` to the installed `lvp_icd*.json` to select Mesa lavapipe.
+Verify it with `vulkaninfo --summary` and a real Dawn buffer readback test.
 
 ### Generate Gradle Wrapper
 ```bash

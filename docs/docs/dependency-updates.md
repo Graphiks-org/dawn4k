@@ -23,16 +23,15 @@ When the contract artifacts or the generated bindings move:
 
 ```bash
 ./gradlew --refresh-dependencies :dawn4k:compileKotlinJvm :dawn4k:jvmTest
-./gradlew :dawn4k:gpuTestJvm
+DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest
 ```
 
-The first command re-resolves the snapshot artifacts and re-checks the pure
-surface (mapper tables, dispatcher, pending-operation and registry logic). The
-second runs the full GPU suites against a real adapter. Finish with the other
-targets:
+The first command re-resolves the snapshots and runs unit and adapter-dependent
+tests. The second requires an adapter: GPU tests must execute rather than report
+unavailability. Finish with the other targets:
 
 ```bash
-./gradlew :dawn4k:macosArm64Test :dawn4k:gpuTestMacosArm64
+DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:macosArm64Test
 ./gradlew :dawn4k:compileKotlinLinuxX64
 ```
 

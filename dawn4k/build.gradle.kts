@@ -1,11 +1,9 @@
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.gradle.api.tasks.testing.Test
-import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
+import org.gradle.api.tasks.testing.AbstractTestTask
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
-import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
-import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
-import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeHostTest
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
@@ -90,6 +88,8 @@ kotlin {
         "iosArm64" to "static",
         "iosSimulatorArm64" to "static",
         "iosX64" to "static",
+        "tvosArm64" to "static",
+        "tvosSimulatorArm64" to "static",
     ).forEach { (nativeTarget, linkage) ->
         (targets.getByName(nativeTarget) as KotlinNativeTarget).apply {
             compilations.getByName("main").cinterops.create("dawn") {
@@ -110,9 +110,7 @@ kotlin {
                         appleFrameworks.forEach { linkerOpts("-framework", it) }
                     }
                     "linuxX64" -> linkerOpts("-lpthread", "-ldl", "-lm")
-                    // iOS links the static archive and the Apple frameworks
-                    // exactly like :dawn4k-native; the convention keeps its
-                    // test binaries disabled.
+                    // iOS/tvOS link static Dawn and the Apple frameworks.
                     else -> appleFrameworks.forEach { linkerOpts("-framework", it) }
                 }
             }
@@ -132,62 +130,23 @@ tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
-// GPU tests live in commonTest and desktopTest but only the gpuTest* tasks may
-// execute them: the standard test tasks exclude the *GpuTest classes, and the
-// GPU tasks run exclusively those classes and fail when no adapter is
-// available.
-
-val jvmTestCompilation = kotlin.run {
-    val jvmTarget = targets.getByName("jvm") as KotlinJvmTarget
-    jvmTarget.compilations.getByName(KotlinCompilation.TEST_COMPILATION_NAME)
-}
-tasks.register<Test>("gpuTestJvm") {
-    group = "verification"
-    description = "Runs the *GpuTest classes on the JVM target; requires a real GPU adapter."
-    testClassesDirs = jvmTestCompilation.output.classesDirs
-    classpath = jvmTestCompilation.runtimeDependencyFiles
-    filter.setIncludePatterns("*GpuTest")
-}
-
-tasks.withType<Test>().matching { it.name == "jvmTest" }.configureEach {
-    filter.setExcludePatterns("*GpuTest")
-}
-
-// The Kotlin/Native GPU tasks reuse the standard test binaries with a class
-// filter: same executable, restricted to *GpuTest. Only the host-runnable
-// native targets get one: the iOS test binaries cannot execute on the host,
-// so a KotlinNativeHostTest for them would be a lie that only the
-// convention's disable clause keeps inert.
-kotlin.targets.withType<KotlinNativeTarget>()
-    .matching { it.targetName in setOf("macosArm64", "linuxX64") }
-    .configureEach {
-    val nativeTarget = this
-    val gpuTaskName = "gpuTest" + nativeTarget.targetName.replaceFirstChar { it.uppercase() }
-    val testBinary = nativeTarget.binaries.getTest(NativeBuildType.DEBUG)
-    tasks.register(gpuTaskName, KotlinNativeHostTest::class.java) {
-        group = "verification"
-        description = "Runs the *GpuTest classes for ${nativeTarget.targetName}; requires a real GPU adapter."
-        targetName = nativeTarget.targetName
-        workingDir = nativeTarget.project.projectDir.absolutePath
-        executable(testBinary.linkTaskProvider.map { it.outputFile.get() })
-        filter.setIncludePatterns("*GpuTest")
-        // The conventions KGP applies to its own test tasks; the hand-rolled
-        // registration must carry them itself.
-        reports.html.outputLocation.convention(
-            project.layout.buildDirectory.dir("reports/tests/$name"),
-        )
-        reports.junitXml.outputLocation.convention(
-            project.layout.buildDirectory.dir("test-results/$name"),
-        )
-        binaryResultsDirectory.convention(
-            project.layout.buildDirectory.dir("test-results/$name/binary"),
-        )
+tasks.withType<AbstractTestTask>().configureEach {
+    testLogging.showStandardStreams = true
+    listOf("DAWN_TEST_BACKEND", "DAWN_REQUIRE_ADAPTER", "VK_DRIVER_FILES", "VK_ICD_FILENAMES").forEach { variable ->
+        inputs.property(variable, providers.environmentVariable(variable).orElse(""))
     }
+    // Adapter/driver availability is external state, not a reproducible Gradle input.
+    // In particular, a warning-only run must not become cached GPU coverage.
+    outputs.upToDateWhen { false }
+    outputs.doNotCacheIf("GPU adapter availability must be checked at execution time") { true }
 }
 
-tasks.withType<KotlinNativeHostTest>().configureEach {
-    if (!name.startsWith("gpuTest")) {
-        filter.setExcludePatterns("*GpuTest")
+tasks.withType<KotlinNativeSimulatorTest>().configureEach {
+    // simctl only forwards explicitly prefixed variables to its child process.
+    listOf("DAWN_TEST_BACKEND", "DAWN_REQUIRE_ADAPTER").forEach { variable ->
+        providers.environmentVariable(variable).orNull?.let { value ->
+            environment("SIMCTL_CHILD_$variable", value)
+        }
     }
 }
 
@@ -197,7 +156,6 @@ tasks.withType<KotlinNativeHostTest>().configureEach {
 if (!abiHost.startsWith("linux")) {
     tasks.matching {
         it.name == "linkDebugTestLinuxX64" ||
-            it.name == "linuxX64Test" ||
-            it.name == "gpuTestLinuxX64"
+            it.name == "linuxX64Test"
     }.configureEach { enabled = false }
 }

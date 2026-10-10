@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -26,13 +28,14 @@ import kotlin.test.assertTrue
 /**
  * Real-GPU buffer mapping tests: real mapped memory (no CPU copy), partial and
  * disjoint ranges, native validation errors, and cancellation/teardown hygiene.
- * Runs only through the gpuTest* tasks; a host without an adapter fails these
- * tests (no silent skip).
+ * Standard test tasks run these cases. Adapter absence is reported explicitly;
+ * DAWN_REQUIRE_ADAPTER=1 makes it a failure instead of non-execution.
  */
 class BufferGpuTest {
 
     @Test
     fun mappedWritesReachReadback() = runTest {
+        if (!gpuTestEnvironment("BufferGpuTest.mappedWritesReachReadback")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -56,6 +59,7 @@ class BufferGpuTest {
 
     @Test
     fun mappedAtCreationStartsMapped() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.mappedAtCreationStartsMapped")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite, mappedAtCreation = true))
@@ -74,6 +78,7 @@ class BufferGpuTest {
 
     @Test
     fun partialMapAtOffsetEightMapsOnlyThatRange() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.partialMapAtOffsetEightMapsOnlyThatRange")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -97,6 +102,7 @@ class BufferGpuTest {
 
     @Test
     fun remapAfterUnmapWorks() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.remapAfterUnmapWorks")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -124,6 +130,7 @@ class BufferGpuTest {
 
     @Test
     fun twoDisjointRangesMapIndependently() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.twoDisjointRangesMapIndependently")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val source = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite or GPUBufferUsage.CopySrc))
@@ -150,6 +157,7 @@ class BufferGpuTest {
 
     @Test
     fun overlappingMapFailsWithNativeError() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.overlappingMapFailsWithNativeError")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite))
@@ -171,6 +179,7 @@ class BufferGpuTest {
 
     @Test
     fun unalignedOffsetFailsWithNativeError() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.unalignedOffsetFailsWithNativeError")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite))
@@ -190,6 +199,7 @@ class BufferGpuTest {
 
     @Test
     fun mapAfterDestroyFailsWithNativeErrorAndHandleStaysValid() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.mapAfterDestroyFailsWithNativeErrorAndHandleStaysValid")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
@@ -207,6 +217,7 @@ class BufferGpuTest {
 
     @Test
     fun readAndWriteModesAreDistinct() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.readAndWriteModesAreDistinct")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val readBuffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
@@ -230,6 +241,7 @@ class BufferGpuTest {
 
     @Test
     fun zeroSizeRangeReturnsEmptyView() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.zeroSizeRangeReturnsEmptyView")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapWrite))
@@ -248,6 +260,7 @@ class BufferGpuTest {
 
     @Test
     fun closeDuringPendingMapSettlesWithoutLeak() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.closeDuringPendingMapSettlesWithoutLeak")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
@@ -269,6 +282,7 @@ class BufferGpuTest {
 
     @Test
     fun subdeviceOperationClosesRegistrationWhenIssueThrows() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.subdeviceOperationClosesRegistrationWhenIssueThrows")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val operation = PendingOperation<Unit> { }

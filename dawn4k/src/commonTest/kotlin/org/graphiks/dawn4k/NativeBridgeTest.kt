@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -28,7 +31,8 @@ class NativeBridgeTest {
 
     @Test
     fun deviceAndAdapterExposeTheirNativeHandles() = runTest {
-        val context = DawnContext.create()
+        if (!gpuTestEnvironment("NativeBridgeTest.deviceAndAdapterExposeTheirNativeHandles")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val dawnAdapter = adapter as DawnAdapter

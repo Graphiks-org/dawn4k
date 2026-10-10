@@ -104,7 +104,7 @@ internal class DawnRuntimeClosedException :
     IllegalStateException("the dawn runtime is closed")
 
 /** A native adapter request completed without a usable adapter. */
-internal class DawnRequestAdapterException(status: WGPURequestAdapterStatus, message: String) :
+internal class DawnRequestAdapterException(val status: WGPURequestAdapterStatus, message: String) :
     IllegalStateException("the adapter request failed (status=$status): $message")
 
 /** A native device request completed without a usable device. */

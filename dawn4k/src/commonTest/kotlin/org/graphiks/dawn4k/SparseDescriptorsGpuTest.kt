@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k
 
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.mapper.allocatePipelineLayoutDescriptor
 import org.graphiks.dawn4k.mapper.allocateRenderBundleEncoderDescriptor
@@ -40,6 +43,7 @@ import kotlin.test.assertNull
 class SparseDescriptorsGpuTest {
     @Test
     fun drawingToSparseAttachmentOneProducesTheShaderColorNotTheClearColor() = runTest {
+        if (!gpuTestEnvironment("SparseDescriptorsGpuTest.drawingToSparseAttachmentOneProducesTheShaderColorNotTheClearColor")) return@runTest
         NativeFixture.open().use { fixture ->
             val pixel = fixture.renderPixel(GPUTextureFormat.RGBA8Unorm, sparseSlots = true)
             assertEquals(emptyList(), fixture.session.callbacks.uncapturedErrors.map { it.message })
@@ -49,7 +53,8 @@ class SparseDescriptorsGpuTest {
 
     @Test
     fun sparseNativeArraysKeepTheirIndicesAndUseThePinnedHeaderEmptySlots() = runTest {
-        DawnContext.create().use { context ->
+        if (!gpuTestEnvironment("SparseDescriptorsGpuTest.sparseNativeArraysKeepTheirIndicesAndUseThePinnedHeaderEmptySlots")) return@runTest
+        DawnContext.create(gpuTestConfig()).use { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val session = device.session
