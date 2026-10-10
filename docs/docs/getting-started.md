@@ -90,9 +90,9 @@ after child closure, under an application timeout. A timeout is **not** permissi
 active handles: context closure refuses pending operations or open children.
 This sample is not a complete recovery strategy for a stuck driver.
 
-Migration: replace reliance on automatic pumping with explicit `processEvents()`;
-`drainEvents()` is a deprecated alias. `NativeBridge.call` is deprecated and now
-executes inline, not as a lock or dispatcher. Error-scope push, validated calls
+Use `processEvents()` to progress callbacks explicitly; no await method pumps
+events. `drainEvents()` is a deprecated alias. `NativeBridge.call` is a deprecated
+inline helper, not a lock or dispatcher. Error-scope push, validated calls
 and pop issuance must retain one **OS thread**, not merely serial coroutine
 execution. See [Architecture](architecture.md).
 

@@ -15,7 +15,7 @@ drained first, then the resulting teardown is explicitly progressed before
 context close.
 Shared-device synchronization is explicitly opted into with
 `DawnConfig(implicitDeviceSynchronization = true)`; dawn4k itself creates no
-worker or scheduling job. See [the migration guide](getting-started.md).
+worker or scheduling job. See [the usage guide](getting-started.md).
 
 ```bash
 ./gradlew :dawn4k-demo:run
