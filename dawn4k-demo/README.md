@@ -12,6 +12,31 @@ The demo uses Dawn/Metal on macOS, Dawn/D3D12 on Windows and Dawn/Vulkan
 on Linux. The shared controls provide Pause/Resume, Reset, particle counts,
 and Stop/Restart.
 
+## Mobile launch
+
+### Android
+
+Install Android SDK 37 and NDK 28.2.13676358; set `ANDROID_HOME` to the SDK directory.
+Build the app and install it on a running emulator or device:
+
+```bash
+./gradlew :dawn4k-demo-androidApp:assembleDebug
+adb install -r dawn4k-demo/androidApp/build/outputs/apk/debug/androidApp-debug.apk
+adb shell am start -n org.graphiks.dawn4k.demo.app/.MainActivity
+```
+
+The app uses a Dawn/Vulkan native surface and the shared Compose controls.
+
+### iOS
+
+On macOS with Xcode installed, open
+`dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj`, select the `Dawn4kDemo` scheme and an
+ARM64 iOS simulator, then run. The build phase assembles the Kotlin framework.
+Device builds require configuring code signing; simulator builds do not.
+
+The app uses a Dawn/Metal layer and the shared Compose controls. The checked-in
+Xcode project can be regenerated with XcodeGen from `iosApp/project.yml`.
+
 ## Linux display selection
 
 A nonblank `WAYLAND_DISPLAY` or inherited `WAYLAND_SOCKET` selects native

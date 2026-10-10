@@ -19,6 +19,8 @@ import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_Outdated
 import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal
 import org.graphiks.dawn4k.native.WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceMetalLayer
+import org.graphiks.dawn4k.native.WGPUSurfaceSourceAndroidNativeWindow
+import org.graphiks.dawn4k.native.WGPUSType_SurfaceSourceAndroidNativeWindow
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceWindowsHWND
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceXlibWindow
 import org.graphiks.dawn4k.native.WGPUSurfaceSourceWaylandSurface
@@ -131,6 +133,17 @@ class DawnSurface private constructor(
                 source.chain.next = null
                 source.chain.sType = WGPUSType_SurfaceSourceMetalLayer
                 source.layer = NativeAddress(metalLayerPtr)
+                source.chain
+            }
+        }
+
+        fun createAndroid(bridge: NativeBridge, deviceHandle: Long, nativeWindow: Long): DawnSurface {
+            require(nativeWindow != 0L) { "the Android native window is null" }
+            return create(bridge, deviceHandle) { allocator ->
+                val source = WGPUSurfaceSourceAndroidNativeWindow.allocate(allocator)
+                source.chain.next = null
+                source.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow
+                source.window = NativeAddress(nativeWindow)
                 source.chain
             }
         }

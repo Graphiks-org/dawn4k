@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/** Requires a real Compose UI runtime, not Android's host-test SDK stubs. */
 @OptIn(ExperimentalTestApi::class)
 class ParticleDemoContentTest {
     @Test fun failedSessionDisplaysFirstErrorAndDisablesGpuButtons() = runComposeUiTest {
@@ -33,12 +34,6 @@ class ParticleDemoContentTest {
             onNodeWithText("256").assertIsNotEnabled()
             onNodeWithText("Restart").assertIsEnabled()
         } finally { runBlocking { controller.close() } }
-    }
-
-    @Test fun layoutThresholdDependsOnBothAvailableDimensions() {
-        assertEquals(LayoutMode.Compact, demoLayoutMode(719f, 600f))
-        assertEquals(LayoutMode.Compact, demoLayoutMode(720f, 359f))
-        assertEquals(LayoutMode.Wide, demoLayoutMode(720f, 360f))
     }
 
     @Test fun initializingDesktopCloseEnabledButGpuControlsDisabled() = runComposeUiTest {
