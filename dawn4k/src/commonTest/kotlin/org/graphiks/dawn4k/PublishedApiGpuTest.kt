@@ -23,15 +23,16 @@ import org.graphiks.webgpu.descriptors.RequiredLimits
 import org.graphiks.webgpu.descriptors.TextureDescriptor
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class PublishedApiGpuTest {
     @Test
-    fun reentrantDeviceThenContextClosePreservesTheSameLossForExistingAndLateObservers() = runTest {
-        if (!gpuTestEnvironment("PublishedApiGpuTest.reentrantDeviceThenContextClosePreservesTheSameLossForExistingAndLateObservers")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+    fun prematureContextCloseIsRefusedAndExplicitProgressPreservesLoss() = runTest {
+        if (!gpuTestEnvironment("PublishedApiGpuTest.prematureContextCloseIsRefusedAndExplicitProgressPreservesLoss")) return@runTest
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow()
             var resourcesClosed = false
@@ -41,7 +42,8 @@ class PublishedApiGpuTest {
                     device.close()
                     adapter.close()
                     resourcesClosed = true
-                    context.close()
+                    assertFailsWith<IllegalStateException> { context.close() }
+                    context.settleTestEvents()
                 }
                 val first = withContext(Dispatchers.Default) { withTimeout(5.seconds) { observer.await().getOrThrow() } }
                 assertEquals(GPUDeviceLostReason.Destroyed, first.reason)
@@ -59,11 +61,11 @@ class PublishedApiGpuTest {
     @Test
     fun nativeLossWhileIdleIsProgressedWithoutAnotherGpuOperation() = runTest {
         if (!gpuTestEnvironment("PublishedApiGpuTest.nativeLossWhileIdleIsProgressedWithoutAnotherGpuOperation")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val observer = async(start = CoroutineStart.UNDISPATCHED) { device.awaitLost().getOrThrow() }
-                    device.session.runtime.dispatcher.call { wgpuDeviceDestroy(device.session.handle) }
+                    wgpuDeviceDestroy(device.session.handle)
                     val loss = withContext(Dispatchers.Default) { withTimeout(5.seconds) { observer.await() } }
                     assertEquals(GPUDeviceLostReason.Destroyed, loss.reason)
                 }
@@ -74,7 +76,7 @@ class PublishedApiGpuTest {
     @Test
     fun cancellingOneLossObserverLeavesTheDeviceAndOtherObserversAlive() = runTest {
         if (!gpuTestEnvironment("PublishedApiGpuTest.cancellingOneLossObserverLeavesTheDeviceAndOtherObserversAlive")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
                     val cancelled = async(start = CoroutineStart.UNDISPATCHED) { device.awaitLost().getOrThrow() }
@@ -97,7 +99,7 @@ class PublishedApiGpuTest {
     @Test
     fun resourceUsageReturnsTheFullMaskIncludingUnknownMetadataBits() = runTest {
         if (!gpuTestEnvironment("PublishedApiGpuTest.resourceUsageReturnsTheFullMaskIncludingUnknownMetadataBits")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
                     // Unknown bits must survive metadata projection, irrespective
@@ -123,7 +125,7 @@ class PublishedApiGpuTest {
     @Test
     fun aSingleRequestedLimitDoesNotRequestUndefinedCapabilities() = runTest {
         if (!gpuTestEnvironment("PublishedApiGpuTest.aSingleRequestedLimitDoesNotRequestUndefinedCapabilities")) return@runTest
-        DawnContext.create(gpuTestConfig()).use { context ->
+        DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice(DeviceDescriptor(requiredLimits = RequiredLimits(maxBindGroups = 1u)))
                     .getOrThrow().use { device ->

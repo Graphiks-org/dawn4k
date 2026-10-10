@@ -46,7 +46,7 @@ class DawnComputePipeline internal constructor(
      * releases it.
      */
     override fun getBindGroupLayout(index: UInt): GPUBindGroupLayout {
-        val layoutHandle = session.runtime.dispatcher.call { wgpuComputePipelineGetBindGroupLayout(handle, index) }
+        val layoutHandle = wgpuComputePipelineGetBindGroupLayout(handle, index)
             ?: throw IllegalStateException("wgpuComputePipelineGetBindGroupLayout returned no layout")
         return DawnBindGroupLayout(session, layoutHandle, "")
     }
@@ -58,7 +58,7 @@ class DawnComputePipeline internal constructor(
 
 /** Creates a [DawnComputePipeline] on [this] session and registers its reference. */
 internal fun DeviceSession.createComputePipeline(descriptor: GPUComputePipelineDescriptor): DawnComputePipeline =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateComputePipelineDescriptor(descriptor, this)
             val handle = wgpuDeviceCreateComputePipeline(this.handle, native)
@@ -97,11 +97,11 @@ internal suspend fun DeviceSession.createComputePipelineAsync(
 private suspend fun DeviceSession.createComputePipelineAsyncOnSession(
     descriptor: GPUComputePipelineDescriptor,
 ): Result<DawnComputePipeline> {
-    val operation = PendingOperation<ComputePipelineOutcome> { outcome ->
-        // Runs on the worker: a late delivery nobody consumed releases its pipeline.
+    val operation = runtime.pending<ComputePipelineOutcome>(this) { outcome ->
+        // A rejected result is released during explicit callback progression.
         outcome.pipeline?.let { wgpuComputePipelineRelease(it) }
     }
-    runtime.dispatcher.call {
+    run {
         var registration: CallbackRegistration<WGPUCreateComputePipelineAsyncCallback>? = null
         runtime.beginSubdeviceOperation(
             operation = operation,
@@ -111,7 +111,7 @@ private suspend fun DeviceSession.createComputePipelineAsyncOnSession(
                     callback = { status, pipeline, message, _ ->
                         // Callback thread: copy the borrowed message before returning.
                         val outcome = ComputePipelineOutcome(status, pipeline, message.copyToString())
-                        runtime.dispatcher.post {
+                        runtime.postCallback {
                             runtime.finishSubdeviceOperation(operation, registration!!, Result.success(outcome))
                         }
                     },
@@ -129,13 +129,16 @@ private suspend fun DeviceSession.createComputePipelineAsyncOnSession(
             closeRegistration = { registration?.close() },
         )
     }
-    val outcome = operation.await().getOrThrow()
+    val result = operation.await()
+    try {
+    val outcome = result.getOrThrow()
     val handle = outcome.pipeline
     if (outcome.status != WGPUCreatePipelineAsyncStatus_Success || handle == null) {
-        handle?.let { runtime.dispatcher.call { wgpuComputePipelineRelease(it) } }
+        handle?.let { wgpuComputePipelineRelease(it) }
         return Result.failure(DawnPipelineException(outcome.status, outcome.message))
     }
     return Result.success(DawnComputePipeline(this, handle, descriptor.label))
+    } finally { operation.acceptOwnership() }
 }
 
 /** The settled outcome of a native async pipeline creation; owns its pipeline. */

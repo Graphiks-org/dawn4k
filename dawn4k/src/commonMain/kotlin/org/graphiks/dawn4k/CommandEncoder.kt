@@ -44,6 +44,8 @@ import org.graphiks.webgpu.GPUTexelCopyBufferInfo
 import org.graphiks.webgpu.GPUTexelCopyTextureInfo
 
 /**
+ * One caller exclusively owns an encoder and its passes. Independent encoders
+ * may run on different consumer threads; join users before close or submit.
  * A raw [GPUCommandEncoder] backed by a Dawn `WGPUCommandEncoder`. Refcount-only:
  * [close] releases the reference immediately. [finish] does NOT release the
  * handle — it returns the command buffer and lets Dawn own the "already finished"
@@ -64,7 +66,7 @@ class DawnCommandEncoder internal constructor(
 
     override fun beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder {
         val temporaryViews = mutableListOf<DawnTextureView>()
-        return session.runtime.dispatcher.call {
+        return run {
             memoryScope { allocator ->
                 val native = allocator.allocateRenderPassDescriptor(descriptor, session, temporaryViews)
                 val pass = wgpuCommandEncoderBeginRenderPass(handle, native)
@@ -75,7 +77,7 @@ class DawnCommandEncoder internal constructor(
     }
 
     override fun beginComputePass(descriptor: GPUComputePassDescriptor?): GPUComputePassEncoder =
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 val native = descriptor?.let { allocator.allocateComputePassDescriptor(it, session) }
                 val pass = wgpuCommandEncoderBeginComputePass(handle, native)
@@ -94,7 +96,7 @@ class DawnCommandEncoder internal constructor(
         val copySize = size ?: checkedRange(source.size, sourceOffset, null).size
         val dawnSource = source.requireDawnBuffer(session)
         val dawnDestination = destination.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuCommandEncoderCopyBufferToBuffer(
                 handle,
                 dawnSource.handle,
@@ -111,7 +113,7 @@ class DawnCommandEncoder internal constructor(
         destination: GPUTexelCopyTextureInfo,
         copySize: GPUExtent3D,
     ) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuCommandEncoderCopyBufferToTexture(
                     handle,
@@ -128,7 +130,7 @@ class DawnCommandEncoder internal constructor(
         destination: GPUTexelCopyBufferInfo,
         copySize: GPUExtent3D,
     ) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuCommandEncoderCopyTextureToBuffer(
                     handle,
@@ -145,7 +147,7 @@ class DawnCommandEncoder internal constructor(
         destination: GPUTexelCopyTextureInfo,
         copySize: GPUExtent3D,
     ) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuCommandEncoderCopyTextureToTexture(
                     handle,
@@ -160,7 +162,7 @@ class DawnCommandEncoder internal constructor(
     override fun clearBuffer(buffer: GPUBuffer, offset: GPUSize64, size: GPUSize64?) {
         val clearSize = size ?: checkedRange(buffer.size, offset, null).size
         val dawn = buffer.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuCommandEncoderClearBuffer(handle, dawn.handle, offset, clearSize)
         }
     }
@@ -174,7 +176,7 @@ class DawnCommandEncoder internal constructor(
     ) {
         val dawnQuerySet = querySet.requireDawnQuerySet(session)
         val dawnDestination = destination.requireDawnBuffer(session)
-        session.runtime.dispatcher.call {
+        run {
             wgpuCommandEncoderResolveQuerySet(
                 handle,
                 dawnQuerySet.handle,
@@ -187,7 +189,7 @@ class DawnCommandEncoder internal constructor(
     }
 
     override fun finish(descriptor: GPUCommandBufferDescriptor?): GPUCommandBuffer {
-        val buffer = session.runtime.dispatcher.call {
+        val buffer = run {
             memoryScope { allocator ->
                 wgpuCommandEncoderFinish(handle, descriptor?.let { allocator.allocateCommandBufferDescriptor(it) })
             }
@@ -196,7 +198,7 @@ class DawnCommandEncoder internal constructor(
     }
 
     override fun pushDebugGroup(groupLabel: String) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuCommandEncoderPushDebugGroup(handle, allocator.allocateLabel(groupLabel))
             }
@@ -204,11 +206,11 @@ class DawnCommandEncoder internal constructor(
     }
 
     override fun popDebugGroup() {
-        session.runtime.dispatcher.call { wgpuCommandEncoderPopDebugGroup(handle) }
+        wgpuCommandEncoderPopDebugGroup(handle)
     }
 
     override fun insertDebugMarker(markerLabel: String) {
-        session.runtime.dispatcher.call {
+        run {
             memoryScope { allocator ->
                 wgpuCommandEncoderInsertDebugMarker(handle, allocator.allocateLabel(markerLabel))
             }
@@ -230,7 +232,7 @@ private fun MemoryAllocator.allocateCommandBufferDescriptor(descriptor: GPUComma
 
 /** Creates a [DawnCommandEncoder] on [this] session and registers its reference. */
 internal fun DeviceSession.createCommandEncoder(descriptor: GPUCommandEncoderDescriptor? = null): DawnCommandEncoder =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = descriptor?.let {
                 WGPUCommandEncoderDescriptor.allocate(allocator).also { descriptorNative ->

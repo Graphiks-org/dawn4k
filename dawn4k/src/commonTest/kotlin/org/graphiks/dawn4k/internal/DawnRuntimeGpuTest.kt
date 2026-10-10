@@ -14,6 +14,8 @@ import org.graphiks.dawn4k.createShaderModule
 import org.graphiks.dawn4k.testing.NativeFixture
 import org.graphiks.dawn4k.testing.gpuTestEnvironment
 import org.graphiks.dawn4k.testing.gpuTestConfig
+import org.graphiks.dawn4k.startTestProgress
+import org.graphiks.dawn4k.settleTestEvents
 import org.graphiks.webgpu.GPUShaderModule
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.descriptors.ColorTargetState
@@ -27,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 /**
  * Real-GPU lifecycle of [DawnRuntime]: twenty device sessions opened and closed
@@ -48,6 +51,7 @@ class DawnRuntimeGpuTest {
         }
 
         val runtime = DawnRuntime(gpuTestConfig())
+        val events = runtime.startTestProgress(this)
         try {
             repeat(20) {
                 val session = runtime.openSession()
@@ -60,40 +64,27 @@ class DawnRuntimeGpuTest {
             }
             assertEquals(0, runtime.debugOpenCallbacks())
         } finally {
+            events.cancel()
+            runtime.settleTestEvents()
             runtime.close()
         }
         assertEquals(0, runtime.debugOpenCallbacks())
     }
 
     @Test
-    fun waitInterruptedByRuntimeCloseFailsWithTheCloseDiagnostic() = runBlocking {
-        if (!gpuTestEnvironment("DawnRuntimeGpuTest.waitInterruptedByRuntimeCloseFailsWithTheCloseDiagnostic")) return@runBlocking
+    fun closeRefusesAnOutstandingRequestAndCanBeRetried() = runBlocking {
+        if (!gpuTestEnvironment("DawnRuntimeGpuTest.closeRefusesAnOutstandingRequestAndCanBeRetried")) return@runBlocking
         val runtime = DawnRuntime(gpuTestConfig())
         try {
-            // Device creation must succeed after the availability probe.
-            runtime.openSession().close()
-
-            val interrupted = runtime.dispatcher.call {
-                // Start the request and close in one worker operation. Merely
-                // observing an open callback from another thread races its
-                // completion on fast adapters, notably Windows D3D12.
-                val opening = async(start = CoroutineStart.UNDISPATCHED) {
-                    runCatching { runtime.openSession() }
-                }
-                assertTrue(runtime.debugOpenCallbacks() > 0)
-                runtime.close()
-                opening
+            val opening = async(start = CoroutineStart.UNDISPATCHED) { runtime.openSession() }
+            assertFailsWith<IllegalStateException> { runtime.close() }
+            withTimeout(ADAPTER_HANDOFF_TIMEOUT_MS) {
+                while (!opening.isCompleted) { runtime.processEvents(); yield() }
             }
-
-            val outcome = interrupted.await()
-            assertTrue(outcome.isFailure)
-            assertIs<DawnRuntimeClosedException>(outcome.exceptionOrNull())
+            opening.await().close()
+            runtime.settleTestEvents()
         } finally {
             runtime.close()
-        }
-        // A worker-reentrant close returns before the late callback is drained.
-        withTimeout(ADAPTER_HANDOFF_TIMEOUT_MS) {
-            while (runtime.debugOpenCallbacks() != 0) yield()
         }
         assertEquals(0, runtime.debugOpenCallbacks())
     }
@@ -109,59 +100,33 @@ class DawnRuntimeGpuTest {
      * under load, and the invariant under test holds either way.
      */
     @Test
-    fun asyncPipelineCreationsFoldAcrossRuntimeClose() = runBlocking {
-        if (!gpuTestEnvironment("DawnRuntimeGpuTest.asyncPipelineCreationsFoldAcrossRuntimeClose")) return@runBlocking
+    fun asyncPipelinesMustSettleBeforeDeviceAndContextClose() = runBlocking {
+        if (!gpuTestEnvironment("DawnRuntimeGpuTest.asyncPipelinesMustSettleBeforeDeviceAndContextClose")) return@runBlocking
         val runtime = DawnRuntime(gpuTestConfig())
+        val events = runtime.startTestProgress(this)
         try {
             val session = runtime.openSession()
-            // The close below deliberately breaks the ownership order — sessions
-            // close before their runtime — because only a runtime close abandons
-            // an in-flight creation. The session therefore outlives the
-            // dispatcher it routes through: its close would throw through the
-            // dead dispatcher, so it is not attempted and the session's own
-            // references are orphaned with the runtime instead.
             val computeShader = session.createShaderModule(ShaderModuleDescriptor(COMPUTE_SHADER))
             val renderShader = session.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER))
-            val compute = async(Dispatchers.Default) {
+            events.cancel()
+            val compute = async(start = CoroutineStart.UNDISPATCHED) {
                 session.createComputePipelineAsync(ComputePipelineDescriptor(ProgrammableStage(computeShader, "main")))
             }
-            val render = async(Dispatchers.Default) {
+            val render = async(start = CoroutineStart.UNDISPATCHED) {
                 session.createRenderPipelineAsync(renderPipelineDescriptor(renderShader))
             }
-            // Best-effort hand-off: both creations have their callback
-            // registrations open before the close, which maximizes the
-            // abandoned shape — but a creation may legitimately settle first,
-            // so this must not be load-bearing.
+            assertFailsWith<IllegalStateException> { session.close() }
+            assertFailsWith<IllegalStateException> { runtime.close() }
             withTimeout(CREATION_HANDOFF_TIMEOUT_MS) {
-                while (runtime.debugOpenCallbacks() < 2 && !compute.isCompleted && !render.isCompleted) yield()
+                while (!compute.isCompleted || !render.isCompleted) { runtime.processEvents(); yield() }
             }
-            runtime.close()
-
-            // The fold: each in-flight creation lands inside its Result — the
-            // abandoned shape fails with the close diagnostic, the
-            // settled-before-close shape delivers a live pipeline. Neither
-            // ever throws out of the contract.
-            val computeOutcome = compute.await()
-            if (computeOutcome.isFailure) {
-                assertIs<DawnRuntimeClosedException>(computeOutcome.exceptionOrNull())
-            } else {
-                assertIs<DawnComputePipeline>(computeOutcome.getOrThrow())
-            }
-            val renderOutcome = render.await()
-            if (renderOutcome.isFailure) {
-                assertIs<DawnRuntimeClosedException>(renderOutcome.exceptionOrNull())
-            } else {
-                assertIs<DawnRenderPipeline>(renderOutcome.getOrThrow())
-            }
-
-            // A creation issued after the close folds the dead dispatcher's
-            // refusal into the Result the same way, never out of the contract —
-            // and here nothing can settle anymore, so failure is strict.
-            val late = session.createComputePipelineAsync(
-                ComputePipelineDescriptor(ProgrammableStage(computeShader, "main")),
-            )
-            assertTrue(late.isFailure)
+            assertIs<DawnComputePipeline>(compute.await().getOrThrow()).close()
+            assertIs<DawnRenderPipeline>(render.await().getOrThrow()).close()
+            session.close()
+            runtime.settleTestEvents()
         } finally {
+            events.cancel()
+            runtime.settleTestEvents()
             runtime.close()
         }
         assertEquals(0, runtime.debugOpenCallbacks())

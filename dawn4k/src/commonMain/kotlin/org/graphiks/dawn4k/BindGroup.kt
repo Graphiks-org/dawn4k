@@ -44,7 +44,7 @@ internal fun GPUBindGroup.requireDawnBindGroup(owner: DeviceSession): DawnBindGr
  * any handle is extracted or any downcall is made.
  */
 internal fun DeviceSession.createBindGroup(descriptor: GPUBindGroupDescriptor): DawnBindGroup =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateBindGroupDescriptor(descriptor, this)
             val handle = wgpuDeviceCreateBindGroup(this.handle, native)

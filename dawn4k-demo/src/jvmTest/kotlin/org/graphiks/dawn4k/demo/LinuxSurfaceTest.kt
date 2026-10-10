@@ -56,7 +56,7 @@ class LinuxSurfaceTest {
                     .invokeWithArguments(display, window)
                 function("XSync", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT))
                     .invokeWithArguments(display, 0)
-                DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan)).use { context ->
+                DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
                     context.requestAdapter().getOrThrow().use { adapter ->
                         println("[test] Vulkan adapter: ${adapter.info}")
                         (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->

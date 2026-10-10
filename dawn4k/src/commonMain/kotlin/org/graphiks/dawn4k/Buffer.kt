@@ -89,7 +89,7 @@ class DawnBuffer internal constructor(
     }
 
     override val mapState: GPUBufferMapState
-        get() = mapStateOf(session.runtime.dispatcher.call { wgpuBufferGetMapState(handle) })
+        get() = mapStateOf(wgpuBufferGetMapState(handle))
 
     override suspend fun mapAsync(
         mode: GPUMapMode,
@@ -100,15 +100,15 @@ class DawnBuffer internal constructor(
         // constraints are deliberately NOT checked here — they must surface as
         // the native validation error, not a Kotlin exception.
         val range = checkedRange(this.size, offset, size)
-        val operation = PendingOperation<Unit> { }
-        session.runtime.dispatcher.call {
+        val operation = session.runtime.pending<Unit>(session) { }
+        run {
             var registration: CallbackRegistration<WGPUBufferMapCallback>? = null
             session.runtime.beginSubdeviceOperation(
                 operation = operation,
                 issue = {
                     registration = WGPUBufferMapCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
                         val outcome = BufferMapOutcome(status, message.copyToString())
-                        session.runtime.dispatcher.post {
+                        session.runtime.postCallback {
                             session.runtime.finishSubdeviceOperation(
                                 operation,
                                 registration!!,
@@ -136,6 +136,7 @@ class DawnBuffer internal constructor(
             )
         }
         val result = operation.await()
+        operation.acceptOwnership()
         if (result.isSuccess) {
             mappedRange = range
             mappedWritable = mode.value == GPUMapMode.Write.value
@@ -151,7 +152,7 @@ class DawnBuffer internal constructor(
         requireRepresentableSize(range.size)
         val absoluteOffset = mapped.offset + range.offset
         val writable = mappedWritable
-        val address = session.runtime.dispatcher.call {
+        val address = run {
             // Dawn's C API takes an absolute buffer offset and separates the
             // writable and const variants: a read mapping only exposes a const
             // range, so pick the variant matching the mapping's writability.
@@ -168,7 +169,7 @@ class DawnBuffer internal constructor(
 
     override fun unmap() {
         mappedRange = null
-        session.runtime.dispatcher.call { wgpuBufferUnmap(handle) }
+        wgpuBufferUnmap(handle)
     }
 
     override fun close() {
@@ -218,7 +219,7 @@ internal fun GPUBuffer.requireDawnBuffer(owner: DeviceSession): DawnBuffer {
  * resource registry, so the session releases the native reference on teardown.
  */
 internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBuffer =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val nativeDescriptor = allocator.allocateBufferDescriptor(descriptor)
             val handle = wgpuDeviceCreateBuffer(this.handle, nativeDescriptor)
@@ -232,15 +233,15 @@ internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBu
  * Routed through the runtime's event pump via a queue work-done callback.
  */
 internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
-    val operation = PendingOperation<Unit> { }
-    runtime.dispatcher.call {
+    val operation = runtime.pending<Unit>(this) { }
+    run {
         var registration: CallbackRegistration<WGPUQueueWorkDoneCallback>? = null
         runtime.beginSubdeviceOperation(
             operation = operation,
             issue = {
                 registration = WGPUQueueWorkDoneCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
                     val outcome = WorkDoneOutcome(status, message.copyToString())
-                    runtime.dispatcher.post {
+                    runtime.postCallback {
                         runtime.finishSubdeviceOperation(operation, registration!!, outcome.toResult())
                     }
                 }
@@ -256,5 +257,5 @@ internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
             closeRegistration = { registration?.close() },
         )
     }
-    return operation.await()
+    return operation.await().also { operation.acceptOwnership() }
 }

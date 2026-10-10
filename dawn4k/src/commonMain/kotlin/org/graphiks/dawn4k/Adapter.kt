@@ -29,7 +29,7 @@ import org.graphiks.webgpu.GPUSupportedLimits
  * A public [GPUAdapter] backed by a Dawn `WGPUAdapter` reference the adapter
  * owns: every [DawnContext.requestAdapter] yields a fresh adapter with its
  * own native reference (no shared cache), and [close] releases exactly that
- * reference, once, on the runtime's dispatcher.
+ * reference, once, on the closing caller.
  *
  * The capability snapshots ([features], [limits], [info]) copy their borrowed
  * native data — the feature list and adapter-info members are freed after the
@@ -43,11 +43,11 @@ class DawnAdapter internal constructor(
     private val fallback: Boolean,
 ) : GPUAdapter {
 
-    /** Worker-confined release guard; every close routes through the dispatcher. */
+    /** Consumers stop/join adapter users before closing it. */
     private var released = false
 
     override val features: GPUSupportedFeatures
-        get() = runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val supported = WGPUSupportedFeatures.allocate(allocator)
                 supported.featureCount = 0uL
@@ -63,7 +63,7 @@ class DawnAdapter internal constructor(
         }
 
     override val limits: GPUSupportedLimits
-        get() = runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val native = allocator.allocateLimitsSnapshot()
                 requireWgpuSuccess(wgpuAdapterGetLimits(handle, native), "wgpuAdapterGetLimits")
@@ -72,7 +72,7 @@ class DawnAdapter internal constructor(
         }
 
     override val info: GPUAdapterInfo
-        get() = runtime.dispatcher.call {
+        get() = run {
             memoryScope { allocator ->
                 val native = allocator.allocateAdapterInfoSnapshot()
                 requireWgpuSuccess(wgpuAdapterGetInfo(handle, native), "wgpuAdapterGetInfo")
@@ -88,8 +88,7 @@ class DawnAdapter internal constructor(
     /**
      * The raw `WGPUAdapter` pointer of this adapter, for platform integrators
      * (surface bridges). Not part of the WebGPU contract: the handle is valid
-     * only while this adapter is open, and native calls must go through the
-     * context's [NativeBridge.call].
+     * only while this adapter is open. Callers own synchronization and lifetime.
      */
     fun nativeHandle(): Long = handle.handler.rawValue
 
@@ -105,10 +104,12 @@ class DawnAdapter internal constructor(
     }
 
     override fun close() {
-        runtime.dispatcher.call {
-            if (released) return@call
+        run {
+            if (released) return@run
+            runtime.requireCanClose(handle.handler.rawValue)
             released = true
             wgpuAdapterRelease(handle)
+            runtime.releaseAdapter(handle)
         }
     }
 }

@@ -66,6 +66,7 @@ class LifecycleStressGpuTest {
     fun repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers() = runTest {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().let { publicDevice ->
@@ -143,6 +144,8 @@ class LifecycleStressGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
         // The context close is idempotent: the finally above ran first.
@@ -155,6 +158,7 @@ class LifecycleStressGpuTest {
     fun lateCallbackAfterACancelledMapSettlesWithOneRelease() = runBlocking {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.lateCallbackAfterACancelledMapSettlesWithOneRelease")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
@@ -173,7 +177,7 @@ class LifecycleStressGpuTest {
                     // The late delivery settles exactly once: the registration
                     // count returns to zero, never negative, never stuck.
                     device.session.runtime.drainEvents()
-                    device.session.runtime.dispatcher.drain()
+                    device.session.runtime.processEvents()
                     assertEquals(
                         0,
                         device.session.runtime.debugOpenCallbacks(),
@@ -198,6 +202,8 @@ class LifecycleStressGpuTest {
             }
             adapter.close()
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -208,6 +214,7 @@ class LifecycleStressGpuTest {
     fun resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle() = runTest {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             val adapterA = context.requestAdapter().getOrThrow()
             val adapterB = context.requestAdapter().getOrThrow()
@@ -270,6 +277,8 @@ class LifecycleStressGpuTest {
                 adapterA.close()
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -280,6 +289,7 @@ class LifecycleStressGpuTest {
     fun aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs() = runBlocking {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         var runtime: org.graphiks.dawn4k.internal.DawnRuntime? = null
         try {
             repeat(100) { index ->
@@ -315,6 +325,8 @@ class LifecycleStressGpuTest {
                 "the stress must leave no open callback registration",
             )
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -325,6 +337,7 @@ class LifecycleStressGpuTest {
     fun foreignThreadInteractionsAreRoutedThroughTheWorker() = runBlocking {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.foreignThreadInteractionsAreRoutedThroughTheWorker")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
@@ -372,6 +385,8 @@ class LifecycleStressGpuTest {
             }
             adapter.close()
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -556,6 +571,7 @@ class LifecycleStressGpuTest {
     fun optionalTimestampFeatureStaysCheckablePresentOrAbsent() = runTest {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.optionalTimestampFeatureStaysCheckablePresentOrAbsent")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 // Metadata/signature witnesses that hold on every host, feature
@@ -600,6 +616,8 @@ class LifecycleStressGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -713,6 +731,7 @@ class LifecycleStressGpuTest {
      */
     private suspend fun withDawnDevice(block: suspend (DawnDevice) -> Unit) {
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().let { publicDevice ->
@@ -730,6 +749,8 @@ class LifecycleStressGpuTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }
@@ -737,7 +758,7 @@ class LifecycleStressGpuTest {
     /** The uncaptured errors observed so far on [device]'s session, drained. */
     private suspend fun uncapturedErrorCount(device: DawnDevice): Int {
         device.session.runtime.drainEvents()
-        device.session.runtime.dispatcher.drain()
+        device.session.runtime.processEvents()
         return device.session.callbacks.uncapturedErrors.size
     }
 

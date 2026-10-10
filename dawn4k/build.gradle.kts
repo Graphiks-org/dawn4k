@@ -37,7 +37,7 @@ val abiHost: String = run {
 val dawnNativeProject = project(":dawn4k-native")
 
 kotlin {
-    // JVM and Android share their dispatcher and platform monitor actuals.
+    // JVM and Android share their platform monitor actuals.
     val jvmSharedMain = sourceSets.create("jvmSharedMain") {
         dependsOn(sourceSets.getByName("commonMain"))
     }

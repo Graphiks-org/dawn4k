@@ -41,7 +41,7 @@ internal fun GPUBindGroupLayout.requireDawnBindGroupLayout(owner: DeviceSession)
 
 /** Creates a [DawnBindGroupLayout] on [this] session and registers its reference. */
 internal fun DeviceSession.createBindGroupLayout(descriptor: GPUBindGroupLayoutDescriptor): DawnBindGroupLayout =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateBindGroupLayoutDescriptor(descriptor)
             val handle = wgpuDeviceCreateBindGroupLayout(this.handle, native)

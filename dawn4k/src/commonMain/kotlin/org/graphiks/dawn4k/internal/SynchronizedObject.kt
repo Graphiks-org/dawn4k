@@ -3,7 +3,7 @@ package org.graphiks.dawn4k.internal
 /**
  * A portable monitor: one exclusive critical section per object, callable from
  * common code. [PendingOperation] serializes its wait state machine with it —
- * the waiter's thread, the dispatcher worker and the cancelling thread all
+ * the waiter's thread, the event-processing caller and the cancelling thread all
  * enter the same monitor, which is what makes the deliver-or-release decision
  * exactly-once by construction.
  *

@@ -51,7 +51,7 @@ internal fun GPUQuerySet.requireDawnQuerySet(owner: DeviceSession): DawnQuerySet
 
 /** Creates a [DawnQuerySet] on [this] session and registers it with the resource registry. */
 internal fun DeviceSession.createQuerySet(descriptor: GPUQuerySetDescriptor): DawnQuerySet =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateQuerySetDescriptor(descriptor)
             val handle = wgpuDeviceCreateQuerySet(this.handle, native)

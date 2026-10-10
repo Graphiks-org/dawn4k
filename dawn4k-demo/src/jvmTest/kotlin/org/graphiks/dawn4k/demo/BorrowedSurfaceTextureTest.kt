@@ -20,7 +20,7 @@ import kotlin.test.assertTrue
 class BorrowedSurfaceTextureTest {
     @Test
     fun closingBorrowedReferenceDoesNotDestroyTextureAndRefusesAnotherView() = runBlocking {
-        DawnContext.create().use { context ->
+        DawnContext.create(org.graphiks.dawn4k.DawnConfig(implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
                     val bridge = context.nativeBridge()

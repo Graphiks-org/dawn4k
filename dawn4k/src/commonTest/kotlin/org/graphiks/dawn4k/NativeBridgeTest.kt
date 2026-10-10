@@ -12,7 +12,7 @@ import kotlinx.coroutines.test.runTest
 class NativeBridgeTest {
 
     @Test
-    fun nativeBridgeRunsBlocksOnTheWorkerAndExposesTheInstanceHandle() = runTest {
+    fun nativeBridgeRunsBlocksInlineAndExposesTheInstanceHandle() = runTest {
         val context = DawnContext.create()
         try {
             val bridge = context.nativeBridge()
@@ -33,6 +33,7 @@ class NativeBridgeTest {
     fun deviceAndAdapterExposeTheirNativeHandles() = runTest {
         if (!gpuTestEnvironment("NativeBridgeTest.deviceAndAdapterExposeTheirNativeHandles")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
                 val dawnAdapter = adapter as DawnAdapter
@@ -43,6 +44,8 @@ class NativeBridgeTest {
                 }
             }
         } finally {
+            events.cancel()
+            context.settleTestEvents()
             context.close()
         }
     }

@@ -21,8 +21,8 @@ import org.graphiks.webgpu.GPUError
  *
  * The queue is an owned reference even without a public close: it is
  * registered with the registry, and the registry releases it — with every
- * other owned reference — before the device and adapter references, all on
- * the runtime's dispatcher. Closing is idempotent.
+ * other owned reference — before the device and adapter references, on the
+ * closing caller. Device/adapter releases follow explicitly progressed loss.
  *
  * Device sessions must be closed before their runtime.
  */
@@ -47,86 +47,79 @@ internal class DeviceSession internal constructor(
 
     init {
         resources.own(queueHandle, destroy = null, release = { wgpuQueueRelease(queueHandle) })
+        runtime.registerSession(this)
     }
 
-    /** Worker-confined; every close routes through the dispatcher. */
+    private val lock = SynchronizedObject()
     private var closed = false
 
-    /** Worker-confined guard for native-reference ownership transfers. */
+    /** State guard, not a use/close barrier: consumers must join users first. */
     internal fun requireOpen() {
-        check(!closed) { "the device session is closed" }
+        lock.withLock { check(!closed) { "the device session is closed" } }
     }
 
     override fun close() {
-        runtime.dispatcher.call {
-            if (closed) return@call
-            closed = true
-            try {
-                // Owned refs release first, before the device and adapter refs.
-                resources.close()
-            } finally {
-                // Release is not Destroy: explicitly destroy and deliver the
-                // native Destroyed notification before revoking callback routes.
-                wgpuDeviceDestroy(handle)
-                runtime.processEventsOnWorker()
-                wgpuDeviceRelease(handle)
-                wgpuAdapterRelease(adapter)
-                callbacks.close()
+        if (lock.withLock { closed }) return
+        runtime.requireCanClose(this)
+        val firstClose = lock.withLock { if (closed) false else { closed = true; true } }
+        if (!firstClose) return
+        runtime.beginTeardown(this)
+        callbacks.lost.invokeOnCompletion {
+            runtime.postCallback {
+                try { wgpuDeviceRelease(handle) } finally {
+                    try { wgpuAdapterRelease(adapter) } finally { runtime.finishTeardown(this) }
+                }
             }
         }
+        try { resources.close() } finally { wgpuDeviceDestroy(handle) }
     }
 }
 
 /**
  * The per-device callback choreography installed during the device request:
  * the uncaptured-error and device-lost registrations, the uncaptured errors
- * observed so far, the in-flight request wait a loss abandons, and the
- * terminal loss marker.
+ * observed so far, and the terminal loss marker.
  *
- * Every handler runs on the runtime's dispatcher (posted by the callbacks,
- * which copy their borrowed data first). All mutable state is worker-confined
- * except the loss marker — a thread-safe primitive completed by the quiescence
- * proof, which may fire on any thread — and [uncapturedErrorSink], which is
- * installed on the caller thread and read only on the worker.
+ * Handlers run during explicit event progression. State is protected by short
+ * locks; sinks, route revocation and quiescence hooks run outside those locks.
  */
 internal class DeviceCallbacks internal constructor() {
+
+    private val lock = SynchronizedObject()
+    private var sink: ((GPUError) -> Unit)? = null
 
     /** Terminal marker: completed with the factual loss once both callback routes are proven stopped. */
     internal val lost = CompletableDeferred<DawnDeviceLost>()
 
-    /** Native callback receipt precedes its worker settle, including reentrant teardown. */
-    internal val nativeLossReceived = CompletableDeferred<Unit>()
-
     /** Uncaptured errors observed so far, in arrival order. */
-    internal val uncapturedErrors = mutableListOf<DawnNativeError>()
+    private val errors = mutableListOf<DawnNativeError>()
+    internal val uncapturedErrors: List<DawnNativeError> get() = lock.withLock { errors.toList() }
 
     /**
      * Sink the public device routes its descriptor's uncaptured-error callback
      * into; the stored [uncapturedErrors] list above stays the runtime's own
-     * record. Not worker-confined: it is installed on the CALLER thread when
-     * the public device wraps the session (the thread that requested the
-     * device). Its safety is the dispatcher-ordered error routing — the write
-     * completes before the device is handed back to the caller, and the only
-     * reader, [handleUncapturedError], always runs on the dispatcher worker,
-     * ordered after that write by the queue the caller's subsequent operations
-     * and the error callback's post both pass through.
+     * record. Installation and lookup are synchronized; invocation is not.
      */
-    internal var uncapturedErrorSink: ((GPUError) -> Unit)? = null
+    internal var uncapturedErrorSink: ((GPUError) -> Unit)?
+        get() = lock.withLock { sink }
+        set(value) { lock.withLock { sink = value } }
 
-    internal var deviceLostRegistration: CallbackRegistration<WGPUDeviceLostCallback>? = null
-    internal var uncapturedErrorRegistration: CallbackRegistration<WGPUUncapturedErrorCallback>? = null
-
-    /** The in-flight device request wait that a device loss abandons with its diagnostic. */
-    internal var deviceOperation: PendingOperation<*>? = null
+    private var lostRoute: CallbackRegistration<WGPUDeviceLostCallback>? = null
+    private var errorRoute: CallbackRegistration<WGPUUncapturedErrorCallback>? = null
+    internal var deviceLostRegistration: CallbackRegistration<WGPUDeviceLostCallback>?
+        get() = lock.withLock { lostRoute }
+        set(value) { lock.withLock { lostRoute = value } }
+    internal var uncapturedErrorRegistration: CallbackRegistration<WGPUUncapturedErrorCallback>?
+        get() = lock.withLock { errorRoute }
+        set(value) { lock.withLock { errorRoute = value } }
 
     private var lossHandled = false
     private var routesClosed = false
 
-    /** Worker: a device loss abandons the request wait, then goes terminal once the routes are proven stopped. */
+    /** Factually lost, terminal only once both routes are proven stopped. */
     internal fun handleLoss(info: DawnDeviceLost) {
-        if (lossHandled) return
-        lossHandled = true
-        deviceOperation?.abandon(DawnDeviceLostException(info))
+        val first = lock.withLock { if (lossHandled) false else { lossHandled = true; true } }
+        if (!first) return
         close()
         // Terminal only after both routes are closed and quiescent: the
         // actions run inline when already quiescent, otherwise on the thread
@@ -144,10 +137,10 @@ internal class DeviceCallbacks internal constructor() {
         }
     }
 
-    /** Worker: stores an observed uncaptured error, then hands it to the public sink. */
+    /** Records an observed uncaptured error, then invokes a snapshot of the sink. */
     internal fun handleUncapturedError(error: DawnNativeError) {
-        uncapturedErrors += error
-        uncapturedErrorSink?.let { sink ->
+        val target = lock.withLock { errors += error; sink }
+        target?.let { sink ->
             try {
                 sink(error.gpuError)
             } catch (failure: Throwable) {
@@ -157,11 +150,15 @@ internal class DeviceCallbacks internal constructor() {
         }
     }
 
-    /** Worker: revokes both callback routes; idempotent. */
+    /** Revokes both callback routes; idempotent and outside the monitor. */
     internal fun close() {
-        if (routesClosed) return
-        routesClosed = true
-        deviceLostRegistration?.close()
-        uncapturedErrorRegistration?.close()
+        val routes = lock.withLock {
+            if (routesClosed) null else {
+                routesClosed = true
+                lostRoute to errorRoute
+            }
+        } ?: return
+        routes.first?.close()
+        routes.second?.close()
     }
 }

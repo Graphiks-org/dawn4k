@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 
 class AndroidParticleRenderTest {
     @Test fun vulkanParticleDrawProducesNonblackPixelsNotJustSuccessfulPresent() = runBlocking {
-        DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan)).use { context ->
+        DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
                     device.pushErrorScope(GPUErrorFilter.Validation)

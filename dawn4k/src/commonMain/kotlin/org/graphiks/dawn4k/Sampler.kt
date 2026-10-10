@@ -40,7 +40,7 @@ internal fun GPUSampler.requireDawnSampler(owner: DeviceSession): DawnSampler {
 
 /** Creates a [DawnSampler] on [this] session and registers its reference. */
 internal fun DeviceSession.createSampler(descriptor: GPUSamplerDescriptor): DawnSampler =
-    runtime.dispatcher.call {
+    run {
         memoryScope { allocator ->
             val native = allocator.allocateSamplerDescriptor(descriptor)
             val handle = wgpuDeviceCreateSampler(this.handle, native)
