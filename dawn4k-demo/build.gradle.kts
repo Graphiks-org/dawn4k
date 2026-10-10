@@ -5,6 +5,9 @@ import org.gradle.api.tasks.options.Option
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
+import org.gradle.process.ExecOperations
+import java.io.ByteArrayOutputStream
+import javax.inject.Inject
 
 plugins {
     kotlin("multiplatform")
@@ -140,35 +143,78 @@ val waylandTargets = providers.gradleProperty("wayland.targets")
     .getOrElse(if (linuxHost) listOf(waylandHostTarget) else emptyList())
 require(waylandTargets.all { it in setOf("linuxArm64", "linuxX64") }) { "wayland.targets must be linuxArm64 and/or linuxX64" }
 
-fun registerWaylandBuild(name: String, target: String, cross: Boolean) = tasks.register<Exec>(name) {
+abstract class WaylandCommands @Inject constructor(private val operations: ExecOperations) {
+    fun run(directory: File, environment: Map<String, String>, arguments: List<String>): String {
+        val output = ByteArrayOutputStream()
+        operations.exec {
+            workingDir(directory)
+            environment(environment)
+            commandLine(arguments)
+            standardOutput = output
+        }.assertNormalExitValue()
+        return output.toString(Charsets.UTF_8)
+    }
+}
+val waylandCommands = objects.newInstance<WaylandCommands>()
+
+fun registerWaylandBuild(name: String, target: String, cross: Boolean, test: Boolean = false) = tasks.register(name) {
     onlyIf { linuxHost }
-    workingDir(projectDir)
-    inputs.files(fileTree("src/main/c"), fileTree("scripts"))
+    inputs.files(fileTree("src/main/c"))
+    if (test) inputs.files(fileTree("src/test/c"))
     inputs.property("target", target)
-    inputs.property("compiler", if (cross) "x86_64-linux-gnu-gcc" else System.getenv("CC") ?: "gcc")
-    val sysroot = System.getenv("DAWN_WAYLAND_X64_SYSROOT")?.takeIf { it.isNotEmpty() } ?: "/opt/demo/wayland-sysroot"
+    val compiler = if (cross) "x86_64-linux-gnu-gcc" else System.getenv("CC") ?: "gcc"
+    inputs.property("compiler", compiler)
+    val sysroot = System.getenv("DAWN_WAYLAND_X64_SYSROOT")?.takeIf { it.isNotEmpty() }
     val protocol = System.getenv("WAYLAND_PROTOCOL_XML")?.takeIf { it.isNotEmpty() } ?: "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
-    inputs.property("flags", if (cross) "--sysroot=$sysroot" else System.getenv("CFLAGS") ?: "")
+    val compilerFlags = if (cross) "--sysroot=$sysroot" else System.getenv("CFLAGS") ?: ""
+    inputs.property("flags", compilerFlags)
     inputs.property("protocolPath", protocol)
-    inputs.property("pkgConfigSysroot", if (cross) sysroot else System.getenv("PKG_CONFIG_SYSROOT_DIR") ?: "")
+    inputs.property("pkgConfigSysroot", if (cross) sysroot.orEmpty() else System.getenv("PKG_CONFIG_SYSROOT_DIR") ?: "")
     inputs.property("pkgConfigLibdir", if (cross) "$sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$sysroot/usr/share/pkgconfig"
         else System.getenv("PKG_CONFIG_LIBDIR") ?: "")
     inputs.property("pkgConfigPath", System.getenv("PKG_CONFIG_PATH") ?: "")
     if (linuxHost) {
         inputs.file(protocol)
-        if (cross) inputs.dir(sysroot)
+        if (cross && sysroot != null) inputs.dir(sysroot)
     }
-    outputs.file(layout.buildDirectory.file("wayland/$target/libdawn4k_wayland.so"))
-    environment("DAWN_WAYLAND_TARGET", target)
-    commandLine("bash", "scripts/${if (cross) "cross-build-wayland-bridge.sh" else "build-wayland-bridge.sh"}")
+    val output = layout.buildDirectory.dir("wayland/$target")
+    outputs.file(output.map { it.file("libdawn4k_wayland.so") })
+    outputs.dir(output.map { it.dir("generated") })
+    if (test) outputs.upToDateWhen { false }
+    doLast {
+        check(!cross || sysroot != null) { "Cross-compilation requires DAWN_WAYLAND_X64_SYSROOT" }
+        val directory = output.get().asFile
+        val generated = directory.resolve("generated").apply { mkdirs() }
+        val environment = if (cross) mapOf(
+            "PKG_CONFIG_SYSROOT_DIR" to checkNotNull(sysroot),
+            "PKG_CONFIG_LIBDIR" to "$sysroot/usr/lib/x86_64-linux-gnu/pkgconfig:$sysroot/usr/share/pkgconfig",
+        ) else emptyMap()
+        fun run(vararg arguments: String) = waylandCommands.run(projectDir, environment, arguments.toList())
+        fun flags(value: String) = value.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+        run("wayland-scanner", "client-header", protocol, generated.resolve("xdg-shell-client-protocol.h").path)
+        run("wayland-scanner", "private-code", protocol, generated.resolve("xdg-shell-protocol.c").path)
+        val libraries = flags(run("pkg-config", "--cflags", "--libs", "wayland-client", "xkbcommon"))
+        val common = listOf("-std=c11", "-Wall", "-Wextra", "-Werror") + flags(compilerFlags)
+        val sources = listOf("-I$generated", "-Isrc/main/c", "src/main/c/wayland-host.c", generated.resolve("xdg-shell-protocol.c").path)
+        waylandCommands.run(projectDir, environment, listOf(compiler) + common +
+            listOf("-fPIC", "-shared", "-Wl,-z,defs") + sources + libraries +
+            listOf("-o", directory.resolve("libdawn4k_wayland.so").path))
+        if (test) {
+            run("wayland-scanner", "server-header", protocol, generated.resolve("xdg-shell-server-protocol.h").path)
+            waylandCommands.run(projectDir, environment, listOf(compiler) + common +
+                listOf("-Isrc/main/c", "src/test/c/wayland-host-abi.c", "-o", directory.resolve("abi").path))
+            print(run(directory.resolve("abi").path))
+            val server = flags(run("pkg-config", "--cflags", "--libs", "wayland-server"))
+            waylandCommands.run(projectDir, environment, listOf(compiler) + common +
+                listOf("-fsanitize=address,undefined", "-g", "src/test/c/wayland-host-test.c") +
+                sources + libraries + server + listOf("-pthread", "-o", directory.resolve("test").path))
+            print(run(directory.resolve("test").path))
+        }
+    }
 }
 val buildWaylandBridge = registerWaylandBuild("buildWaylandBridge", waylandHostTarget, false)
 val buildWaylandBridgeX64 = registerWaylandBuild("buildWaylandBridgeX64", "linuxX64", waylandHostTarget != "linuxX64")
-val testWaylandBridge = tasks.register<Exec>("testWaylandBridge") {
-    onlyIf { linuxHost }
-    workingDir(projectDir)
-    commandLine("bash", "scripts/build-wayland-bridge.sh", "--test")
-}
+val testWaylandBridge = registerWaylandBuild("testWaylandBridge", waylandHostTarget, false, test = true)
 val stageWaylandResources = tasks.register<Sync>("stageWaylandResources") {
     into(layout.buildDirectory.dir("generated/waylandResources"))
     waylandTargets.forEach { target ->

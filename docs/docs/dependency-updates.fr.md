@@ -15,10 +15,7 @@ les bindings Dawn générés (`:dawn4k-native`).
 | Gradle | `org.graphiks:webgpu-api:0.1.0-SNAPSHOT`, `org.graphiks:webgpu-descriptors:0.1.0-SNAPSHOT` (le contrat), `org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT` (portée test) |
 
 La snapshot résolue est ce contre quoi le backend compile — les jars sources du
-cache Gradle, pas un clone master. `inventory/dawn4k-contract.json` recense
-cette surface résolue (chaque membre, son implémentation, son symbole natif,
-ses tests et ses limites) comme support de revue manuelle ; ce n'est pas une
-entrée du build et aucune barrière ne le consomme.
+cache Gradle, pas un clone master.
 
 ## Coordonner une évolution de snapshot
 

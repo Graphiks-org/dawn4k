@@ -121,7 +121,7 @@ internal suspend fun awaitLinuxSurfaceHost(
     window: ComposeWindow, viewport: AtomicReference<Rectangle>,
 ): LinuxSurfaceHost {
     check(!System.getenv("DISPLAY").isNullOrEmpty()) {
-        "missing DISPLAY; launch through dawn4k-demo/docker's /opt/demo/demo.sh"
+        "missing DISPLAY; launch from an X11 graphical session with its display environment"
     }
     val deadline = System.nanoTime() + 5_000_000_000L
     while (System.nanoTime() < deadline) {

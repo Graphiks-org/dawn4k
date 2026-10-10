@@ -18,3 +18,8 @@ docs/docs/api/
 # Planning artifacts (superpowers plans/specs, cadrage) stay out of the repository
 docs/superpowers/
 docs/planning/
+# Local qualification tools and agent working documents are not PR content.
+/.superpowers/
+/dawn4k-demo/docker/
+/dawn4k-demo/qualification/
+/dawn4k-demo/scripts/

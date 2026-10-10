@@ -18,7 +18,7 @@ class LinuxSurfaceHostTest {
         val failure = assertFailsWith<IllegalStateException> {
             LinuxSurfaceHost.attach(1L, AtomicReference(Rectangle(0, 0, 100, 100)))
         }
-        assertTrue(failure.message.orEmpty().contains("/opt/demo/demo.sh"))
+        assertTrue(failure.message.orEmpty().contains("graphical session"))
     }
 
     @Test fun rejectsNullParentWithoutLoadingLinuxLibraries() {
