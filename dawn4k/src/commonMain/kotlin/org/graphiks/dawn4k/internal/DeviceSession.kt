@@ -34,7 +34,7 @@ internal class DeviceSession internal constructor(
     internal val callbacks: DeviceCallbacks,
 ) : AutoCloseable {
 
-    internal val resources: ResourceRegistry = ResourceRegistry(runtime.dispatcher)
+    internal val resources: ResourceRegistry = ResourceRegistry()
 
     /**
      * The session's owned queue, wrapped once and cached for the session's
