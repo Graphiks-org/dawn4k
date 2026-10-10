@@ -9,6 +9,7 @@ import org.graphiks.dawn4k.native.WGPUQueue
 import org.graphiks.dawn4k.native.WGPUUncapturedErrorCallback
 import org.graphiks.dawn4k.native.wgpuAdapterRelease
 import org.graphiks.dawn4k.native.wgpuDeviceRelease
+import org.graphiks.dawn4k.native.wgpuDeviceDestroy
 import org.graphiks.dawn4k.native.wgpuQueueRelease
 import org.graphiks.kffi.CallbackRegistration
 import org.graphiks.webgpu.GPUError
@@ -61,10 +62,13 @@ internal class DeviceSession internal constructor(
             if (closed) return@call
             closed = true
             try {
-                // Owned refs release first, before the device and adapter refs;
-                // the Destroyed loss may fire during the device release below.
+                // Owned refs release first, before the device and adapter refs.
                 resources.close()
             } finally {
+                // Release is not Destroy: explicitly destroy and deliver the
+                // native Destroyed notification before revoking callback routes.
+                wgpuDeviceDestroy(handle)
+                runtime.processEventsOnWorker()
                 wgpuDeviceRelease(handle)
                 wgpuAdapterRelease(adapter)
                 callbacks.close()
@@ -89,6 +93,9 @@ internal class DeviceCallbacks internal constructor() {
 
     /** Terminal marker: completed with the factual loss once both callback routes are proven stopped. */
     internal val lost = CompletableDeferred<DawnDeviceLost>()
+
+    /** Native callback receipt precedes its worker settle, including reentrant teardown. */
+    internal val nativeLossReceived = CompletableDeferred<Unit>()
 
     /** Uncaptured errors observed so far, in arrival order. */
     internal val uncapturedErrors = mutableListOf<DawnNativeError>()

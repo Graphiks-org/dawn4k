@@ -12,7 +12,8 @@ import org.graphiks.webgpu.GPUDeviceDescriptor
  * - [GPUDeviceDescriptor.requiredFeatures] becomes the native feature array
  *   (empty stays the C default: count 0, `NULL`);
  * - [GPUDeviceDescriptor.requiredLimits] becomes the chained `WGPULimits` +
- *   `WGPUCompatibilityModeLimits` pair with every field copied verbatim;
+ *   `WGPUCompatibilityModeLimits` pair: explicit values are copied verbatim,
+ *   absent values use the pinned header's width-specific undefined sentinels;
  * - the labels stay Kotlin-side metadata: the C label views keep their
  *   defaults, matching the wrappers of this backend.
  *

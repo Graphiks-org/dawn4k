@@ -37,8 +37,7 @@ class DawnTexture internal constructor(
     override val sampleCount: GPUSize32Out = descriptor.sampleCount
     override val dimension: GPUTextureDimension = descriptor.dimension
     override val format: GPUTextureFormat = descriptor.format
-    override val usage: Set<GPUTextureUsage> =
-        GPUTextureUsage.entries.filterTo(mutableSetOf()) { (descriptor.usage.value and it.value) != 0uL }
+    override val usage: GPUTextureUsage = descriptor.usage
 
     override var label: String = descriptor.label
 

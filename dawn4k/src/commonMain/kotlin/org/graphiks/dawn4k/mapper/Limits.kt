@@ -6,6 +6,7 @@ import org.graphiks.dawn4k.native.WGPULimits
 import org.graphiks.dawn4k.native.WGPUSType_CompatibilityModeLimits
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUSupportedLimits
+import org.graphiks.webgpu.GPURequiredLimits
 
 /** webgpu.h `WGPU_LIMIT_U32_UNDEFINED` (UINT32_MAX): the "C exposes no value" sentinel. */
 internal const val WGPU_LIMIT_U32_UNDEFINED: UInt = UInt.MAX_VALUE
@@ -90,50 +91,49 @@ internal fun MemoryAllocator.allocateLimitsSnapshot(): WGPULimits {
 
 /**
  * Allocates the `requiredLimits` of a device request from a
- * [GPUSupportedLimits]: the `WGPU_LIMITS_INIT` equivalent with the
- * compatibility-mode chain linked in, every field copied verbatim — the
- * contract's limits object has no "undefined" concept, so every field is a
- * concrete requirement exactly as given. The structs live in [this]
+ * [GPURequiredLimits]: absent properties keep their width-specific undefined
+ * sentinels, while explicit values (including zero) are copied verbatim.
+ * The compatibility-mode chain is initialized likewise. The structs live in [this]
  * allocator's arena, consumed by the native request call.
  */
-internal fun MemoryAllocator.allocateRequiredLimits(limits: GPUSupportedLimits): WGPULimits {
+internal fun MemoryAllocator.allocateRequiredLimits(limits: GPURequiredLimits): WGPULimits {
     val (native, compatibility) = linkedLimits()
-    native.maxTextureDimension1D = limits.maxTextureDimension1D
-    native.maxTextureDimension2D = limits.maxTextureDimension2D
-    native.maxTextureDimension3D = limits.maxTextureDimension3D
-    native.maxTextureArrayLayers = limits.maxTextureArrayLayers
-    native.maxBindGroups = limits.maxBindGroups
-    native.maxBindGroupsPlusVertexBuffers = limits.maxBindGroupsPlusVertexBuffers
-    native.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup
-    native.maxDynamicUniformBuffersPerPipelineLayout = limits.maxDynamicUniformBuffersPerPipelineLayout
-    native.maxDynamicStorageBuffersPerPipelineLayout = limits.maxDynamicStorageBuffersPerPipelineLayout
-    native.maxSampledTexturesPerShaderStage = limits.maxSampledTexturesPerShaderStage
-    native.maxSamplersPerShaderStage = limits.maxSamplersPerShaderStage
-    native.maxStorageBuffersPerShaderStage = limits.maxStorageBuffersPerShaderStage
-    native.maxStorageTexturesPerShaderStage = limits.maxStorageTexturesPerShaderStage
-    native.maxUniformBuffersPerShaderStage = limits.maxUniformBuffersPerShaderStage
-    native.maxUniformBufferBindingSize = limits.maxUniformBufferBindingSize
-    native.maxStorageBufferBindingSize = limits.maxStorageBufferBindingSize
-    native.minUniformBufferOffsetAlignment = limits.minUniformBufferOffsetAlignment
-    native.minStorageBufferOffsetAlignment = limits.minStorageBufferOffsetAlignment
-    native.maxVertexBuffers = limits.maxVertexBuffers
-    native.maxBufferSize = limits.maxBufferSize
-    native.maxVertexAttributes = limits.maxVertexAttributes
-    native.maxVertexBufferArrayStride = limits.maxVertexBufferArrayStride
-    native.maxInterStageShaderVariables = limits.maxInterStageShaderVariables
-    native.maxColorAttachments = limits.maxColorAttachments
-    native.maxColorAttachmentBytesPerSample = limits.maxColorAttachmentBytesPerSample
-    native.maxComputeWorkgroupStorageSize = limits.maxComputeWorkgroupStorageSize
-    native.maxComputeInvocationsPerWorkgroup = limits.maxComputeInvocationsPerWorkgroup
-    native.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX
-    native.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY
-    native.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ
-    native.maxComputeWorkgroupsPerDimension = limits.maxComputeWorkgroupsPerDimension
-    native.maxImmediateSize = limits.maxImmediateSize
-    compatibility.maxStorageBuffersInVertexStage = limits.maxStorageBuffersInVertexStage
-    compatibility.maxStorageTexturesInVertexStage = limits.maxStorageTexturesInVertexStage
-    compatibility.maxStorageBuffersInFragmentStage = limits.maxStorageBuffersInFragmentStage
-    compatibility.maxStorageTexturesInFragmentStage = limits.maxStorageTexturesInFragmentStage
+    native.maxTextureDimension1D = limits.maxTextureDimension1D ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxTextureDimension2D = limits.maxTextureDimension2D ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxTextureDimension3D = limits.maxTextureDimension3D ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxTextureArrayLayers = limits.maxTextureArrayLayers ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxBindGroups = limits.maxBindGroups ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxBindGroupsPlusVertexBuffers = limits.maxBindGroupsPlusVertexBuffers ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxDynamicUniformBuffersPerPipelineLayout = limits.maxDynamicUniformBuffersPerPipelineLayout ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxDynamicStorageBuffersPerPipelineLayout = limits.maxDynamicStorageBuffersPerPipelineLayout ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxSampledTexturesPerShaderStage = limits.maxSampledTexturesPerShaderStage ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxSamplersPerShaderStage = limits.maxSamplersPerShaderStage ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxStorageBuffersPerShaderStage = limits.maxStorageBuffersPerShaderStage ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxStorageTexturesPerShaderStage = limits.maxStorageTexturesPerShaderStage ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxUniformBuffersPerShaderStage = limits.maxUniformBuffersPerShaderStage ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxUniformBufferBindingSize = limits.maxUniformBufferBindingSize ?: WGPU_LIMIT_U64_UNDEFINED
+    native.maxStorageBufferBindingSize = limits.maxStorageBufferBindingSize ?: WGPU_LIMIT_U64_UNDEFINED
+    native.minUniformBufferOffsetAlignment = limits.minUniformBufferOffsetAlignment ?: WGPU_LIMIT_U32_UNDEFINED
+    native.minStorageBufferOffsetAlignment = limits.minStorageBufferOffsetAlignment ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxVertexBuffers = limits.maxVertexBuffers ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxBufferSize = limits.maxBufferSize ?: WGPU_LIMIT_U64_UNDEFINED
+    native.maxVertexAttributes = limits.maxVertexAttributes ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxVertexBufferArrayStride = limits.maxVertexBufferArrayStride ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxInterStageShaderVariables = limits.maxInterStageShaderVariables ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxColorAttachments = limits.maxColorAttachments ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxColorAttachmentBytesPerSample = limits.maxColorAttachmentBytesPerSample ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeWorkgroupStorageSize = limits.maxComputeWorkgroupStorageSize ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeInvocationsPerWorkgroup = limits.maxComputeInvocationsPerWorkgroup ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxComputeWorkgroupsPerDimension = limits.maxComputeWorkgroupsPerDimension ?: WGPU_LIMIT_U32_UNDEFINED
+    native.maxImmediateSize = limits.maxImmediateSize ?: WGPU_LIMIT_U32_UNDEFINED
+    compatibility.maxStorageBuffersInVertexStage = limits.maxStorageBuffersInVertexStage ?: WGPU_LIMIT_U32_UNDEFINED
+    compatibility.maxStorageTexturesInVertexStage = limits.maxStorageTexturesInVertexStage ?: WGPU_LIMIT_U32_UNDEFINED
+    compatibility.maxStorageBuffersInFragmentStage = limits.maxStorageBuffersInFragmentStage ?: WGPU_LIMIT_U32_UNDEFINED
+    compatibility.maxStorageTexturesInFragmentStage = limits.maxStorageTexturesInFragmentStage ?: WGPU_LIMIT_U32_UNDEFINED
     return native
 }
 

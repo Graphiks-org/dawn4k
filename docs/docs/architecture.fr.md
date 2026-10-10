@@ -87,16 +87,26 @@ quelles vues sont encore détenues. Ne lisez ni n'écrivez jamais une vue de
 plage mappée après `unmap()` — le faire est un comportement indéfini, pas une
 exception Kotlin.
 
-## Pas de `GPUDevice.lost` commun
+## Contrat WebGPU publié
 
-Cette snapshot WebGPU définit `GPUDeviceLostInfo` mais aucune promesse
-`GPUDevice.lost`, et le backend n'en invente pas. La perte de device passe par
-la machinerie de perte de la session : le callback de perte abandonne chaque
-attente en vol avec une `DawnDeviceLostException`, les deux routes de callback
-(perte et erreur non capturée) sont fermées et leur arrêt est prouvé, et seulement
-alors le marqueur terminal de perte de la session se complète. Le callback
-d'erreur non capturée du descripteur de device est routé par le sink de la
-session avec la même chorégraphie ordonnée par le dispatcher.
+`GPUBuffer.usage` et `GPUTexture.usage` renvoient des masques typés qui préservent
+les bits du descripteur, y compris les bits inconnus. Les `requiredLimits` du
+device acceptent des `GPURequiredLimits` partielles : une propriété nulle utilise
+la sentinelle indéfinie 32 ou 64 bits du header Dawn verrouillé ; un zéro explicite
+reste zéro. Les slots nuls des layouts de pipeline, buffers de vertex, cibles
+couleur, attachments de passe et formats de bundle gardent leurs indices et
+utilisent leur représentation native vide respective.
+
+`GPUDevice.awaitLost()` observe un résultat natif `GPUDeviceLostInfo` partagé.
+Annuler un observateur ne détruit ni le device ni les autres attentes. La pompe
+d'événements progresse les notifications pendant ces attentes, même sans autre
+opération GPU en vol. Les deux routes de callback sont fermées et leur arrêt est
+prouvé avant de compléter le résultat terminal ; les observateurs tardifs
+reçoivent ce même résultat. `close()` détruit explicitement le device natif,
+traite sa notification et libère les références possédées. Une perte native déjà
+reçue reste prioritaire sur la fermeture réentrante ultérieure du contexte, sans
+omettre la preuve d'arrêt des callbacks. Le callback d'erreur non capturée du
+descripteur reste ordonné par le dispatcher.
 
 ## Couverture des cibles face à `:dawn4k-native`
 

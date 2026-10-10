@@ -22,6 +22,7 @@ import org.graphiks.webgpu.GPUErrorFilter
 import org.graphiks.webgpu.GPUFeatureName
 import org.graphiks.webgpu.GPURequestAdapterOptions
 import org.graphiks.webgpu.GPUSupportedLimits
+import org.graphiks.webgpu.GPURequiredLimits
 import org.graphiks.webgpu.GPUSupportedFeatures
 import org.graphiks.webgpu.descriptors.DeviceDescriptor
 import org.graphiks.webgpu.descriptors.RequestAdapterOptions
@@ -314,7 +315,7 @@ class CapabilitiesTest {
 }
 
 /** Distinct, ordered values for every limit: any cross-field mixup shows up. */
-private class TestLimits : GPUSupportedLimits {
+private class TestLimits : GPUSupportedLimits, GPURequiredLimits {
     override val maxTextureDimension1D = 11u
     override val maxTextureDimension2D = 12u
     override val maxTextureDimension3D = 13u

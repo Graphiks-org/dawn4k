@@ -64,8 +64,7 @@ class DawnBuffer internal constructor(
 
     override val size: GPUSize64Out = descriptor.size
 
-    override val usage: Set<GPUBufferUsage> =
-        GPUBufferUsage.entries.filterTo(mutableSetOf()) { (descriptor.usage.value and it.value) != 0uL }
+    override val usage: GPUBufferUsage = descriptor.usage
 
     override var label: String = descriptor.label
 

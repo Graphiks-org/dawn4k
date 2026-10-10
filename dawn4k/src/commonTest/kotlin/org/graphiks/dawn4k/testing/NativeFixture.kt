@@ -54,6 +54,7 @@ import org.graphiks.webgpu.descriptors.TexelCopyBufferInfo
 import org.graphiks.webgpu.descriptors.TexelCopyTextureInfo
 import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.descriptors.VertexState
+import org.graphiks.webgpu.descriptors.VertexBufferLayout
 import kotlin.test.assertContentEquals
 
 /**
@@ -137,7 +138,7 @@ internal class NativeFixture(
      * [DawnCommandEncoder.beginRenderPass] for the [GPUTexture] attachment and
      * released when the pass ends.
      */
-    suspend fun renderPixel(format: GPUTextureFormat): ByteArray {
+    suspend fun renderPixel(format: GPUTextureFormat, sparseSlots: Boolean = false): ByteArray {
         val texture = createTexture(
             TextureDescriptor(
                 size = Extent3D(width = 4u, height = 4u),
@@ -147,22 +148,28 @@ internal class NativeFixture(
         )
         // 256 bytes/row * 4 rows: the Metal copy-buffer row alignment.
         val staging = createBuffer(BufferDescriptor(1024uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
+        val vertices = if (sparseSlots) createBuffer(BufferDescriptor(4uL, GPUBufferUsage.Vertex)) else null
         try {
-            createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
+            val source = if (sparseSlots) RENDER_SHADER.replace("@location(0)", "@location(1)") else RENDER_SHADER
+            createShaderModule(ShaderModuleDescriptor(source)).use { shader ->
                 createRenderPipeline(
                     RenderPipelineDescriptor(
-                        vertex = VertexState(module = shader, entryPoint = "vs_main"),
+                        vertex = VertexState(
+                            module = shader, entryPoint = "vs_main",
+                            buffers = if (sparseSlots) listOf(null, VertexBufferLayout(0uL, emptyList())) else emptyList(),
+                        ),
                         fragment = FragmentState(
                             module = shader,
                             entryPoint = "fs_main",
-                            targets = listOf(ColorTargetState(format = format)),
+                            targets = if (sparseSlots) listOf(null, ColorTargetState(format = format))
+                                else listOf(ColorTargetState(format = format)),
                         ),
                     ),
                 ).use { pipeline ->
                     createEncoder().use { encoder ->
                         encoder.beginRenderPass(
                             RenderPassDescriptor(
-                                colorAttachments = listOf(
+                                colorAttachments = (if (sparseSlots) listOf(null) else emptyList()) + listOf(
                                     RenderPassColorAttachment(
                                         view = texture,
                                         loadOp = GPULoadOp.Clear,
@@ -173,6 +180,7 @@ internal class NativeFixture(
                             ),
                         ).let { pass ->
                             pass.setPipeline(pipeline)
+                            vertices?.let { pass.setVertexBuffer(1u, it) }
                             pass.draw(3u)
                             pass.end()
                         }
@@ -191,6 +199,7 @@ internal class NativeFixture(
                 }
             }
         } finally {
+            vertices?.close()
             texture.close()
             staging.close()
         }

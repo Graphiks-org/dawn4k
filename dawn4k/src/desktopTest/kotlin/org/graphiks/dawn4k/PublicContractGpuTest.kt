@@ -10,7 +10,7 @@ import org.graphiks.webgpu.GPUDeviceDescriptor
 import org.graphiks.webgpu.GPUError
 import org.graphiks.webgpu.GPUErrorFilter
 import org.graphiks.webgpu.GPUFeatureName
-import org.graphiks.webgpu.GPUSupportedLimits
+import org.graphiks.webgpu.GPURequiredLimits
 import org.graphiks.webgpu.GPUShaderModule
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.GPUUncapturedErrorCallback
@@ -23,6 +23,7 @@ import org.graphiks.webgpu.descriptors.FragmentState
 import org.graphiks.webgpu.descriptors.ProgrammableStage
 import org.graphiks.webgpu.descriptors.QueueDescriptor
 import org.graphiks.webgpu.descriptors.RenderPipelineDescriptor
+import org.graphiks.webgpu.descriptors.RequiredLimits
 import org.graphiks.webgpu.descriptors.ShaderModuleDescriptor
 import org.graphiks.webgpu.descriptors.VertexState
 import kotlin.test.Test
@@ -145,10 +146,10 @@ class PublicContractGpuTest {
         val context = DawnContext.create()
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
-                val required = object : GPUSupportedLimits by adapter.limits {}
+                val required = RequiredLimits(maxComputeWorkgroupSizeX = adapter.limits.maxComputeWorkgroupSizeX)
                 adapter.requestDevice(DeviceDescriptor(requiredLimits = required)).getOrThrow().use { device ->
                     assertTrue(
-                        device.limits.maxComputeWorkgroupSizeX >= required.maxComputeWorkgroupSizeX,
+                        device.limits.maxComputeWorkgroupSizeX >= required.maxComputeWorkgroupSizeX!!,
                         "the device maxComputeWorkgroupSizeX ${device.limits.maxComputeWorkgroupSizeX} " +
                             "is below the required ${required.maxComputeWorkgroupSizeX}",
                     )
@@ -321,12 +322,10 @@ class PublicContractGpuTest {
     }
 
     /** One above the adapter's own workgroup-size bound: no adapter accepts it. */
-    private fun impossibleLimits(adapter: GPUAdapter): GPUSupportedLimits {
+    private fun impossibleLimits(adapter: GPUAdapter): GPURequiredLimits {
         val base = adapter.limits.maxComputeWorkgroupSizeX
         assertTrue(base < UInt.MAX_VALUE, "maxComputeWorkgroupSizeX is the maximum UInt; no excess can exist")
-        return object : GPUSupportedLimits by adapter.limits {
-            override val maxComputeWorkgroupSizeX = base + 1u
-        }
+        return RequiredLimits(maxComputeWorkgroupSizeX = base + 1u)
     }
 
     private fun renderDescriptor(
