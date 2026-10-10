@@ -149,6 +149,9 @@ val dumpGeneratedAbi = tasks.register<DumpGeneratedAbiTask>("dumpGeneratedAbi") 
 }
 
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
     sourceSets.getByName("commonMain").dependencies {
         api("org.graphiks:kffi:1.0.0-SNAPSHOT")
     }
