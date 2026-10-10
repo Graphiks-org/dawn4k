@@ -10,7 +10,7 @@ internal fun selectLinuxDisplayBackend(
     val wayland = !environment["WAYLAND_DISPLAY"].isNullOrBlank() ||
         !environment["WAYLAND_SOCKET"].isNullOrBlank()
     val x11 = !environment["DISPLAY"].isNullOrBlank()
-    val hint = "launch through dawn4k-demo/docker's /opt/demo/demo.sh"
+    val hint = "launch from a graphical session with its display environment"
     return when (forced) {
         "wayland" -> {
             check(wayland) { "missing WAYLAND_DISPLAY or WAYLAND_SOCKET; $hint" }

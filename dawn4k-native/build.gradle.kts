@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
+import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.graphiks.dawn4k.build.DownloadDawnTask
 import org.graphiks.dawn4k.build.DumpGeneratedAbiTask
 import org.graphiks.dawn4k.build.GenerateDawnBindingsTask
@@ -8,6 +10,14 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
+}
+
+extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
+    finalizeDsl(
+        org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
+            namespace = "org.graphiks.dawn4k.native"
+        },
+    )
 }
 
 val dawnTargets: List<String> =

@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
+import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
@@ -6,7 +8,15 @@ import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeHostTest
 
 plugins {
-    id("ygdrasil.conventions.kmp-backend-library")
+    id("ygdrasil.conventions.kmp-library")
+}
+
+extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
+    finalizeDsl(
+        org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
+            namespace = "org.graphiks.dawn4k"
+        },
+    )
 }
 
 val abiHost: String = run {
@@ -29,6 +39,13 @@ val abiHost: String = run {
 val dawnNativeProject = project(":dawn4k-native")
 
 kotlin {
+    // JVM and Android share their dispatcher and platform monitor actuals.
+    val jvmSharedMain = sourceSets.create("jvmSharedMain") {
+        dependsOn(sourceSets.getByName("commonMain"))
+    }
+    sourceSets.getByName("jvmMain").dependsOn(jvmSharedMain)
+    sourceSets.getByName("androidMain").dependsOn(jvmSharedMain)
+
     // expect/actual classes (the portable SynchronizedObject of the internal
     // package) opt into the promoted model: the beta warning is not a warning
     // we want in the build output, and this flag becomes the default anyway.

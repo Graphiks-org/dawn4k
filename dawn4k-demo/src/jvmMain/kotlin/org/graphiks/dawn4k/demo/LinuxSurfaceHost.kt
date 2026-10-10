@@ -44,7 +44,7 @@ internal class LinuxSurfaceHost private constructor(
         fun attach(parentWindow: Long, viewport: AtomicReference<Rectangle>): LinuxSurfaceHost {
             require(parentWindow != 0L) { "the Compose X11 window handle is null" }
             check(!System.getenv("DISPLAY").isNullOrEmpty()) {
-                "missing DISPLAY; launch through dawn4k-demo/docker's /opt/demo/demo.sh"
+                "missing DISPLAY; launch from an X11 graphical session with its display environment"
             }
             val host = LinuxSurfaceHost(parentWindow, viewport)
             try {

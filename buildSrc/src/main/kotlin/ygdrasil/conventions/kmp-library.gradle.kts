@@ -30,7 +30,6 @@ kotlin {
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
         org.gradle.api.Action<com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension> {
-            namespace = "org.graphiks.dawn4k"
             compileSdk = 37
             minSdk = 24
         }

@@ -20,7 +20,7 @@ import kotlinx.coroutines.CancellationException
 /** Must be called before AWT opens its first display on Linux. */
 internal fun initializeLinuxXlibThreading() = Xlib.initializeThreads()
 
-/** LP64 Xlib ABI, verified by docker/xlib-layout.c; loaded only on Linux paths. */
+/** LP64 Xlib ABI, verified against the platform Xlib headers; loaded only on Linux paths. */
 internal object Xlib {
     private val linker = Linker.nativeLinker()
     private val library = SymbolLookup.libraryLookup("libX11.so.6", Arena.global())
@@ -160,7 +160,7 @@ internal object Xlib {
 
     /** IsViewable includes ancestor map state, unlike positive drawable geometry. */
     fun isViewable(display: MemorySegment, window: Long): Boolean = Arena.ofConfined().use { arena ->
-        // LP64 size/offset verified by docker/xlib-layout.c.
+        // LP64 size/offset verified against the platform Xlib headers.
         val attributes = arena.allocate(136, 8)
         val status = getAttributes.invokeWithArguments(display, window, attributes) as Int
         sync(display)

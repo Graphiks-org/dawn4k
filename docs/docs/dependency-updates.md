@@ -15,10 +15,7 @@ contract (`webgpu-api` / `webgpu-descriptors`) and the generated Dawn bindings
 | Gradle | `org.graphiks:webgpu-api:0.1.0-SNAPSHOT`, `org.graphiks:webgpu-descriptors:0.1.0-SNAPSHOT` (the contract), `org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT` (test scope) |
 
 The resolved snapshot is what the backend compiles against — the sources jars
-in the Gradle cache, not a master clone. `inventory/dawn4k-contract.json`
-records that resolved surface (every member, its implementation, its native
-symbol, its tests and its limitations) as a manual-review artifact; it is not
-a build input and no gate consumes it.
+in the Gradle cache, not a master clone.
 
 ## Coordinating a snapshot evolution
 

@@ -23,7 +23,7 @@ class LinuxDisplayBackendTest {
         }
         assertTrue(failure.message.orEmpty().contains("DISPLAY"))
         assertTrue(failure.message.orEmpty().contains("WAYLAND"))
-        assertTrue(failure.message.orEmpty().contains("/opt/demo/demo.sh"))
+        assertTrue(failure.message.orEmpty().contains("graphical session"))
     }
 
     @Test fun forcingRequiresTheSelectedEndpointAndNeverFallsBack() {
