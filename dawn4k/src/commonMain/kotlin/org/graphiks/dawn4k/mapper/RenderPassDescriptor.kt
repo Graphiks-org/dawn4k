@@ -3,6 +3,8 @@ package org.graphiks.dawn4k.mapper
 import org.graphiks.dawn4k.DawnTextureView
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUColor
+import org.graphiks.dawn4k.native.WGPULoadOp_Undefined
+import org.graphiks.dawn4k.native.WGPUStoreOp_Undefined
 import org.graphiks.dawn4k.native.WGPUPassTimestampWrites
 import org.graphiks.dawn4k.native.WGPURenderPassColorAttachment
 import org.graphiks.dawn4k.native.WGPURenderPassDepthStencilAttachment
@@ -78,17 +80,17 @@ internal fun MemoryAllocator.allocateRenderPassDescriptor(
 /** `WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT` equivalent, resolving attachment views. */
 private fun initColorAttachment(
     target: WGPURenderPassColorAttachment,
-    attachment: GPURenderPassColorAttachment,
+    attachment: GPURenderPassColorAttachment?,
     session: DeviceSession,
     temporaryViews: MutableList<DawnTextureView>,
 ) {
     target.nextInChain = null
-    target.view = resolveAttachmentView(attachment.view, session, temporaryViews)
-    target.depthSlice = attachment.depthSlice ?: WGPU_DEPTH_SLICE_UNDEFINED
-    target.resolveTarget = attachment.resolveTarget?.let { resolveAttachmentView(it, session, temporaryViews) }
-    target.loadOp = attachment.loadOp.toNativeLoadOp()
-    target.storeOp = attachment.storeOp.toNativeStoreOp()
-    target.clearValue.initFrom(attachment.clearValue)
+    target.view = attachment?.let { resolveAttachmentView(it.view, session, temporaryViews) }
+    target.depthSlice = attachment?.depthSlice ?: WGPU_DEPTH_SLICE_UNDEFINED
+    target.resolveTarget = attachment?.resolveTarget?.let { resolveAttachmentView(it, session, temporaryViews) }
+    target.loadOp = attachment?.loadOp?.toNativeLoadOp() ?: WGPULoadOp_Undefined
+    target.storeOp = attachment?.storeOp?.toNativeStoreOp() ?: WGPUStoreOp_Undefined
+    target.clearValue.initFrom(attachment?.clearValue)
 }
 
 /** `WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT` equivalent. */

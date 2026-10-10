@@ -3,6 +3,9 @@ package org.graphiks.dawn4k.mapper
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUBlendState
 import org.graphiks.dawn4k.native.WGPUColorTargetState
+import org.graphiks.dawn4k.native.WGPUColorWriteMask_All
+import org.graphiks.dawn4k.native.WGPUTextureFormat_Undefined
+import org.graphiks.dawn4k.native.WGPUVertexStepMode_Undefined
 import org.graphiks.dawn4k.native.WGPUCompareFunction_Undefined
 import org.graphiks.dawn4k.native.WGPUConstantEntry
 import org.graphiks.dawn4k.native.WGPUDepthStencilState
@@ -169,16 +172,17 @@ private fun initStencilFaceState(
     face.passOp = state.passOp.toNativeStencilOperation()
 }
 
-private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayout, layout: GPUVertexBufferLayout) {
+private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayout, layout: GPUVertexBufferLayout?) {
     buffer.nextInChain = null
-    buffer.stepMode = layout.stepMode.toNativeVertexStepMode()
-    buffer.arrayStride = layout.arrayStride
-    buffer.attributeCount = layout.attributes.size.toULong()
-    buffer.attributes = if (layout.attributes.isEmpty()) {
+    buffer.stepMode = layout?.stepMode?.toNativeVertexStepMode() ?: WGPUVertexStepMode_Undefined
+    buffer.arrayStride = layout?.arrayStride ?: 0uL
+    val attributes = layout?.attributes.orEmpty()
+    buffer.attributeCount = attributes.size.toULong()
+    buffer.attributes = if (attributes.isEmpty()) {
         null
     } else {
-        WGPUVertexAttribute.allocateArray(this, layout.attributes.size.toUInt()) { index, attribute ->
-            val source = layout.attributes[index.toInt()]
+        WGPUVertexAttribute.allocateArray(this, attributes.size.toUInt()) { index, attribute ->
+            val source = attributes[index.toInt()]
             attribute.nextInChain = null
             attribute.format = source.format.toNativeVertexFormat()
             attribute.offset = source.offset
@@ -187,11 +191,11 @@ private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayou
     }
 }
 
-private fun MemoryAllocator.initColorTargetState(target: WGPUColorTargetState, state: GPUColorTargetState) {
+private fun MemoryAllocator.initColorTargetState(target: WGPUColorTargetState, state: GPUColorTargetState?) {
     target.nextInChain = null
-    target.format = state.format.toNativeTextureFormat()
-    target.blend = state.blend?.let { allocateBlendState(it) }
-    target.writeMask = state.writeMask.toNativeColorWriteMask()
+    target.format = state?.format?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined
+    target.blend = state?.blend?.let { allocateBlendState(it) }
+    target.writeMask = state?.writeMask?.toNativeColorWriteMask() ?: WGPUColorWriteMask_All
 }
 
 private fun MemoryAllocator.allocateBlendState(

@@ -80,16 +80,24 @@ unmapped (or closed), the memory goes back to the device and the view is
 views are still held. Never read or write a mapped-range view after `unmap()` —
 doing so is undefined behaviour, not a Kotlin exception.
 
-## No common `GPUDevice.lost`
+## Published WebGPU contract
 
-This WebGPU snapshot defines `GPUDeviceLostInfo` but no `GPUDevice.lost`
-promise, and the backend does not invent one. Device loss routes through the
-session's loss machinery: the device-lost callback abandons every in-flight
-wait with a `DawnDeviceLostException`, both callback routes (loss and
-uncaptured error) are closed and proven quiescent, and only then does the
-session's terminal loss marker complete. The uncaptured-error callback of the
-device descriptor is routed through the session's sink with the same
-dispatcher-ordered choreography.
+`GPUBuffer.usage` and `GPUTexture.usage` return typed masks, preserving the
+descriptor's bits, including unknown ones. `GPUDeviceDescriptor.requiredLimits`
+accepts partial `GPURequiredLimits`: null properties use the pinned Dawn header's
+32-bit or 64-bit undefined sentinel; explicit zero remains zero. Nullable slots
+in pipeline layouts, vertex buffers, color targets, pass attachments and bundle
+formats retain their indices and use the corresponding native empty-slot form.
+
+`GPUDevice.awaitLost()` observes a shared native `GPUDeviceLostInfo` result.
+Cancelling one observer neither destroys the device nor cancels other observers.
+The event pump progresses loss notifications while observers wait, even when no
+other GPU operation is pending. Both callback routes are closed and proven
+quiescent before the terminal result completes; later observers receive that
+same result. Device `close()` explicitly destroys the native device, drains its
+loss notification and releases owned references. A received native loss takes
+precedence over a subsequent reentrant context close, without skipping callback
+quiescence. The descriptor's uncaptured-error callback remains dispatcher-ordered.
 
 ## Target coverage versus `:dawn4k-native`
 

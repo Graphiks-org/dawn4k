@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.mapper.allocateRequestAdapterOptions
@@ -86,6 +87,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     private var closed = false
     private var closeInitiatedFromWorker = false
     private var outstandingCallbacks = 0
+    private var lossObservers = 0
     private val openOperations = mutableListOf<PendingOperation<*>>()
     private var pumpJob: Job? = null
 
@@ -206,6 +208,52 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     internal fun currentInstance(): WGPUInstance? =
         if (teardownSettled.isCompleted) null
         else dispatcher.call { instance }
+
+    /** A cancelled observer detaches only its wait, never the shared loss marker. */
+    internal suspend fun awaitDeviceLoss(callbacks: DeviceCallbacks): DawnDeviceLost {
+        if (callbacks.lost.isCompleted || callbacks.nativeLossReceived.isCompleted) return callbacks.lost.await()
+        val attached = try {
+            dispatcher.call {
+                if (closed) false else {
+                    lossObservers += 1
+                    ensurePump()
+                    true
+                }
+            }
+        } catch (failure: IllegalStateException) {
+            if (!closedMarker.isCompleted) throw failure
+            false
+        }
+        if (!attached) {
+            if (callbacks.nativeLossReceived.isCompleted) return callbacks.lost.await()
+            throw DawnRuntimeClosedException()
+        }
+        try {
+            return select {
+                callbacks.lost.onAwait { it }
+                closedMarker.onAwait {
+                    // A native loss was copied before teardown, but its worker
+                    // settle can be queued behind a reentrant context close.
+                    // The dispatcher drains queued work: preserve that factual
+                    // result, still waiting for callback-route quiescence.
+                    if (callbacks.nativeLossReceived.isCompleted) callbacks.lost.await()
+                    else throw DawnRuntimeClosedException()
+                }
+            }
+        } finally {
+            try {
+                dispatcher.call { lossObservers -= 1 }
+            } catch (failure: IllegalStateException) {
+                // Closing the runtime already stopped the pump and its worker.
+                if (!closedMarker.isCompleted) throw failure
+            }
+        }
+    }
+
+    /** Worker: drain a device destruction's loss before revoking its callback routes. */
+    internal fun processEventsOnWorker() {
+        instance?.let { wgpuInstanceProcessEvents(it) }
+    }
 
     // --- Sub-device callback operations ------------------------------------
 
@@ -354,6 +402,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
             policy = CallbackPolicy.ONCE,
             callback = { _, reason, message, _ ->
                 val info = DawnDeviceLost(deviceLostReason(reason), message.copyToString())
+                callbacks.nativeLossReceived.complete(Unit)
                 dispatcher.post { callbacks.handleLoss(info) }
             },
         )
@@ -460,11 +509,11 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     private fun pumpOnce(): Boolean {
         // The instance is null only after the teardown released it.
         val current = instance ?: return exitPumpOnWorker()
-        if (outstandingCallbacks == 0) return exitPumpOnWorker()
+        if (outstandingCallbacks == 0 && lossObservers == 0) return exitPumpOnWorker()
         wgpuInstanceProcessEvents(current)
         // Keep ticking through a close while deliveries are still outstanding:
         // their settles are what releases the instance and finishes the teardown.
-        return if (outstandingCallbacks > 0) true else exitPumpOnWorker()
+        return if (outstandingCallbacks > 0 || lossObservers > 0) true else exitPumpOnWorker()
     }
 
     /**

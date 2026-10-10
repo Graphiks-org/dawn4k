@@ -49,6 +49,7 @@ import org.graphiks.webgpu.GPUComputePipelineDescriptor
 import org.graphiks.webgpu.GPUCompareFunction
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.GPUDeviceDescriptor
+import org.graphiks.webgpu.GPUDeviceLostInfo
 import org.graphiks.webgpu.GPUError
 import org.graphiks.webgpu.GPUErrorFilter
 import org.graphiks.webgpu.GPUFilterMode
@@ -152,6 +153,14 @@ class DawnDevice internal constructor(
 
     override val queue: GPUQueue
         get() = ownedQueue
+
+    override suspend fun awaitLost(): Result<GPUDeviceLostInfo> = try {
+        Result.success(session.runtime.awaitDeviceLoss(session.callbacks))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        Result.failure(failure)
+    }
 
     /**
      * The raw `WGPUDevice` pointer of this device, for platform integrators

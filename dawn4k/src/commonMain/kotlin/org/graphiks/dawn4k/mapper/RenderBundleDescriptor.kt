@@ -24,7 +24,7 @@ internal fun MemoryAllocator.allocateRenderBundleEncoderDescriptor(
         null
     } else {
         allocateBuffer((descriptor.colorFormats.size * 4).toULong()).apply {
-            writeUInts(descriptor.colorFormats.map { it.toNativeTextureFormat() }.toUIntArray())
+            writeUInts(descriptor.colorFormats.map { it?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined }.toUIntArray())
         }.handler
     }
     native.depthStencilFormat = descriptor.depthStencilFormat?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined
