@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
+    id("ygdrasil.conventions.dawn-jvm-runtime")
 }
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {

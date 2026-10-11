@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 plugins {
+    id("ygdrasil.conventions.dawn-jvm-runtime")
     kotlin("multiplatform")
     alias(libs.plugins.kotlin.serialization)
     id("com.android.kotlin.multiplatform.library")

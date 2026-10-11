@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTes
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
+    id("ygdrasil.conventions.dawn-jvm-runtime")
 }
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
