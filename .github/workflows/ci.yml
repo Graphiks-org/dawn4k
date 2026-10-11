@@ -77,11 +77,13 @@ jobs:
       - name: Set up Android SDK for Gradle project import
         uses: android-actions/setup-android@v3
         with:
+          # Command-line Tools 23.0 understand the API 37.0 SDK catalog.
+          cmdline-tools-version: '16111833'
           # The legacy 'tools' package is no longer available in the SDK repository.
           packages: 'platform-tools'
 
       - name: Install Android platform
-        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
 
       - name: Install and select CPU Vulkan adapter
         shell: bash
