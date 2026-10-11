@@ -153,7 +153,7 @@ kotlin {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
     sourceSets.getByName("commonMain").dependencies {
-        api("org.graphiks:kffi:1.0.0-SNAPSHOT")
+        api(libs.kffi)
     }
     sourceSets.getByName("commonMain").kotlin.srcDir("generated/src/commonMain/kotlin")
     sourceSets.getByName("nativeMain").kotlin.srcDir("generated/src/nativeMain/kotlin")

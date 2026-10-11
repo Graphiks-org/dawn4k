@@ -53,11 +53,11 @@ kotlin {
 
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k-native"))
-        api("org.graphiks:webgpu-api:0.1.0-SNAPSHOT")
+        api(libs.webgpu.api)
         implementation(libs.kotlinx.coroutines.core)
     }
     sourceSets.getByName("commonTest").dependencies {
-        implementation("org.graphiks:webgpu-descriptors:0.1.0-SNAPSHOT")
+        implementation(libs.webgpu.descriptors)
         implementation(libs.kotlinx.coroutines.test)
     }
 
@@ -68,7 +68,7 @@ kotlin {
     val desktopTest = sourceSets.create("desktopTest")
     desktopTest.dependsOn(sourceSets.getByName("commonTest"))
     desktopTest.dependencies {
-        implementation("org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT")
+        implementation(libs.suite.acid.tests)
     }
     listOf("jvmTest", "macosArm64Test", "linuxX64Test").forEach { testSetName ->
         sourceSets.getByName(testSetName).dependsOn(desktopTest)

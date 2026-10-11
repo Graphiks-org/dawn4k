@@ -47,7 +47,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.ui)
         }
-        androidMain.dependencies { implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.10.0") }
+        androidMain.dependencies { implementation(libs.androidx.lifecycle.runtime.compose) }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
@@ -56,7 +56,7 @@ kotlin {
         // pure common tests there; UI tests still run on desktop and the device.
         val composeUiTest = create("composeUiTest") {
             dependsOn(commonTest.get())
-            dependencies { implementation("org.jetbrains.compose.ui:ui-test:1.11.1") }
+            dependencies { implementation(libs.compose.ui.test) }
         }
         jvmTest.get().dependsOn(composeUiTest)
         getByName("androidDeviceTest").dependsOn(composeUiTest)
@@ -77,7 +77,7 @@ kotlin {
         }
         getByName("androidDeviceTest").dependencies {
             implementation(kotlin("test-junit"))
-            implementation("androidx.test:runner:1.7.0")
+            implementation(libs.androidx.test.runner)
         }
     }
     targets.withType<KotlinNativeTarget>().configureEach {
