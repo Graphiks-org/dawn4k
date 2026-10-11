@@ -168,7 +168,10 @@ def validate_commit_subjects(commit_subjects: Iterable[str], policy: dict[str, o
     allowed_types = set(policy["allowed_types"])
     allowed_scopes = set(policy["allowed_scopes"])
     for subject in commit_subjects:
-        parsed = parse_conventional_commit(subject)
+        # Git's default revert subject wraps the original commit subject.
+        # Validate that subject too, rather than exempting reverts from policy.
+        reverted = re.fullmatch(r'Revert "(.+)"', subject.strip())
+        parsed = parse_conventional_commit(reverted.group(1) if reverted else subject)
         if parsed is None:
             errors.append(f"commit subject {subject!r} is not Conventional Commits compliant")
             continue

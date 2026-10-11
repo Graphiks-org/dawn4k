@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Test pull request policy validator
+        run: python3 -m unittest discover -s .github/scripts/tests -v
+
       - name: Validate pull request policy
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
