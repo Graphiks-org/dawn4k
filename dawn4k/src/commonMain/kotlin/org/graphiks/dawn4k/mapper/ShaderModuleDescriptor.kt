@@ -4,6 +4,7 @@ import org.graphiks.dawn4k.native.WGPUShaderModuleDescriptor
 import org.graphiks.dawn4k.native.WGPUShaderSourceWGSL
 import org.graphiks.dawn4k.native.WGPUStringView
 import org.graphiks.dawn4k.native.WGPUSType_ShaderSourceWGSL
+import org.graphiks.kffi.CString
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUShaderModuleDescriptor
 
@@ -13,16 +14,20 @@ internal fun WGPUStringView.initNull() {
     length = WGPU_STRLEN
 }
 
-/** Points the view at a NUL-terminated copy of [value] allocated in [allocator]. */
+/** Copies [value] as UTF-8 with an explicit byte length, preserving embedded NULs. */
 internal fun WGPUStringView.initFrom(value: String, allocator: MemoryAllocator) {
-    data = allocator.allocateFrom(value)
-    length = WGPU_STRLEN
+    val bytes = value.encodeToByteArray()
+    val byteLength = bytes.size.toULong()
+    val buffer = allocator.allocateBuffer(byteLength + 1uL)
+    buffer.writeBytes(bytes)
+    buffer.writeByte(0, byteLength)
+    data = CString(buffer.handler)
+    length = byteLength
 }
 
 /** [initFrom] for a nullable string: a null maps to the empty StringView. */
 internal fun WGPUStringView.initNullable(value: String?, allocator: MemoryAllocator) {
-    data = value?.let { allocator.allocateFrom(it) }
-    length = WGPU_STRLEN
+    if (value == null) initNull() else initFrom(value, allocator)
 }
 
 /**

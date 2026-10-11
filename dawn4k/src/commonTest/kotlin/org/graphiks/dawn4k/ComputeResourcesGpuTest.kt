@@ -171,6 +171,19 @@ class ComputeResourcesGpuTest {
     }
 
     @Test
+    fun shaderSourceAfterEmbeddedNulReachesNativeValidation() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.shaderSourceAfterEmbeddedNulReachesNativeValidation")) return@runTest
+        val fixture = NativeFixture.open()
+        try {
+            val code = "@compute @workgroup_size(1) fn main() {}\u0000this is invalid WGSL"
+            fixture.createShaderModule(ShaderModuleDescriptor(code)).use { shader ->
+                val info = shader.getCompilationInfo().getOrThrow()
+                assertTrue(info.messages.any { it.type == GPUCompilationMessageType.Error })
+            }
+        } finally { fixture.close() }
+    }
+
+    @Test
     fun validShaderCompilationInfoSucceeds() = runTest {
         if (!gpuTestEnvironment("ComputeResourcesGpuTest.validShaderCompilationInfoSucceeds")) return@runTest
         val fixture = NativeFixture.open()
