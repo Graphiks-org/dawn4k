@@ -96,6 +96,33 @@ calls directly, with application-owned synchronization and lifetime. Error-scope
 and pop issuance must retain one **OS thread**, not merely serial coroutine
 execution. See [Architecture](architecture.md).
 
+## Resource ownership
+
+Resources belong to their caller, not to the device session. Use `use` or
+`try/finally` and close them before their device/context. For example, with the
+`webgpu-descriptors` dependency:
+
+```kotlin
+import org.graphiks.webgpu.GPUBufferUsage
+import org.graphiks.webgpu.descriptors.BufferDescriptor
+
+device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.CopyDst)).use { buffer ->
+    // Use buffer while it is open; join users before leaving this scope.
+}
+```
+
+Close is idempotent and releases the acquired native reference immediately.
+Buffers, textures and query sets are destroyed first. Copied metadata remains
+readable; operations on closed handles are rejected. Device close does not clean
+up forgotten resource references, and no GC fallback does it. The queue remains
+borrowed from its device and has no independent close.
+
+Stop/join users and settle pending callbacks before resource closure. Resource
+guards do not make racing use/close safe. For an external-interface render bundle,
+use `(bundle as org.graphiks.dawn4k.DawnRenderBundle).close()`. Pass `end()` ends
+and releases the pass; the concrete Dawn pass wrappers additionally implement
+`AutoCloseable` for exception cleanup without implicitly issuing end.
+
 ## Regenerating the bindings
 
 ```bash

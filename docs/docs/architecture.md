@@ -12,7 +12,7 @@ mapped range, and the absence of a common `GPUDevice.lost`.
 | --- | --- | --- |
 | Generated bindings | `:dawn4k-native` → `org.graphiks.dawn4k.native` | kextract output over the pinned Dawn release; never edited by hand |
 | Runtime & mailbox | `dawn4k/.../internal/DawnRuntime.kt`, `CallbackMailbox.kt`, `PendingOperation.kt` | direct caller-thread operations, explicitly progressed callback settlements and ownership tracking |
-| Device sessions & registry | `dawn4k/.../internal/DeviceSession.kt`, `ResourceRegistry.kt` | per-device ownership of the adapter/device/queue references and of every reference acquired afterwards |
+| Device sessions & resource ownership | `dawn4k/.../internal/DeviceSession.kt`, `OwnedReference.kt` | session-owned adapter/device/queue references; individually caller-owned resource references |
 | Wrappers & mappers | `dawn4k/.../*.kt`, `dawn4k/.../mapper/*` | one `Dawn*` class per WebGPU interface; explicit name-based descriptor/enum tables |
 | Public entry point | `dawn4k/.../DawnContext.kt`, `Adapter.kt`, `Device.kt` | `DawnContext.create(config)` → `requestAdapter` → `requestDevice` |
 
@@ -60,28 +60,34 @@ issuance must use the same OS thread. A consumer-owned single-thread executor
 works on JVM; `Dispatchers.Default.limitedParallelism(1)` is serial but does not
 guarantee thread identity.
 
-### Device sessions and the resource registry
+### Device sessions and caller-owned resources
 
 A `DeviceSession` owns the adapter reference it acquired (`wgpuAdapterAddRef`),
-the device and its queue. Every resource created afterwards is registered in
-the session's `ResourceRegistry` with an optional destroy callback and a
-mandatory release callback:
+the device and its queue. Each resource wrapper owns its acquired native
+reference independently, through a local `OwnedReference`:
 
 - **refcount-only** objects (samplers, layouts, pipelines, encoders, …) are
   released by `close()` right away;
 - **destroy-backed** objects (buffers, textures, query sets) are destroyed by
-  `close()` but keep a *tombstone* entry until the teardown, because Dawn hands
-  back error objects whose handles must stay valid for late native errors.
+  `close()` and their native reference is released immediately afterwards.
 
-Closing a session releases every registered reference — in reverse acquisition
-order, on the closing caller. Device/adapter references remain owned until
-explicit progression settles device loss and proves callback quiescence. The
-debug counters (`debugRemainingRefs`, `debugOpenCallbacks`) are how the tests
-assert ownership states without ever dereferencing released memory.
+The caller must close resources before their device. Closing a session releases
+its queue, not its resource wrappers; forgotten closes can leak native references.
+Device/adapter references remain owned until explicit progression settles device
+loss and proves callback quiescence. There is no resource registry, finalizer or
+implicit GC cleanup. Native destroy/release actions run on the closing caller.
+
+`close()` is idempotent. Buffers, textures and query sets no longer retain a
+destroyed native handle for later validation. Copied metadata remains readable,
+but any operation using a closed native handle throws `IllegalStateException`
+before a downcall. Guards are not use/close barriers: stop/join users and settle
+pending operations before closure. Unclaimed asynchronous results still belong
+to their issuing operation until ownership is transferred to a caller.
 
 ### Wrappers, guards and mappers
 
-Each `Dawn*` wrapper borrows its native handle. Mappers cast WebGPU objects to
+Each resource `Dawn*` wrapper owns its native reference; `DawnQueue` only borrows
+the session-owned queue. Mappers cast WebGPU objects to
 their Dawn wrappers; cross-device use is left to Dawn's WebGPU validation.
 Pass encoders release their handle on `end()` and the render bundle encoder on
 `close()`, so each carries a Kotlin guard refusing late commands with an
@@ -89,6 +95,13 @@ Pass encoders release their handle on `end()` and the render bundle encoder on
 or bundle encoder deliberately does *not* release, so finishing twice is left
 to Dawn's own validation. Labels are Kotlin-side metadata: the C label views
 keep their defaults on every downcall.
+
+The external render-bundle and pass interfaces have no close operation.
+`DawnRenderBundle` is explicitly `AutoCloseable`; cast an interface-typed bundle
+to its Dawn wrapper to close it. Concrete `DawnComputePassEncoder` and
+`DawnRenderPassEncoder` also provide close for exception cleanup: close releases
+an abandoned pass without implicitly calling native end. Render-pass temporary
+attachment views are released on both end and close.
 
 ## The borrowed `ArrayBuffer` limitation
 

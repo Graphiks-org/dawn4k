@@ -99,6 +99,34 @@ Push de scope, appels validés et émission du pop
 doivent garder un **thread OS**, pas seulement une exécution de coroutines
 sérialisée. Voir [Architecture](architecture.fr.md).
 
+## Possession des ressources
+
+Les ressources appartiennent à l'appelant, pas à la session du device. Utiliser
+`use` ou `try/finally` et les fermer avant le device/contexte. Par exemple, avec
+la dépendance `webgpu-descriptors` :
+
+```kotlin
+import org.graphiks.webgpu.GPUBufferUsage
+import org.graphiks.webgpu.descriptors.BufferDescriptor
+
+device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.CopyDst)).use { buffer ->
+    // Utiliser le buffer ouvert ; joindre les utilisateurs avant de sortir.
+}
+```
+
+Close est idempotent et libère immédiatement la référence native acquise.
+Buffers, textures et query sets sont détruits avant cette libération. Les
+métadonnées copiées restent lisibles ; les opérations sur un handle fermé sont
+refusées. Fermer le device ne nettoie pas les références oubliées et aucun GC
+ne le fait implicitement. La file reste empruntée au device, sans close séparé.
+
+Arrêter et joindre les utilisateurs, puis régler les callbacks en attente avant
+de fermer les ressources. Les gardes ne rendent pas une course utilisation/close
+sûre. Pour un render bundle typé par l'interface externe, utiliser
+`(bundle as org.graphiks.dawn4k.DawnRenderBundle).close()`. `end()` termine et
+libère une passe ; les wrappers Dawn concrets implémentent aussi `AutoCloseable`
+pour le nettoyage après exception, sans appel implicite à end.
+
 ## Régénérer les bindings
 
 ```bash
