@@ -36,7 +36,7 @@ Appeler explicitement `DawnContext.processEvents()` : un lot fini de mailbox,
 `wgpuInstanceProcessEvents`, puis un autre lot fini. La progression concurrente
 ou réentrante est refusée. Les callbacks d'erreur utilisateur s'exécutent sur cet
 appelant ; aucune méthode suspendue/await ne pompe implicitement.
-`drainEvents()` est un alias suspendu déprécié. Annuler une attente n'annule pas
+`drainEvents()` est un alias suspendu. Annuler une attente n'annule pas
 la livraison native : ses résultats tardifs sont libérés pendant la progression.
 La fin native et le transfert de possession Kotlin sont suivis séparément.
 
