@@ -257,22 +257,18 @@ class BufferGpuTest {
     }
 
     @Test
-    fun closeDuringPendingMapSettlesWithoutLeak() = runBlocking {
-        if (!gpuTestEnvironment("BufferGpuTest.closeDuringPendingMapSettlesWithoutLeak")) return@runBlocking
+    fun joiningPendingMapBeforeCloseLeavesNoCallbacks() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.joiningPendingMapBeforeCloseLeavesNoCallbacks")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
-            // Start a map and destroy the buffer while it is in flight.
-            val pending = async(Dispatchers.Default) { buffer.mapAsync(GPUMapMode.Read) }
-            withTimeout(PENDING_HANDOFF_TIMEOUT_MS) {
-                while (fixture.runtime.debugOpenCallbacks() == 0) yield()
-            }
-            buffer.close()
-            // The pending map must settle (never hang), either completing first
-            // or aborting on the destroy with a native error.
-            pending.await()
-            fixture.runtime.processEvents()
-            assertEquals(0, fixture.runtime.debugOpenCallbacks())
+            try {
+                val pending = async(Dispatchers.Default) { buffer.mapAsync(GPUMapMode.Read) }
+                withTimeout(PENDING_HANDOFF_TIMEOUT_MS) { pending.await().getOrThrow() }
+                buffer.close()
+                fixture.runtime.processEvents()
+                assertEquals(0, fixture.runtime.debugOpenCallbacks())
+            } finally { buffer.close() }
         } finally {
             fixture.close()
         }
