@@ -43,7 +43,7 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
     /** Snapshot, not a shutdown barrier: stop producers before using this to drain. */
     fun hasPendingOperations(): Boolean = runtime.hasPendingOperations()
 
-    /** Suspend alias for one caller-owned event iteration. */
+    @Deprecated("Use processEvents(); progression is caller-owned")
     suspend fun drainEvents() = processEvents()
 
     /**
@@ -53,6 +53,7 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
      * open. Calls are inline; integrators own synchronization and lifetime.
      */
     fun nativeBridge(): NativeBridge = object : NativeBridge {
+        @Deprecated("Executes inline without synchronization or scheduling")
         override fun <T> call(block: () -> T): T = block()
         override fun instanceHandle(): Long =
             runtime.currentInstance()?.handler?.rawValue ?: 0L
