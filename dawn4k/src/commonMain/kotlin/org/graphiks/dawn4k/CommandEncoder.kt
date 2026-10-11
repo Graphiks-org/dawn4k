@@ -2,6 +2,10 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
+import org.graphiks.dawn4k.native.wgpuRenderPassEncoderRelease
+import org.graphiks.dawn4k.native.wgpuComputePassEncoderRelease
+import org.graphiks.dawn4k.native.wgpuCommandBufferRelease
 import org.graphiks.dawn4k.internal.checkedRange
 import org.graphiks.dawn4k.mapper.allocateComputePassDescriptor
 import org.graphiks.dawn4k.mapper.allocateExtent3D
@@ -66,24 +70,32 @@ class DawnCommandEncoder internal constructor(
         get() { session.requireOpen(); return reference.handle }
 
     override fun beginRenderPass(descriptor: GPURenderPassDescriptor): DawnRenderPassEncoder {
+        val nativeHandle = handle
+        val label = descriptor.label
         val temporaryViews = mutableListOf<DawnTextureView>()
-        return run {
+        return withTemporaryViews(temporaryViews) {
             memoryScope { allocator ->
                 val native = allocator.allocateRenderPassDescriptor(descriptor, temporaryViews)
-                val pass = wgpuCommandEncoderBeginRenderPass(handle, native)
+                val pass = wgpuCommandEncoderBeginRenderPass(nativeHandle, native)
                     ?: throw IllegalStateException("wgpuCommandEncoderBeginRenderPass returned no pass")
-                DawnRenderPassEncoder(session, pass, temporaryViews, descriptor.label)
+                transferOwnership(pass, release = { wgpuRenderPassEncoderRelease(it) }) {
+                    DawnRenderPassEncoder(session, it, temporaryViews, label)
+                }
             }
         }
     }
 
     override fun beginComputePass(descriptor: GPUComputePassDescriptor?): DawnComputePassEncoder =
         run {
+            val nativeHandle = handle
+            val label = descriptor?.label ?: ""
             memoryScope { allocator ->
                 val native = descriptor?.let { allocator.allocateComputePassDescriptor(it) }
-                val pass = wgpuCommandEncoderBeginComputePass(handle, native)
+                val pass = wgpuCommandEncoderBeginComputePass(nativeHandle, native)
                     ?: throw IllegalStateException("wgpuCommandEncoderBeginComputePass returned no pass")
-                DawnComputePassEncoder(session, pass, descriptor?.label ?: "")
+                transferOwnership(pass, release = { wgpuComputePassEncoderRelease(it) }) {
+                    DawnComputePassEncoder(session, it, label)
+                }
             }
         }
 
@@ -195,7 +207,9 @@ class DawnCommandEncoder internal constructor(
                 wgpuCommandEncoderFinish(handle, descriptor?.let { allocator.allocateCommandBufferDescriptor(it) })
             }
         } ?: throw IllegalStateException("wgpuCommandEncoderFinish returned no command buffer")
-        return DawnCommandBuffer(session, buffer, descriptor?.label ?: "")
+        return transferOwnership(buffer, release = { wgpuCommandBufferRelease(it) }) {
+            DawnCommandBuffer(session, it, descriptor?.label ?: "")
+        }
     }
 
     override fun pushDebugGroup(groupLabel: String) {
@@ -223,6 +237,19 @@ class DawnCommandEncoder internal constructor(
     }
 }
 
+/** Owns attachment views until construction transfers them to a render pass. */
+internal inline fun <R> withTemporaryViews(views: MutableList<DawnTextureView>, block: () -> R): R =
+    transferOwnership(views, release = { acquired ->
+        var failure: Throwable? = null
+        acquired.forEach { view ->
+            try { view.close() } catch (cleanup: Throwable) {
+                val first = failure
+                if (first == null) failure = cleanup else first.addSuppressed(cleanup)
+            }
+        }
+        failure?.let { throw it }
+    }) { block() }
+
 /** `WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT` equivalent. */
 private fun MemoryAllocator.allocateCommandBufferDescriptor(descriptor: GPUCommandBufferDescriptor): WGPUCommandBufferDescriptor {
     val native = WGPUCommandBufferDescriptor.allocate(this)
@@ -243,6 +270,6 @@ internal fun DeviceSession.createCommandEncoder(descriptor: GPUCommandEncoderDes
             }
             val handle = wgpuDeviceCreateCommandEncoder(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateCommandEncoder returned no encoder")
-            DawnCommandEncoder(this, handle, descriptor?.label ?: "")
+            transferOwnership(handle, release = { wgpuCommandEncoderRelease(it) }) { DawnCommandEncoder(this, it, descriptor?.label ?: "") }
         }
     }

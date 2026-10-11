@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocateBindGroupDescriptor
 import org.graphiks.dawn4k.native.WGPUBindGroup
 import org.graphiks.dawn4k.native.wgpuBindGroupRelease
@@ -41,6 +42,6 @@ internal fun DeviceSession.createBindGroup(descriptor: GPUBindGroupDescriptor): 
             val native = allocator.allocateBindGroupDescriptor(descriptor)
             val handle = wgpuDeviceCreateBindGroup(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateBindGroup returned no bind group")
-            DawnBindGroup(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuBindGroupRelease(it) }) { DawnBindGroup(this, it, descriptor.label) }
         }
     }

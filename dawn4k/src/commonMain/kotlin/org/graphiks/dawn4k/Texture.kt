@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocateTextureDescriptor
 import org.graphiks.dawn4k.mapper.allocateTextureViewDescriptor
 import org.graphiks.dawn4k.native.WGPUTexture
@@ -59,7 +60,9 @@ class DawnTexture internal constructor(
                 val native = descriptor?.let { allocator.allocateTextureViewDescriptor(it) }
                 val viewHandle = wgpuTextureCreateView(handle, native)
                     ?: throw IllegalStateException("wgpuTextureCreateView returned no view")
-                DawnTextureView(session, viewHandle, descriptor?.label ?: "")
+                transferOwnership(viewHandle, release = { org.graphiks.dawn4k.native.wgpuTextureViewRelease(it) }) {
+                    DawnTextureView(session, it, descriptor?.label ?: "")
+                }
             }
         }
 
@@ -75,6 +78,6 @@ internal fun DeviceSession.createTexture(descriptor: GPUTextureDescriptor): Dawn
             val native = allocator.allocateTextureDescriptor(descriptor)
             val handle = wgpuDeviceCreateTexture(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateTexture returned no texture")
-            DawnTexture(this, handle, descriptor)
+            transferOwnership(handle, release = { wgpuTextureRelease(it) }) { DawnTexture(this, it, descriptor) }
         }
     }

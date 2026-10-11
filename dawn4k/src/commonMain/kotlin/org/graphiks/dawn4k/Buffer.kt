@@ -3,6 +3,7 @@ package org.graphiks.dawn4k
 import org.graphiks.dawn4k.internal.ByteRange
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.internal.borrowedArrayBuffer
 import org.graphiks.dawn4k.internal.checkedRange
@@ -222,7 +223,7 @@ internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBu
             val nativeDescriptor = allocator.allocateBufferDescriptor(descriptor)
             val handle = wgpuDeviceCreateBuffer(this.handle, nativeDescriptor)
                 ?: throw IllegalStateException("wgpuDeviceCreateBuffer returned no buffer")
-            DawnBuffer(this, handle, descriptor)
+            transferOwnership(handle, release = { wgpuBufferRelease(it) }) { DawnBuffer(this, it, descriptor) }
         }
     }
 

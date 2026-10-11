@@ -2,6 +2,8 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
+import org.graphiks.dawn4k.native.wgpuRenderBundleRelease
 import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.allocateRenderBundleDescriptor
 import org.graphiks.dawn4k.mapper.allocateRenderBundleEncoderDescriptor
@@ -173,7 +175,9 @@ class DawnRenderBundleEncoder internal constructor(
                 wgpuRenderBundleEncoderFinish(handle, descriptor?.let { allocator.allocateRenderBundleDescriptor(it) })
             }
         } ?: throw IllegalStateException("wgpuRenderBundleEncoderFinish returned no bundle")
-        return DawnRenderBundle(session, bundle, descriptor?.label ?: "")
+        return transferOwnership(bundle, release = { wgpuRenderBundleRelease(it) }) {
+            DawnRenderBundle(session, it, descriptor?.label ?: "")
+        }
     }
 
     override fun close() {
@@ -188,6 +192,6 @@ internal fun DeviceSession.createRenderBundleEncoder(descriptor: GPURenderBundle
             val native = allocator.allocateRenderBundleEncoderDescriptor(descriptor)
             val handle = wgpuDeviceCreateRenderBundleEncoder(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateRenderBundleEncoder returned no encoder")
-            DawnRenderBundleEncoder(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuRenderBundleEncoderRelease(it) }) { DawnRenderBundleEncoder(this, it, descriptor.label) }
         }
     }

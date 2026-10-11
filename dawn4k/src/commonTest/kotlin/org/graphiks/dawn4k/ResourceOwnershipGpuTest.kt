@@ -17,11 +17,101 @@ import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.descriptors.QuerySetDescriptor
 import org.graphiks.webgpu.descriptors.Extent3D
 import org.graphiks.webgpu.descriptors.RenderBundleEncoderDescriptor
+import org.graphiks.webgpu.GPURenderPassDescriptor
+import org.graphiks.webgpu.GPURenderPassColorAttachment
+import org.graphiks.webgpu.GPUComputePipelineDescriptor
+import org.graphiks.webgpu.GPURenderPipelineDescriptor
+import org.graphiks.webgpu.descriptors.RenderPassDescriptor
+import org.graphiks.webgpu.descriptors.ComputePipelineDescriptor
+import org.graphiks.webgpu.descriptors.RenderPipelineDescriptor
+import org.graphiks.webgpu.descriptors.ProgrammableStage
+import org.graphiks.webgpu.descriptors.VertexState
+import org.graphiks.webgpu.descriptors.DepthStencilState
+import org.graphiks.webgpu.GPUCompareFunction
+import kotlin.test.assertFalse
+import org.graphiks.dawn4k.mapper.allocateRenderPassDescriptor
+import org.graphiks.kffi.memoryScope
+import org.graphiks.webgpu.GPULoadOp
+import org.graphiks.webgpu.GPUStoreOp
+import org.graphiks.webgpu.descriptors.RenderPassColorAttachment
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ResourceOwnershipGpuTest {
+    @Test
+    fun partialRenderPassMappingReleasesEveryAcquiredView() = runTest {
+        if (!gpuTestEnvironment("ResourceOwnershipGpuTest.partialRenderPassMappingReleasesEveryAcquiredView")) return@runTest
+        NativeFixture.open().use { fixture ->
+            fixture.createTexture(TextureDescriptor(Extent3D(4u, 4u), GPUTextureFormat.RGBA8Unorm,
+                GPUTextureUsage.RenderAttachment)).use { texture ->
+                val closedView = texture.createView(null) as DawnTextureView
+                closedView.close()
+                val descriptor = RenderPassDescriptor(listOf(
+                    RenderPassColorAttachment(texture, GPULoadOp.Clear, GPUStoreOp.Store),
+                    RenderPassColorAttachment(closedView, GPULoadOp.Clear, GPUStoreOp.Store),
+                ))
+                val temporary = mutableListOf<DawnTextureView>()
+                assertFailsWith<IllegalStateException> {
+                    withTemporaryViews(temporary) {
+                        memoryScope { it.allocateRenderPassDescriptor(descriptor, temporary) }
+                    }
+                }
+                assertEquals(1, temporary.size)
+                assertFailsWith<IllegalStateException> { temporary.single().handle }
+                fixture.createEncoder().use { encoder ->
+                    assertFailsWith<IllegalStateException> { encoder.beginRenderPass(descriptor) }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun closedEncoderRejectsBeforeMappingAttachments() = runTest {
+        if (!gpuTestEnvironment("ResourceOwnershipGpuTest.closedEncoderRejectsBeforeMappingAttachments")) return@runTest
+        NativeFixture.open().use { fixture ->
+            var attachmentReads = 0
+            val descriptor = object : GPURenderPassDescriptor by RenderPassDescriptor(emptyList()) {
+                override val colorAttachments: List<GPURenderPassColorAttachment?>
+                    get() { attachmentReads++; return emptyList() }
+            }
+            val encoder = fixture.createEncoder()
+            encoder.close()
+            assertFailsWith<IllegalStateException> { encoder.beginRenderPass(descriptor) }
+            assertEquals(0, attachmentReads)
+        }
+    }
+
+    @Test
+    fun asyncPipelineLabelsAreSnapshottedBeforeNativeIssuance() = runTest {
+        if (!gpuTestEnvironment("ResourceOwnershipGpuTest.asyncPipelineLabelsAreSnapshottedBeforeNativeIssuance")) return@runTest
+        NativeFixture.open().use { fixture ->
+            fixture.createShaderModule(ShaderModuleDescriptor("""
+                @compute @workgroup_size(1) fn main() {}
+                @vertex fn vertex() -> @builtin(position) vec4f { return vec4f(0.0); }
+            """.trimIndent())).use { shader ->
+                val compute = object : GPUComputePipelineDescriptor by ComputePipelineDescriptor(ProgrammableStage(shader, "main")) {
+                    override val label: String
+                        get() { assertFalse(fixture.runtime.hasPendingOperations()); return "compute snapshot" }
+                }
+                fixture.session.createComputePipelineAsync(compute).getOrThrow().use {
+                    assertEquals("compute snapshot", it.label)
+                }
+                val render = object : GPURenderPipelineDescriptor by RenderPipelineDescriptor(
+                    VertexState(shader, entryPoint = "vertex"),
+                    depthStencil = DepthStencilState(GPUTextureFormat.Depth32Float,
+                        depthWriteEnabled = false, depthCompare = GPUCompareFunction.Always),
+                ) {
+                    override val label: String
+                        get() { assertFalse(fixture.runtime.hasPendingOperations()); return "render snapshot" }
+                }
+                fixture.session.createRenderPipelineAsync(render).getOrThrow().use {
+                    assertEquals("render snapshot", it.label)
+                }
+            }
+        }
+    }
+
     @Test
     fun closedSessionRejectsDeviceAndBorrowedQueueUse() = runTest {
         if (!gpuTestEnvironment("ResourceOwnershipGpuTest.closedSessionRejectsDeviceAndBorrowedQueueUse")) return@runTest
@@ -48,7 +138,7 @@ class ResourceOwnershipGpuTest {
                 assertFailsWith<IllegalStateException> { bundle.handle }
             }
             fixture.createEncoder().use { encoder ->
-                val pass = encoder.beginComputePass() as DawnComputePassEncoder
+                val pass = encoder.beginComputePass()
                 pass.close()
                 pass.close()
                 assertFailsWith<IllegalStateException> { pass.dispatchWorkgroups(1u) }

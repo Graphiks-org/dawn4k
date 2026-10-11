@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.mapper.allocateShaderModuleDescriptor
 import org.graphiks.dawn4k.mapper.readCompilationInfo
@@ -87,6 +88,6 @@ internal fun DeviceSession.createShaderModule(descriptor: GPUShaderModuleDescrip
             val native = allocator.allocateShaderModuleDescriptor(descriptor)
             val handle = wgpuDeviceCreateShaderModule(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateShaderModule returned no shader module")
-            DawnShaderModule(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuShaderModuleRelease(it) }) { DawnShaderModule(this, it, descriptor.label) }
         }
     }

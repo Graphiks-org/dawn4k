@@ -122,8 +122,8 @@ private fun MemoryAllocator.allocateTimestampWrites(
 
 /**
  * Resolves an attachment view to its native handle: a [GPUTextureView] is used
- * directly, while a [GPUTexture] gets an owned temporary view (registered with
- * the session) that the pass encoder releases when the pass ends.
+ * directly, while a [GPUTexture] gets an owned temporary view. Construction
+ * releases acquired views on failure; a successful pass owns them until end/close.
  */
 private fun resolveAttachmentView(
     view: GPUTextureOrGPUTextureView,

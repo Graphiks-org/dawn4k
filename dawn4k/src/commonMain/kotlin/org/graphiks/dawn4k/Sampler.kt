@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocateSamplerDescriptor
 import org.graphiks.dawn4k.native.WGPUSampler
 import org.graphiks.dawn4k.native.wgpuDeviceCreateSampler
@@ -38,6 +39,6 @@ internal fun DeviceSession.createSampler(descriptor: GPUSamplerDescriptor): Dawn
             val native = allocator.allocateSamplerDescriptor(descriptor)
             val handle = wgpuDeviceCreateSampler(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateSampler returned no sampler")
-            DawnSampler(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuSamplerRelease(it) }) { DawnSampler(this, it, descriptor.label) }
         }
     }

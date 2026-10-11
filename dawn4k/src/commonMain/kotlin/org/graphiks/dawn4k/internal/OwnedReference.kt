@@ -1,5 +1,12 @@
 package org.graphiks.dawn4k.internal
 
+/** Transfers an acquired reference, releasing it if constructing its owner fails. */
+internal inline fun <H, R> transferOwnership(handle: H, release: (H) -> Unit, wrap: (H) -> R): R =
+    try { wrap(handle) } catch (failure: Throwable) {
+        try { release(handle) } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+        throw failure
+    }
+
 /**
  * One caller-owned native reference. No registry or GC fallback retains it.
  * Close claims ownership once; native actions run outside the monitor.

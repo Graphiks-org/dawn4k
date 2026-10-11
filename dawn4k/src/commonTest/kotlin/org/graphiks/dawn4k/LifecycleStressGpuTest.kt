@@ -7,6 +7,7 @@ import org.graphiks.dawn4k.testing.UncapturedErrorCollector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -126,31 +127,37 @@ class LifecycleStressGpuTest {
     fun lateCallbackAfterACancelledMapSettlesWithOneRelease() = runBlocking {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.lateCallbackAfterACancelledMapSettlesWithOneRelease")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
-        val events = context.startTestProgress(this)
+        var events = context.startTestProgress(this)
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = adapter.requestDevice().getOrThrow() as DawnDevice
             try {
                 val buffer = device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
                 try {
-                    // Hand off deterministically: the map's callback registration
-                    // is open, so the native call is in flight.
-                    val pending = async(Dispatchers.Default) { buffer.mapAsync(GPUMapMode.Read) }
-                    withTimeout(HANDOFF_TIMEOUT_MS) {
-                        while (device.session.runtime.debugOpenCallbacks() == 0) yield()
-                    }
+                    // Pause delivery so even a fast map remains outstanding.
+                    // Undispatched start completes issuance before returning.
+                    events.cancelAndJoin()
+                    val pending = async(start = CoroutineStart.UNDISPATCHED) { buffer.mapAsync(GPUMapMode.Read) }
+                    assertEquals(1, device.session.runtime.debugOpenCallbacks())
                     pending.cancel()
                     pending.join()
 
                     // The late delivery settles exactly once: the registration
                     // count returns to zero, never negative, never stuck.
-                    device.session.runtime.processEvents()
-                    device.session.runtime.processEvents()
+                    withTimeout(HANDOFF_TIMEOUT_MS) {
+                        // Native callback completion can precede deferred
+                        // rejected-result cleanup. Drain both before closing.
+                        while (context.hasPendingOperations()) {
+                            device.session.runtime.processEvents()
+                            yield()
+                        }
+                    }
                     assertEquals(
                         0,
                         device.session.runtime.debugOpenCallbacks(),
                         "the cancelled map's late callback must close its registration exactly once",
                     )
+                    events = context.startTestProgress(this)
 
                     // The buffer survived the cancelled wait without corruption:
                     // it reaches a clean terminal map state in either race outcome.
@@ -165,9 +172,8 @@ class LifecycleStressGpuTest {
                     buffer.close()
                 }
             } finally {
-                device.close()
+                try { device.close() } finally { adapter.close() }
             }
-            adapter.close()
         } finally {
             events.cancel()
             context.settleTestEvents()

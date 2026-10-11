@@ -3,6 +3,7 @@ package org.graphiks.dawn4k
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.internal.copyToString
 import org.graphiks.dawn4k.mapper.allocateRenderPipelineDescriptor
@@ -65,7 +66,7 @@ internal fun DeviceSession.createRenderPipeline(descriptor: GPURenderPipelineDes
             val native = allocator.allocateRenderPipelineDescriptor(descriptor)
             val handle = wgpuDeviceCreateRenderPipeline(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateRenderPipeline returned no pipeline")
-            DawnRenderPipeline(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuRenderPipelineRelease(it) }) { DawnRenderPipeline(this, it, descriptor.label) }
         }
     }
 
@@ -91,6 +92,7 @@ internal suspend fun DeviceSession.createRenderPipelineAsync(
 private suspend fun DeviceSession.createRenderPipelineAsyncOnSession(
     descriptor: GPURenderPipelineDescriptor,
 ): Result<DawnRenderPipeline> {
+    val label = descriptor.label
     val operation = runtime.pending<RenderPipelineOutcome>(this) { outcome ->
         // A rejected result is released during explicit callback progression.
         outcome.pipeline?.let { wgpuRenderPipelineRelease(it) }
@@ -131,7 +133,9 @@ private suspend fun DeviceSession.createRenderPipelineAsyncOnSession(
         handle?.let { wgpuRenderPipelineRelease(it) }
         return Result.failure(DawnPipelineException(outcome.status, outcome.message))
     }
-    return Result.success(DawnRenderPipeline(this, handle, descriptor.label))
+    return Result.success(transferOwnership(handle, release = { wgpuRenderPipelineRelease(it) }) {
+        DawnRenderPipeline(this, it, label)
+    })
     } finally { operation.acceptOwnership() }
 }
 

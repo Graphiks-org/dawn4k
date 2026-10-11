@@ -7,6 +7,31 @@ import kotlin.test.assertSame
 
 class OwnedReferenceTest {
     @Test
+    fun failedOwnershipTransferReleasesRawReferenceAndPreservesFailure() {
+        var releases = 0
+        val failure = IllegalArgumentException("wrapper")
+        val cleanup = IllegalStateException("release")
+        val thrown = assertFailsWith<IllegalArgumentException> {
+            transferOwnership(42, release = {
+                assertEquals(42, it)
+                releases++
+                throw cleanup
+            }) { throw failure }
+        }
+        assertSame(failure, thrown)
+        assertEquals(listOf(cleanup), thrown.suppressedExceptions)
+        assertEquals(1, releases)
+    }
+
+    @Test
+    fun successfulOwnershipTransferDoesNotRelease() {
+        var releases = 0
+        val result = transferOwnership(42, release = { releases++ }) { "owned:$it" }
+        assertEquals("owned:42", result)
+        assertEquals(0, releases)
+    }
+
+    @Test
     fun closesOnceAndRejectsHandleAccess() {
         var releases = 0
         val owner = OwnedReference(42, release = { releases++ })

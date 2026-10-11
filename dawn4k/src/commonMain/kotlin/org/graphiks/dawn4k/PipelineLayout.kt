@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocatePipelineLayoutDescriptor
 import org.graphiks.dawn4k.native.WGPUPipelineLayout
 import org.graphiks.dawn4k.native.wgpuDeviceCreatePipelineLayout
@@ -38,6 +39,6 @@ internal fun DeviceSession.createPipelineLayout(descriptor: GPUPipelineLayoutDes
             val native = allocator.allocatePipelineLayoutDescriptor(descriptor)
             val handle = wgpuDeviceCreatePipelineLayout(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreatePipelineLayout returned no layout")
-            DawnPipelineLayout(this, handle, descriptor.label)
+            transferOwnership(handle, release = { wgpuPipelineLayoutRelease(it) }) { DawnPipelineLayout(this, it, descriptor.label) }
         }
     }

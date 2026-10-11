@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocateQuerySetDescriptor
 import org.graphiks.dawn4k.native.WGPUQuerySet
 import org.graphiks.dawn4k.native.wgpuDeviceCreateQuerySet
@@ -46,6 +47,6 @@ internal fun DeviceSession.createQuerySet(descriptor: GPUQuerySetDescriptor): Da
             val native = allocator.allocateQuerySetDescriptor(descriptor)
             val handle = wgpuDeviceCreateQuerySet(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateQuerySet returned no query set")
-            DawnQuerySet(this, handle, descriptor)
+            transferOwnership(handle, release = { wgpuQuerySetRelease(it) }) { DawnQuerySet(this, it, descriptor) }
         }
     }
