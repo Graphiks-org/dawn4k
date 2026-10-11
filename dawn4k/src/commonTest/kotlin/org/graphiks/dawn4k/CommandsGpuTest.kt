@@ -25,6 +25,7 @@ import org.graphiks.webgpu.descriptors.BufferBindingLayout
 import org.graphiks.webgpu.descriptors.BufferDescriptor
 import org.graphiks.webgpu.descriptors.Color
 import org.graphiks.webgpu.descriptors.ColorTargetState
+import org.graphiks.webgpu.descriptors.ComputePassDescriptor
 import org.graphiks.webgpu.descriptors.ComputePipelineDescriptor
 import org.graphiks.webgpu.descriptors.Extent3D
 import org.graphiks.webgpu.descriptors.FragmentState
@@ -45,6 +46,7 @@ import org.graphiks.webgpu.descriptors.VertexBufferLayout
 import org.graphiks.webgpu.descriptors.VertexState
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -299,6 +301,79 @@ class CommandsGpuTest {
             assertTrue(fixture.uncapturedErrorCount() > before)
 
             commandBuffer.close()
+        } finally {
+            fixture.close()
+        }
+    }
+
+    // --- pass labels ---------------------------------------------------------
+
+    @Test
+    fun renderPassKeepsItsDescriptorLabel() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.renderPassKeepsItsDescriptorLabel")) return@runTest
+        val fixture = NativeFixture.open()
+        try {
+            fixture.createTexture(
+                TextureDescriptor(Extent3D(1u), GPUTextureFormat.RGBA8Unorm, GPUTextureUsage.RenderAttachment),
+            ).use { texture ->
+                texture.createView().use { view ->
+                    fixture.createEncoder().use { encoder ->
+                        val pass = encoder.beginRenderPass(
+                            RenderPassDescriptor(
+                                colorAttachments = listOf(
+                                    RenderPassColorAttachment(view, GPULoadOp.Clear, GPUStoreOp.Store),
+                                ),
+                                label = "initial render pass",
+                            ),
+                        )
+                        try {
+                            assertEquals("initial render pass", pass.label)
+                            pass.label = "renamed render pass"
+                            assertEquals("renamed render pass", pass.label)
+                        } finally {
+                            pass.end()
+                        }
+                    }
+                }
+            }
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun computePassKeepsItsDescriptorLabel() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.computePassKeepsItsDescriptorLabel")) return@runTest
+        val fixture = NativeFixture.open()
+        try {
+            fixture.createEncoder().use { encoder ->
+                val pass = encoder.beginComputePass(ComputePassDescriptor(label = "initial compute pass"))
+                try {
+                    assertEquals("initial compute pass", pass.label)
+                    pass.label = "renamed compute pass"
+                    assertEquals("renamed compute pass", pass.label)
+                } finally {
+                    pass.end()
+                }
+            }
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun computePassWithoutDescriptorHasAnEmptyLabel() = runTest {
+        if (!gpuTestEnvironment("CommandsGpuTest.computePassWithoutDescriptorHasAnEmptyLabel")) return@runTest
+        val fixture = NativeFixture.open()
+        try {
+            fixture.createEncoder().use { encoder ->
+                val pass = encoder.beginComputePass()
+                try {
+                    assertEquals("", pass.label)
+                } finally {
+                    pass.end()
+                }
+            }
         } finally {
             fixture.close()
         }

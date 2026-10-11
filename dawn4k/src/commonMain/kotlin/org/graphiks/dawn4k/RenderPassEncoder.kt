@@ -62,9 +62,10 @@ class DawnRenderPassEncoder internal constructor(
     internal val session: DeviceSession,
     internal val handle: WGPURenderPassEncoder,
     private val temporaryViews: List<DawnTextureView>,
+    label: String,
 ) : GPURenderPassEncoder {
 
-    override var label: String = ""
+    override var label: String = label
 
     /** Set once by [end]; a command after it would use a released native handle. */
     private var ended = false

@@ -43,9 +43,10 @@ import org.graphiks.webgpu.GPUSize64
 class DawnComputePassEncoder internal constructor(
     internal val session: DeviceSession,
     internal val handle: WGPUComputePassEncoder,
+    label: String,
 ) : GPUComputePassEncoder {
 
-    override var label: String = ""
+    override var label: String = label
 
     /** Set once by [end]; a command after it would use a released native handle. */
     private var ended = false

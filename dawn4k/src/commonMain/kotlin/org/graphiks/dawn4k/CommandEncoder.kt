@@ -71,7 +71,7 @@ class DawnCommandEncoder internal constructor(
                 val native = allocator.allocateRenderPassDescriptor(descriptor, session, temporaryViews)
                 val pass = wgpuCommandEncoderBeginRenderPass(handle, native)
                     ?: throw IllegalStateException("wgpuCommandEncoderBeginRenderPass returned no pass")
-                DawnRenderPassEncoder(session, pass, temporaryViews)
+                DawnRenderPassEncoder(session, pass, temporaryViews, descriptor.label)
             }
         }
     }
@@ -82,7 +82,7 @@ class DawnCommandEncoder internal constructor(
                 val native = descriptor?.let { allocator.allocateComputePassDescriptor(it, session) }
                 val pass = wgpuCommandEncoderBeginComputePass(handle, native)
                     ?: throw IllegalStateException("wgpuCommandEncoderBeginComputePass returned no pass")
-                DawnComputePassEncoder(session, pass)
+                DawnComputePassEncoder(session, pass, descriptor?.label ?: "")
             }
         }
 
