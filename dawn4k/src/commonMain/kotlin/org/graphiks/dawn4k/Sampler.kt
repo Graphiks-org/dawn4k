@@ -31,7 +31,7 @@ class DawnSampler internal constructor(
     }
 }
 
-/** Creates a [DawnSampler] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnSampler] on [this] session. */
 internal fun DeviceSession.createSampler(descriptor: GPUSamplerDescriptor): DawnSampler =
     run {
         memoryScope { allocator ->

@@ -57,7 +57,7 @@ class DawnComputePipeline internal constructor(
     }
 }
 
-/** Creates a [DawnComputePipeline] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnComputePipeline] on [this] session. */
 internal fun DeviceSession.createComputePipeline(descriptor: GPUComputePipelineDescriptor): DawnComputePipeline =
     run {
         memoryScope { allocator ->

@@ -80,7 +80,7 @@ class DawnShaderModule internal constructor(
     }
 }
 
-/** Creates a [DawnShaderModule] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnShaderModule] on [this] session. */
 internal fun DeviceSession.createShaderModule(descriptor: GPUShaderModuleDescriptor): DawnShaderModule =
     run {
         memoryScope { allocator ->

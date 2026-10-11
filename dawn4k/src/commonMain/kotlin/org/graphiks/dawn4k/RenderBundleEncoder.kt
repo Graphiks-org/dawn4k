@@ -44,7 +44,7 @@ import org.graphiks.webgpu.GPUSignedOffset32
  * Exclusively owned by one caller; independent bundle encoders may run on
  * different consumer threads. Join users before closing resources.
  * Refcount-only: [close] releases the reference immediately, so any command or
- * [finish] after it would dereference a freed handle. A Kotlin [closed] flag
+ * [finish] after it would dereference a freed handle. A local ownership guard
  * refuses them with an [IllegalStateException] before a downcall — mirroring
  * the pass encoders. [finish] itself does NOT release the handle (only [close]
  * does), so finishing twice WITHOUT closing stays valid and a second [finish]
@@ -181,7 +181,7 @@ class DawnRenderBundleEncoder internal constructor(
     }
 }
 
-/** Creates a [DawnRenderBundleEncoder] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnRenderBundleEncoder] on [this] session. */
 internal fun DeviceSession.createRenderBundleEncoder(descriptor: GPURenderBundleEncoderDescriptor): DawnRenderBundleEncoder =
     run {
         memoryScope { allocator ->

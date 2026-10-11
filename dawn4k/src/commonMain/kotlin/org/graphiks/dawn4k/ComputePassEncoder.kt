@@ -31,12 +31,11 @@ import org.graphiks.webgpu.GPUSize64
 
 /**
  * The pass and its parent encoder require exclusive caller use, without scheduling.
- * A raw [GPUComputePassEncoder] borrowed from its owning command encoder. It has
- * no [close]: the pass handle is released when [end] is called, or by the session
- * teardown if the pass is never ended.
+ * A caller-owned [GPUComputePassEncoder]. [end] releases its native reference;
+ * [close] releases an abandoned pass without implicitly ending it.
  *
  * [end] releases the native handle, so any command after it would dereference a
- * freed handle. A Kotlin [ended] flag refuses both a second [end] and any later
+ * freed handle. A local ownership guard refuses both a second [end] and any later
  * command with an [IllegalStateException] before a downcall — unlike the command
  * encoder's [DawnCommandEncoder.finish], whose "finish twice" validation error is
  * deliberately left to Dawn (the encoder handle is only released by [close]).

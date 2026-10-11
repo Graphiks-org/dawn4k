@@ -27,10 +27,13 @@ import org.graphiks.webgpu.GPUTexelCopyTextureInfo
  */
 class DawnQueue internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUQueue,
+    private val queueHandle: WGPUQueue,
 ) : GPUQueue {
 
     override var label: String = ""
+
+    internal val handle: WGPUQueue
+        get() { session.requireOpen(); return queueHandle }
 
     override fun submit(commandBuffers: List<GPUCommandBuffer>) {
         run {

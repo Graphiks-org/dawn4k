@@ -214,8 +214,7 @@ private fun mapStateOf(state: WGPUBufferMapState): GPUBufferMapState = when (sta
 }
 
 /**
- * Creates a [DawnBuffer] on [this] session and registers it with the session's
- * resource registry, so the session releases the native reference on teardown.
+ * Creates a caller-owned [DawnBuffer]. Close it before its device session.
  */
 internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBuffer =
     run {
@@ -232,6 +231,7 @@ internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBu
  * Settled by explicit event progression through a queue work-done callback.
  */
 internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
+    requireOpen()
     val operation = runtime.pending<Unit>(this) { }
     run {
         var registration: CallbackRegistration<WGPUQueueWorkDoneCallback>? = null

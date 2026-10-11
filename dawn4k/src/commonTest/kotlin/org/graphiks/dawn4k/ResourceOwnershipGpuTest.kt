@@ -23,6 +23,20 @@ import kotlin.test.assertFailsWith
 
 class ResourceOwnershipGpuTest {
     @Test
+    fun closedSessionRejectsDeviceAndBorrowedQueueUse() = runTest {
+        if (!gpuTestEnvironment("ResourceOwnershipGpuTest.closedSessionRejectsDeviceAndBorrowedQueueUse")) return@runTest
+        NativeFixture.open().use { fixture ->
+            val device = DawnDevice(fixture.session, null, false)
+            val queue = fixture.queue
+            device.close()
+            assertFailsWith<IllegalStateException> { device.nativeHandle() }
+            assertFailsWith<IllegalStateException> { queue.handle }
+            assertFailsWith<IllegalStateException> { queue.submit(emptyList()) }
+            assertFailsWith<IllegalStateException> { device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.CopyDst)) }
+        }
+    }
+
+    @Test
     fun bundleHasIndependentExplicitOwnership() = runTest {
         if (!gpuTestEnvironment("ResourceOwnershipGpuTest.bundleHasIndependentExplicitOwnership")) return@runTest
         NativeFixture.open().use { fixture ->

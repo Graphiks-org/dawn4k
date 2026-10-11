@@ -59,9 +59,8 @@ import kotlin.test.assertTrue
  * an optional feature that stays checkable when absent, and the render bundle
  * encoder's close guard with finish-twice left to Dawn.
  *
- * Ownership states end with zero registered references — asserted through the
- * session's debug counters (debugRemainingRefs / debugOpenCallbacks), never by
- * dereferencing released memory. Standard tasks run these tests; adapter
+ * Resource closure is checked through guarded handles and callback completion,
+ * never by dereferencing released memory. Standard tasks run these tests; adapter
  * absence is reported explicitly (or fails in strict mode).
  */
 class LifecycleStressGpuTest {
@@ -80,43 +79,16 @@ class LifecycleStressGpuTest {
                 adapter.requestDevice().getOrThrow().let { publicDevice ->
                     val device = publicDevice as DawnDevice
                     try {
-                        // A fresh session owns exactly its queue reference.
-                        val queueRef = device.session.resources.debugRemainingRefs()
-                        assertEquals(1, queueRef, "a fresh session owns only its queue reference")
-
-                        // Refcount-only: the first close releases the entry, the
-                        // second is a no-op.
                         device.createSampler().let { sampler ->
                             sampler.close()
-                            assertEquals(
-                                queueRef,
-                                device.session.resources.debugRemainingRefs(),
-                                "the first sampler close must release its reference",
-                            )
                             sampler.close()
-                            assertEquals(
-                                queueRef,
-                                device.session.resources.debugRemainingRefs(),
-                                "a repeated sampler close must not release twice",
-                            )
+                            assertFailsWith<IllegalStateException> { (sampler as DawnSampler).handle }
                         }
 
-                        // Destroy-backed: close destroys once and keeps the
-                        // tombstone until teardown; a repeated close neither
-                        // destroys again nor throws.
                         device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.Uniform)).let { buffer ->
                             buffer.close()
-                            assertEquals(
-                                queueRef + 1,
-                                device.session.resources.debugRemainingRefs(),
-                                "the destroyed buffer keeps its tombstone until teardown",
-                            )
                             buffer.close()
-                            assertEquals(
-                                queueRef + 1,
-                                device.session.resources.debugRemainingRefs(),
-                                "a repeated buffer close must not act twice",
-                            )
+                            assertFailsWith<IllegalStateException> { (buffer as DawnBuffer).handle }
                         }
 
                         device.createTexture(
@@ -127,28 +99,15 @@ class LifecycleStressGpuTest {
                             ),
                         ).let { texture ->
                             texture.close()
-                            assertEquals(
-                                queueRef + 2,
-                                device.session.resources.debugRemainingRefs(),
-                                "the destroyed texture adds its tombstone to the buffer's",
-                            )
                             texture.close()
-                            assertEquals(
-                                queueRef + 2,
-                                device.session.resources.debugRemainingRefs(),
-                                "a repeated texture close must not act twice",
-                            )
+                            assertFailsWith<IllegalStateException> { (texture as DawnTexture).handle }
                         }
                     } finally {
                         device.close()
                     }
-                    // The session close is idempotent too and leaves nothing registered.
+                    // Session close is idempotent too.
                     device.close()
-                    assertEquals(
-                        0,
-                        device.session.resources.debugRemainingRefs(),
-                        "the teardown must release every reference including the queue's",
-                    )
+                    assertFailsWith<IllegalStateException> { device.nativeHandle() }
                 }
             }
         } finally {
@@ -206,7 +165,6 @@ class LifecycleStressGpuTest {
                 }
             } finally {
                 device.close()
-                assertEquals(0, device.session.resources.debugRemainingRefs())
             }
             adapter.close()
         } finally {
@@ -237,9 +195,6 @@ class LifecycleStressGpuTest {
                         BufferDescriptor(16uL, GPUBufferUsage.CopySrc or GPUBufferUsage.CopyDst),
                     )
                     try {
-                        val ownedByB = deviceB.session.resources.debugRemainingRefs()
-                        val ownedByA = deviceA.session.resources.debugRemainingRefs()
-
                         // Dawn reports cross-device use through a WebGPU error scope,
                         // not a Kotlin exception. Encoder validation is deferred to finish.
                         deviceB.pushErrorScope(GPUErrorFilter.Validation)
@@ -248,18 +203,6 @@ class LifecycleStressGpuTest {
                             encoder.finish().close()
                         }
                         assertIs<GPUValidationError>(deviceB.popErrorScope().getOrThrow())
-
-                        // Validation must not transfer the foreign buffer's ownership.
-                        assertEquals(
-                            ownedByB,
-                            deviceB.session.resources.debugRemainingRefs(),
-                            "the refusing session must not register the foreign buffer",
-                        )
-                        assertEquals(
-                            ownedByA,
-                            deviceA.session.resources.debugRemainingRefs(),
-                            "the owning session keeps the refused buffer's reference",
-                        )
 
                         // The foreign buffer is still usable through ITS device:
                         // the refusal never released or corrupted its handle.
@@ -276,9 +219,7 @@ class LifecycleStressGpuTest {
                     }
                 } finally {
                     deviceB.close()
-                    assertEquals(0, deviceB.session.resources.debugRemainingRefs())
                     deviceA.close()
-                    assertEquals(0, deviceA.session.resources.debugRemainingRefs())
                 }
             } finally {
                 adapterB.close()
@@ -294,37 +235,23 @@ class LifecycleStressGpuTest {
     // --- a hundred devices ----------------------------------------------------
 
     @Test
-    fun aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs() = runBlocking {
-        if (!gpuTestEnvironment("LifecycleStressGpuTest.aHundredDevicesOpenAndCloseLeavingNoRegisteredRefs")) return@runBlocking
+    fun aHundredDevicesAndCallerOwnedBuffersCloseCleanly() = runBlocking {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.aHundredDevicesAndCallerOwnedBuffersCloseCleanly")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
         val events = context.startTestProgress(this)
         var runtime: org.graphiks.dawn4k.internal.DawnRuntime? = null
         try {
-            repeat(100) { index ->
+            repeat(100) {
                 val adapter = context.requestAdapter().getOrThrow()
                 val device = adapter.requestDevice().getOrThrow() as DawnDevice
                 runtime = device.session.runtime
-                // The fresh session owns exactly its queue reference.
-                assertEquals(
-                    1,
-                    device.session.resources.debugRemainingRefs(),
-                    "iteration $index: a fresh session owns only its queue reference",
-                )
-                // A destroy-backed resource closed mid-life keeps its tombstone
-                // registered until the teardown — exactly one more entry.
-                device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.Uniform)).close()
-                assertEquals(
-                    2,
-                    device.session.resources.debugRemainingRefs(),
-                    "iteration $index: the closed buffer keeps only its tombstone",
-                )
+                val buffer = device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.Uniform)) as DawnBuffer
+                buffer.close()
+                buffer.close()
+                assertFailsWith<IllegalStateException> { buffer.handle }
                 device.close()
                 device.close()
-                assertEquals(
-                    0,
-                    device.session.resources.debugRemainingRefs(),
-                    "iteration $index: the teardown must release every registered reference",
-                )
+                assertFailsWith<IllegalStateException> { device.nativeHandle() }
                 adapter.close()
             }
             assertEquals(
@@ -350,7 +277,6 @@ class LifecycleStressGpuTest {
             val adapter = context.requestAdapter().getOrThrow()
             val device = requestObservedDevice(adapter)
             try {
-                val baseline = device.session.resources.debugRemainingRefs()
                 val beforeErrors = uncapturedErrorCount(device)
 
                 // Created from a foreign thread, completed on the worker, and
@@ -360,8 +286,6 @@ class LifecycleStressGpuTest {
                     device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
                 }.await()
                 try {
-                    assertEquals(baseline + 1, device.session.resources.debugRemainingRefs())
-
                     // A queue write issued from another foreign thread.
                     async(Dispatchers.Default) {
                         device.queue.writeBuffer(foreignBuffer, 0uL, ArrayBuffer.of(uintArrayOf(7u, 7u)))
@@ -382,14 +306,11 @@ class LifecycleStressGpuTest {
                     foreignBuffer.unmap()
                     assertEquals(beforeErrors, uncapturedErrorCount(device))
                 } finally {
-                    // The buffer is destroy-backed: its close keeps the tombstone
-                    // registered until the teardown below releases it.
                     foreignBuffer.close()
                 }
-                assertEquals(baseline + 1, device.session.resources.debugRemainingRefs())
+                assertFailsWith<IllegalStateException> { (foreignBuffer as DawnBuffer).handle }
             } finally {
                 device.close()
-                assertEquals(0, device.session.resources.debugRemainingRefs())
             }
             adapter.close()
         } finally {
@@ -607,7 +528,6 @@ class LifecycleStressGpuTest {
                             }
                         } finally {
                             device.close()
-                            assertEquals(0, device.session.resources.debugRemainingRefs())
                         }
                     }
                 } else {
@@ -709,15 +629,13 @@ class LifecycleStressGpuTest {
                     try {
                         encoder.setPipeline(pipeline)
                         encoder.draw(3u)
-                        // The finished bundle is session-owned: the interface has
-                        // no close, so it stays registered until the teardown.
-                        encoder.finish()
+                        (encoder.finish() as DawnRenderBundle).close()
 
                         // finish does NOT release the encoder handle: a second
                         // finish without close must reach Dawn and surface its
                         // validation error — never the Kotlin guard.
                         val before = uncapturedErrorCount(device)
-                        runCatching { encoder.finish() }
+                        runCatching { encoder.finish() }.getOrNull()?.let { (it as DawnRenderBundle).close() }
                         device.queue.onSubmittedWorkDone().getOrThrow()
                         assertTrue(
                             uncapturedErrorCount(device) > before,
@@ -747,11 +665,6 @@ class LifecycleStressGpuTest {
                         block(device)
                     } finally {
                         device.close()
-                        assertEquals(
-                            0,
-                            device.session.resources.debugRemainingRefs(),
-                            "the teardown must release every registered reference",
-                        )
                     }
                 }
             }

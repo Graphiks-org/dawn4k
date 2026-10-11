@@ -16,7 +16,7 @@ import org.graphiks.webgpu.GPUSize32Out
 /**
  * A raw [GPUQuerySet] backed by a Dawn `WGPUQuerySet`. Its descriptor metadata
  * (type and count) is reported back verbatim; [close] destroys the query set and
- * keeps the tombstone handle until teardown.
+ * releases its native reference immediately.
  */
 class DawnQuerySet internal constructor(
     internal val session: DeviceSession,
@@ -39,7 +39,7 @@ class DawnQuerySet internal constructor(
     }
 }
 
-/** Creates a [DawnQuerySet] on [this] session and registers it with the resource registry. */
+/** Creates a caller-owned [DawnQuerySet] on [this] session. */
 internal fun DeviceSession.createQuerySet(descriptor: GPUQuerySetDescriptor): DawnQuerySet =
     run {
         memoryScope { allocator ->

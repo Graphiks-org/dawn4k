@@ -32,7 +32,7 @@ class DawnBindGroupLayout internal constructor(
     }
 }
 
-/** Creates a [DawnBindGroupLayout] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnBindGroupLayout] on [this] session. */
 internal fun DeviceSession.createBindGroupLayout(descriptor: GPUBindGroupLayoutDescriptor): DawnBindGroupLayout =
     run {
         memoryScope { allocator ->

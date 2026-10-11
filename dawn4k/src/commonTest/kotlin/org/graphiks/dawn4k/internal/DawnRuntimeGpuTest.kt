@@ -55,10 +55,8 @@ class DawnRuntimeGpuTest {
         try {
             repeat(20) {
                 val session = runtime.openSession()
-                // Only the queue ref is owned so far; later tasks add more.
-                assertEquals(1, session.resources.debugRemainingRefs())
                 session.close()
-                assertEquals(0, session.resources.debugRemainingRefs())
+                assertFailsWith<IllegalStateException> { session.handle }
                 session.close()
                 runtime.processEvents()
             }
@@ -122,6 +120,8 @@ class DawnRuntimeGpuTest {
             }
             assertIs<DawnComputePipeline>(compute.await().getOrThrow()).close()
             assertIs<DawnRenderPipeline>(render.await().getOrThrow()).close()
+            computeShader.close()
+            renderShader.close()
             session.close()
             runtime.settleTestEvents()
         } finally {

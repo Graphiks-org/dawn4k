@@ -134,6 +134,7 @@ class DawnDevice internal constructor(
 
     override val adapterInfo: GPUAdapterInfo
         get() = run {
+            session.requireOpen()
             memoryScope { allocator ->
                 val native = allocator.allocateAdapterInfoSnapshot()
                 requireWgpuSuccess(wgpuAdapterGetInfo(session.adapter, native), "wgpuAdapterGetInfo")
@@ -171,9 +172,9 @@ class DawnDevice internal constructor(
      *
      * The caller must supply a live nonzero view from this exact device; a raw
      * address cannot establish device provenance. On successful return the
-     * session owns the reference and releases it through [GPUTextureView.close]
-     * or device teardown. On failure ownership remains with the caller.
-      * Registration is inline; callers must not race it with device teardown.
+     * returned wrapper owns the reference and releases it through
+     * [GPUTextureView.close]. On failure ownership remains with the caller.
+     * Adoption is inline; callers must not race it with device teardown.
      */
     fun adoptSurfaceTextureView(handle: Long, label: String = "surface-view"): GPUTextureView =
         run {

@@ -23,7 +23,7 @@ import org.graphiks.webgpu.GPUSize32Out
 /**
  * A raw [GPUTexture] backed by a Dawn `WGPUTexture`. Its descriptor metadata
  * (size, mip/sample counts, dimension, format, usage) is reported back verbatim;
- * [close] destroys the texture and keeps the tombstone handle until teardown.
+ * [close] destroys the texture and releases its native reference immediately.
  */
 class DawnTexture internal constructor(
     internal val session: DeviceSession,
@@ -68,7 +68,7 @@ class DawnTexture internal constructor(
     }
 }
 
-/** Creates a [DawnTexture] on [this] session and registers it with the resource registry. */
+/** Creates a caller-owned [DawnTexture] on [this] session. */
 internal fun DeviceSession.createTexture(descriptor: GPUTextureDescriptor): DawnTexture =
     run {
         memoryScope { allocator ->

@@ -16,25 +16,26 @@ import org.graphiks.webgpu.GPUError
 
 /**
  * One raw device session: it owns the adapter, device and queue references it
- * was opened with, and the [ResourceRegistry] of every reference acquired
- * afterwards.
+ * was opened with. Resource wrappers own their references independently;
+ * callers must close them before closing the session.
  *
  * The queue is an owned reference even without a public close: it is
- * registered with the registry, and the registry releases it — with every
- * other owned reference — before the device and adapter references, on the
+ * released explicitly before the device and adapter references, on the
  * closing caller. Device/adapter releases follow explicitly progressed loss.
  *
  * Device sessions must be closed before their runtime.
  */
 internal class DeviceSession internal constructor(
     internal val runtime: DawnRuntime,
-    internal val handle: WGPUDevice,
+    handle: WGPUDevice,
     internal val queueHandle: WGPUQueue,
     internal val adapter: WGPUAdapter,
     internal val callbacks: DeviceCallbacks,
 ) : AutoCloseable {
 
-    internal val resources: ResourceRegistry = ResourceRegistry()
+    private val deviceHandle = handle
+    internal val handle: WGPUDevice
+        get() { requireOpen(); return deviceHandle }
 
     /**
      * The session's owned queue, wrapped once and cached for the session's
@@ -46,7 +47,6 @@ internal class DeviceSession internal constructor(
     internal val queue: DawnQueue by lazy { DawnQueue(this, queueHandle) }
 
     init {
-        resources.own(queueHandle, destroy = null, release = { wgpuQueueRelease(queueHandle) })
         runtime.registerSession(this)
     }
 
@@ -66,12 +66,12 @@ internal class DeviceSession internal constructor(
         runtime.beginTeardown(this)
         callbacks.lost.invokeOnCompletion {
             runtime.postCallback {
-                try { wgpuDeviceRelease(handle) } finally {
+                try { wgpuDeviceRelease(deviceHandle) } finally {
                     try { wgpuAdapterRelease(adapter) } finally { runtime.finishTeardown(this) }
                 }
             }
         }
-        try { resources.close() } finally { wgpuDeviceDestroy(handle) }
+        try { wgpuQueueRelease(queueHandle) } finally { wgpuDeviceDestroy(deviceHandle) }
     }
 }
 

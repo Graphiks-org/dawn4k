@@ -73,12 +73,13 @@ class SurfaceTextureViewGpuTest {
             val texture = texture(fixture)
             val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
             try {
+                texture.close()
                 device.close()
                 assertFailsWith<IllegalStateException> { device.adoptSurfaceTextureView(raw.handler.rawValue) }
-                assertEquals(0, fixture.session.resources.debugRemainingRefs())
             } finally {
                 // Failure must not transfer/release the raw reference. Caller still owns it.
                 wgpuTextureViewRelease(raw)
+                texture.close()
             }
         }
     }

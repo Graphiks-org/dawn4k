@@ -58,7 +58,7 @@ class DawnRenderPipeline internal constructor(
 }
 
 
-/** Creates a [DawnRenderPipeline] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnRenderPipeline] on [this] session. */
 internal fun DeviceSession.createRenderPipeline(descriptor: GPURenderPipelineDescriptor): DawnRenderPipeline =
     run {
         memoryScope { allocator ->

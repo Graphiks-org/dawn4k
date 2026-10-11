@@ -231,7 +231,7 @@ private fun MemoryAllocator.allocateCommandBufferDescriptor(descriptor: GPUComma
     return native
 }
 
-/** Creates a [DawnCommandEncoder] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnCommandEncoder] on [this] session. */
 internal fun DeviceSession.createCommandEncoder(descriptor: GPUCommandEncoderDescriptor? = null): DawnCommandEncoder =
     run {
         memoryScope { allocator ->

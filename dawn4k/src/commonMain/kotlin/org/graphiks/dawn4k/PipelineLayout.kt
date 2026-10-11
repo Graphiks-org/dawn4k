@@ -31,7 +31,7 @@ class DawnPipelineLayout internal constructor(
     }
 }
 
-/** Creates a [DawnPipelineLayout] on [this] session and registers its reference. */
+/** Creates a caller-owned [DawnPipelineLayout] on [this] session. */
 internal fun DeviceSession.createPipelineLayout(descriptor: GPUPipelineLayoutDescriptor): DawnPipelineLayout =
     run {
         memoryScope { allocator ->
