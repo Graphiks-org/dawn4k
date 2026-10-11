@@ -53,18 +53,17 @@ import org.graphiks.kffi.memoryScope
  *
  * The surface is created from the raw native handles exposed by `:dawn4k`'s
  * platform-integrator accessors ([NativeBridge], `DawnDevice.nativeHandle()`).
- * Every native call is routed through [bridge.call] so it runs on the backend's
- * worker thread — the only thread allowed to touch Dawn handles.
+ * Native calls execute directly on the caller. The consumer synchronizes surface
+ * operations and ensures that native presentation targets outlive the surface.
  *
  * The current texture is BORROWED from the surface: it is released after
  * [present], never destroyed. [BorrowedSurfaceTexture.close] releases only
  * the acquired reference, including when encoding or presentation fails.
  */
-class DawnSurface private constructor(
-    private val bridge: NativeBridge,
+internal class DawnSurface private constructor(
     private val device: WGPUDevice,
     private val handle: WGPUSurface,
-) : AutoCloseable {
+) : PresentationSurface {
 
     private var configuredWidth: Int = 0
     private var configuredHeight: Int = 0
@@ -74,13 +73,13 @@ class DawnSurface private constructor(
         WGPUCompositeAlphaMode_Auto, WGPUPresentMode_Fifo,
     )
 
-    val textureFormat: GPUTextureFormat get() = configuration.textureFormat
+    override val textureFormat: GPUTextureFormat get() = configuration.textureFormat
 
     /** Adapter must remain alive; returned members are copied and then freed. */
-    internal fun configureForAdapter(adapterHandle: Long, requiredFormat: GPUTextureFormat? = null): SurfaceConfiguration {
+    override fun configureForAdapter(adapterHandle: Long, requiredFormat: GPUTextureFormat?): SurfaceConfiguration {
         check(!closed) { "the surface is closed" }
         require(adapterHandle != 0L) { "the adapter is closed: no adapter handle" }
-        return bridge.call {
+        return run {
             memoryScope { allocator ->
                 val capabilities = WGPUSurfaceCapabilities.allocate(allocator)
                 capabilities.nextInChain = null
@@ -188,7 +187,7 @@ class DawnSurface private constructor(
             val instanceHandle = bridge.instanceHandle()
             require(instanceHandle != 0L) { "the context is closed: no instance handle" }
             require(deviceHandle != 0L) { "the device is closed: no device handle" }
-            return bridge.call {
+            return run {
                 memoryScope { allocator ->
                     val instance = WGPUInstance(NativeAddress(instanceHandle))
                     val device = WGPUDevice(NativeAddress(deviceHandle))
@@ -200,7 +199,7 @@ class DawnSurface private constructor(
 
                     val surface = wgpuInstanceCreateSurface(instance, descriptor)
                         ?: throw IllegalStateException("wgpuInstanceCreateSurface returned no surface")
-                    DawnSurface(bridge, device, surface)
+                    DawnSurface(device, surface)
                 }
             }
         }
@@ -211,10 +210,10 @@ class DawnSurface private constructor(
      * Configures (or reconfigures) the surface for [width]×[height] pixels.
      * Safe to call again on resize.
      */
-    fun configure(width: Int, height: Int) {
+    override fun configure(width: Int, height: Int) {
         check(!closed) { "the surface is closed" }
         require(width > 0 && height > 0) { "dimensions must be positive, was ${width}x${height}" }
-        bridge.call {
+        run {
             memoryScope { allocator ->
                 val config = WGPUSurfaceConfiguration.allocate(allocator)
                 config.nextInChain = null
@@ -235,10 +234,10 @@ class DawnSurface private constructor(
     }
 
     /** The configured width, or 0 before the first [configure]. */
-    val width: Int get() = configuredWidth
+    override val width: Int get() = configuredWidth
 
     /** The configured height, or 0 before the first [configure]. */
-    val height: Int get() = configuredHeight
+    override val height: Int get() = configuredHeight
 
     /**
      * Acquires a borrowed surface texture reference; close it after presentation.
@@ -247,9 +246,9 @@ class DawnSurface private constructor(
      * @throws SurfaceOutdatedException when the surface must be reconfigured
      *         (resize, mode change) before the next frame.
      */
-    fun acquireFrame(): BorrowedSurfaceTexture {
+    override fun acquireFrame(): BorrowedSurfaceTexture {
         check(!closed) { "the surface is closed" }
-        return bridge.call {
+        return run {
             memoryScope { allocator ->
                 val surfaceTexture = WGPUSurfaceTexture.allocate(allocator)
                 surfaceTexture.nextInChain = null
@@ -261,7 +260,7 @@ class DawnSurface private constructor(
                     WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal -> {
                         val texture = surfaceTexture.texture
                             ?: throw IllegalStateException("surface texture is null despite success status")
-                        BorrowedSurfaceTexture(bridge, texture)
+                        BorrowedSurfaceTexture(texture)
                     }
                     WGPUSurfaceGetCurrentTextureStatus_Outdated,
                     WGPUSurfaceGetCurrentTextureStatus_Lost ->
@@ -278,10 +277,10 @@ class DawnSurface private constructor(
      * Presents [texture] (acquired by [acquireFrame]). Use it in a `use` block
      * to release the reference even when encoding or presentation fails.
      */
-    fun present(texture: BorrowedSurfaceTexture) {
+    override fun present(texture: BorrowedSurfaceTexture) {
         check(!closed) { "the surface is closed" }
         check(!texture.released) { "the surface texture is released" }
-        bridge.call {
+        run {
             val status = wgpuSurfacePresent(handle)
             if (status != WGPUStatus_Success) {
                 throw IllegalStateException("wgpuSurfacePresent failed (status=$status)")
@@ -292,7 +291,7 @@ class DawnSurface private constructor(
     override fun close() {
         if (closed) return
         closed = true
-        bridge.call {
+        run {
             wgpuSurfaceUnconfigure(handle)
             wgpuSurfaceRelease(handle)
         }
@@ -307,14 +306,13 @@ class SurfaceOutdatedException(message: String) : IllegalStateException(message)
  * never destroys the texture owned by the surface.
  */
 class BorrowedSurfaceTexture internal constructor(
-    private val bridge: NativeBridge,
     internal val handle: WGPUTexture,
 ) : AutoCloseable {
     internal var released = false
         private set
 
     /** Creates an owned view while keeping this surface texture borrowed. */
-    fun createView(device: DawnDevice): GPUTextureView = bridge.call {
+    fun createView(device: DawnDevice): GPUTextureView = run {
         check(!released) { "the surface texture is released" }
         val view = wgpuTextureCreateView(handle, null)
             ?: error("wgpuTextureCreateView returned no view")
@@ -326,7 +324,7 @@ class BorrowedSurfaceTexture internal constructor(
         }
     }
 
-    override fun close() = bridge.call {
+    override fun close() = run {
         if (!released) {
             released = true
             wgpuTextureRelease(handle)

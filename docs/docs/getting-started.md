@@ -91,8 +91,8 @@ active handles: context closure refuses pending operations or open children.
 This sample is not a complete recovery strategy for a stuck driver.
 
 Use `processEvents()` to progress callbacks explicitly; no await method pumps
-events. `drainEvents()` is a deprecated alias. `NativeBridge.call` is a deprecated
-inline helper, not a lock or dispatcher. Error-scope push, validated calls
+events. Platform integrators use `NativeBridge.instanceHandle()` and issue native
+calls directly, with application-owned synchronization and lifetime. Error-scope push, validated calls
 and pop issuance must retain one **OS thread**, not merely serial coroutine
 execution. See [Architecture](architecture.md).
 

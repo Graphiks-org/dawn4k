@@ -15,7 +15,6 @@ import org.graphiks.dawn4k.NativeBridge
 
 class WaylandSurfaceTest {
     private val noNativeCalls = object : NativeBridge {
-        override fun <T> call(block: () -> T): T = error("invalid handles must not call native code")
         override fun instanceHandle(): Long = error("invalid handles must not access instance")
     }
     @Test fun rejectsNullDisplayOrSurfaceBeforeCallingNativeCode() {

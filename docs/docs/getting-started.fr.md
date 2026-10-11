@@ -92,8 +92,9 @@ libération de handles actifs : close refuse les opérations en vol et enfants
 ouverts. Cet exemple n'est pas une stratégie complète face à un driver bloqué.
 
 Utiliser `processEvents()` pour progresser explicitement les callbacks ; aucune
-attente ne pompe les événements. `drainEvents()` est un alias déprécié.
-`NativeBridge.call` est un helper inline déprécié, sans lock ni dispatcher.
+attente ne pompe les événements. Les intégrateurs utilisent
+`NativeBridge.instanceHandle()` et émettent les appels natifs directement, en
+assurant eux-mêmes la synchronisation et la durée de vie.
 Push de scope, appels validés et émission du pop
 doivent garder un **thread OS**, pas seulement une exécution de coroutines
 sérialisée. Voir [Architecture](architecture.fr.md).

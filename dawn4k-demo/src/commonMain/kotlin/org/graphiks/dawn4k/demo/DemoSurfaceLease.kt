@@ -11,7 +11,7 @@ internal interface DemoSurfaceLease : AutoCloseable {
     val backend: DawnBackend
     val valid: Boolean
     fun pixelExtent(): PixelExtent
-    fun createSurface(bridge: NativeBridge, device: DawnDevice): DawnSurface
+    fun createSurface(bridge: NativeBridge, device: DawnDevice): PresentationSurface
 }
 
 /** Compatibility adapter; native host lifetime transfers to the lease. */
@@ -27,7 +27,7 @@ internal class DesktopSurfaceLease(
         val (width, height) = host.pixelSize()
         return PixelExtent(width, height)
     }
-    override fun createSurface(bridge: NativeBridge, device: DawnDevice): DawnSurface {
+    override fun createSurface(bridge: NativeBridge, device: DawnDevice): PresentationSurface {
         check(valid) { "the viewport lease is invalid" }
         return host.createSurface(bridge, device.nativeHandle())
     }

@@ -39,7 +39,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                 val bridge = context.nativeBridge()
                 val clock = controller.frameClock
                 var scene: ParticleScene? = null
-                var presentation: DawnSurface? = null
+                var presentation: PresentationSurface? = null
                 var presentationFormat: org.graphiks.webgpu.GPUTextureFormat? = null
                 var generation = -1L
                 var resetGeneration = 0L
@@ -151,7 +151,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
     }
 }
 
-private suspend fun renderLoop(device: DawnDevice, surface: DawnSurface, host: SurfaceHost,
+private suspend fun renderLoop(device: DawnDevice, surface: PresentationSurface, host: SurfaceHost,
     bridge: NativeBridge, controls: ParticleControls) {
     var scene = ParticleScene.create(device, surface.textureFormat, initialParticles(controls.state.value.count))
     println("[demo] scene ready — starting render loop")

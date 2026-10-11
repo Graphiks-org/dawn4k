@@ -100,8 +100,6 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         } finally { lock.withLock { processing = false } }
     }
 
-    suspend fun drainEvents() = processEvents()
-
     fun hasPendingOperations(): Boolean = operations.hasPending() || !mailbox.isEmpty() ||
         lock.withLock { teardowns.isNotEmpty() || rejectedDevices.isNotEmpty() }
 

@@ -273,7 +273,7 @@ class BufferGpuTest {
             // The pending map must settle (never hang), either completing first
             // or aborting on the destroy with a native error.
             pending.await()
-            fixture.runtime.drainEvents()
+            fixture.runtime.processEvents()
             assertEquals(0, fixture.runtime.debugOpenCallbacks())
         } finally {
             fixture.close()

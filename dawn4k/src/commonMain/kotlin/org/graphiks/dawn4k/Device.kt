@@ -165,8 +165,8 @@ class DawnDevice internal constructor(
     /**
      * The raw `WGPUDevice` pointer of this device, for platform integrators
      * (surface bridges). Not part of the WebGPU contract: the handle is valid
-     * only while this device is open, and native calls must go through the
-     * context's [NativeBridge.call].
+     * only while this device is open. Integrators call native functions directly
+     * and own synchronization and lifetime.
      */
     fun nativeHandle(): Long = session.handle.handler.rawValue
 

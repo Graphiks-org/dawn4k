@@ -176,7 +176,7 @@ class LifecycleStressGpuTest {
 
                     // The late delivery settles exactly once: the registration
                     // count returns to zero, never negative, never stuck.
-                    device.session.runtime.drainEvents()
+                    device.session.runtime.processEvents()
                     device.session.runtime.processEvents()
                     assertEquals(
                         0,
@@ -364,7 +364,7 @@ class LifecycleStressGpuTest {
                     assertTrue(features.isNotEmpty(), "a foreign-thread snapshot must read the device features")
 
                     // The event pump entry point routes from a foreign thread too.
-                    async(Dispatchers.Default) { context.drainEvents() }.await()
+                    async(Dispatchers.Default) { context.processEvents() }.await()
 
                     // Every thread's operation hit the same serialized state: the
                     // write landed and no validation error was observed anywhere.
@@ -757,7 +757,7 @@ class LifecycleStressGpuTest {
 
     /** The uncaptured errors observed so far on [device]'s session, drained. */
     private suspend fun uncapturedErrorCount(device: DawnDevice): Int {
-        device.session.runtime.drainEvents()
+        device.session.runtime.processEvents()
         device.session.runtime.processEvents()
         return device.session.callbacks.uncapturedErrors.size
     }

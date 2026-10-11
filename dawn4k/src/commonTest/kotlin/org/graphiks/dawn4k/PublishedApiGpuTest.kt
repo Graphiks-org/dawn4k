@@ -38,7 +38,7 @@ class PublishedApiGpuTest {
             var resourcesClosed = false
             try {
                 val observer = async(start = CoroutineStart.UNDISPATCHED) { device.awaitLost() }
-                context.nativeBridge().call {
+                run {
                     device.close()
                     adapter.close()
                     resourcesClosed = true

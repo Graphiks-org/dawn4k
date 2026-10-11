@@ -21,8 +21,7 @@ class BorrowedSurfaceTextureTest {
     @Test
     fun closingBorrowedReferenceDoesNotDestroyTextureAndRefusesAnotherView() = runBlocking {
         DawnContext.create(org.graphiks.dawn4k.DawnConfig(implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, _, device ->
-                    val bridge = context.nativeBridge()
-                    val raw = bridge.call {
+                    val raw = run {
                         memoryScope { allocator ->
                             val descriptor = WGPUTextureDescriptor.allocate(allocator)
                             descriptor.nextInChain = null
@@ -42,8 +41,8 @@ class BorrowedSurfaceTextureTest {
                         }
                     }
                     try {
-                        bridge.call { wgpuTextureAddRef(raw) }
-                        val borrowed = BorrowedSurfaceTexture(bridge, raw)
+                        wgpuTextureAddRef(raw)
+                        val borrowed = BorrowedSurfaceTexture(raw)
                         borrowed.createView(device).use { }
                         borrowed.close()
                         borrowed.close()
@@ -52,7 +51,7 @@ class BorrowedSurfaceTextureTest {
                         // Our independent reference must remain usable: Destroy would
                         // invalidate a render attachment despite its live reference.
                         device.pushErrorScope(org.graphiks.webgpu.GPUErrorFilter.Validation)
-                        val view = bridge.call { assertNotNull(wgpuTextureCreateView(raw, null)) }
+                        val view = assertNotNull(wgpuTextureCreateView(raw, null))
                         device.adoptSurfaceTextureView(view.handler.rawValue).use { attachment ->
                             device.createCommandEncoder(CommandEncoderDescriptor()).use { encoder ->
                                 encoder.beginRenderPass(RenderPassDescriptor(colorAttachments = listOf(
@@ -64,7 +63,7 @@ class BorrowedSurfaceTextureTest {
                             device.queue.onSubmittedWorkDone().getOrThrow()
                             assertTrue(device.popErrorScope().getOrThrow() == null, "borrowed close must not destroy")
                         }
-                    } finally { bridge.call { wgpuTextureRelease(raw) } }
+                    } finally { wgpuTextureRelease(raw) }
         }
     }
 }

@@ -31,39 +31,35 @@ internal class WaylandLifecycleFixture(private val checkpoint: WaylandCheckpoint
     private val release = CountDownLatch(1)
     private val closeReceived = CountDownLatch(1)
     private val armed = AtomicBoolean()
-    private val created = AtomicReference<DawnSurface?>()
+    private val created = AtomicReference<PresentationSurface?>()
     private val renderFailure = AtomicReference<Throwable?>()
     private val host = WaylandSurfaceHost.open(controls) {
         scope.cancel()
         closeReceived.countDown()
     }
     private val observedHost = object : SurfaceHost by host {
-        override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface {
-            val observedBridge = object : NativeBridge {
-                override fun instanceHandle(): Long = bridge.instanceHandle()
-                override fun <T> call(block: () -> T): T {
-                    val caller = StackWalker.getInstance().walk { frames -> frames
-                        .filter { it.className == DawnSurface::class.java.name }
-                        .map { it.methodName }.findFirst().orElse("") }
-                    if (armed.get() && checkpoint == WaylandCheckpoint.Presentation && caller.startsWith("present")) {
-                        return bridge.call { awaitRelease(); block() }
-                    }
-                    val result = bridge.call(block)
-                    if (armed.get() && checkpoint == WaylandCheckpoint.Capabilities && caller.startsWith("configureForAdapter"))
-                        awaitRelease()
+        override fun createSurface(bridge: NativeBridge, deviceHandle: Long): PresentationSurface {
+            val surface = host.createSurface(bridge, deviceHandle)
+            val observedSurface = object : PresentationSurface by surface {
+                override fun configureForAdapter(adapterHandle: Long, requiredFormat: org.graphiks.webgpu.GPUTextureFormat?): SurfaceConfiguration {
+                    val result = surface.configureForAdapter(adapterHandle, requiredFormat)
+                    if (armed.get() && checkpoint == WaylandCheckpoint.Capabilities) awaitRelease()
                     return result
                 }
+                override fun present(texture: BorrowedSurfaceTexture) {
+                    if (armed.get() && checkpoint == WaylandCheckpoint.Presentation) awaitRelease()
+                    surface.present(texture)
+                }
             }
-            val surface = host.createSurface(observedBridge, deviceHandle)
             try {
                 // Map the actual native window so Sway can deliver a real close
                 // while setup is still pending, before controls.initialize().
                 val size = host.pixelSize()
                 surface.configure(size.first, size.second)
                 surface.acquireFrame().use { surface.present(it) }
-                created.set(surface)
+                created.set(observedSurface)
                 armed.set(true)
-                return surface
+                return observedSurface
             } catch (failure: Throwable) {
                 surface.close()
                 throw failure

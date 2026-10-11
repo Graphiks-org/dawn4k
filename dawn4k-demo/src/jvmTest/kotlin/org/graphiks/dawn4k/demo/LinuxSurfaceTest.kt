@@ -22,7 +22,6 @@ import kotlinx.coroutines.runBlocking
 
 class LinuxSurfaceTest {
     private val noNativeCalls = object : NativeBridge {
-        override fun <T> call(block: () -> T): T = error("invalid handles must not reach native code")
         override fun instanceHandle(): Long = error("invalid handles must not access the instance")
     }
 

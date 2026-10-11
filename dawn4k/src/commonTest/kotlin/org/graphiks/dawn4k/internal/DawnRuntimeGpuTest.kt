@@ -60,7 +60,7 @@ class DawnRuntimeGpuTest {
                 session.close()
                 assertEquals(0, session.resources.debugRemainingRefs())
                 session.close()
-                runtime.drainEvents()
+                runtime.processEvents()
             }
             assertEquals(0, runtime.debugOpenCallbacks())
         } finally {

@@ -11,7 +11,7 @@ import org.graphiks.kffi.objc.PlatformAvailability
 
 /** AppKit attachment; the common Dawn lifecycle lives in [DawnSurface]. */
 @OptIn(PlatformAvailability::class)
-object MetalSurface {
+internal object MetalSurface {
     fun create(bridge: NativeBridge, deviceHandle: Long, metalLayerPtr: Long): DawnSurface =
         DawnSurface.createMetal(bridge, deviceHandle, metalLayerPtr)
 

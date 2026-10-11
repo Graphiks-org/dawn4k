@@ -33,8 +33,8 @@ chooses threads, ordering, event frequency and cancellation policy.
 Call `DawnContext.processEvents()` explicitly: it drains one finite mailbox batch,
 calls `wgpuInstanceProcessEvents`, then drains another batch. Concurrent or
 reentrant progression is refused. User error callbacks run on this caller;
-none of the suspend/await methods implicitly pumps events. `drainEvents()` is a
-deprecated suspend alias. Cancelling a wait does not cancel native delivery:
+none of the suspend/await methods implicitly pumps events.
+Cancelling a wait does not cancel native delivery:
 late owned results are released during explicit progression. Native completion
 and Kotlin ownership transfer are tracked independently.
 

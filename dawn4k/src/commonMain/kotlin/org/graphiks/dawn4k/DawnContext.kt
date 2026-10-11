@@ -43,9 +43,6 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
     /** Snapshot, not a shutdown barrier: stop producers before using this to drain. */
     fun hasPendingOperations(): Boolean = runtime.hasPendingOperations()
 
-    @Deprecated("Use processEvents(); progression is caller-owned")
-    suspend fun drainEvents() = processEvents()
-
     /**
      * Returns a [NativeBridge] over this context's runtime, for platform
      * integrators (window/surface bridges). Not part of the WebGPU contract:
@@ -53,8 +50,6 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
      * open. Calls are inline; integrators own synchronization and lifetime.
      */
     fun nativeBridge(): NativeBridge = object : NativeBridge {
-        @Deprecated("Executes inline without synchronization or scheduling")
-        override fun <T> call(block: () -> T): T = block()
         override fun instanceHandle(): Long =
             runtime.currentInstance()?.handler?.rawValue ?: 0L
     }

@@ -778,7 +778,7 @@ class CommandsGpuTest {
     // --- helpers -------------------------------------------------------------
 
     private suspend fun NativeFixture.uncapturedErrorCount(): Int {
-        runtime.drainEvents()
+        runtime.processEvents()
         runtime.processEvents()
         return session.callbacks.uncapturedErrors.size
     }
