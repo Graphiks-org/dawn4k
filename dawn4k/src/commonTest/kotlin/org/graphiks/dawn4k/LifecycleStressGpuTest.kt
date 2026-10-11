@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.testing.gpuTestEnvironment
 import org.graphiks.dawn4k.testing.gpuTestConfig
+import org.graphiks.dawn4k.testing.UncapturedErrorCollector
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -10,6 +11,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.graphiks.webgpu.ArrayBuffer
+import org.graphiks.webgpu.GPUAdapter
+import org.graphiks.webgpu.GPUUncapturedErrorCallback
 import org.graphiks.webgpu.GPUBufferBindingType
 import org.graphiks.webgpu.GPUBufferMapState
 import org.graphiks.webgpu.GPUBufferUsage
@@ -59,6 +62,8 @@ import kotlin.test.assertTrue
  * absence is reported explicitly (or fails in strict mode).
  */
 class LifecycleStressGpuTest {
+
+    private val errorsByDevice = mutableMapOf<DawnDevice, UncapturedErrorCollector>()
 
     // --- idempotent close -----------------------------------------------------
 
@@ -219,7 +224,7 @@ class LifecycleStressGpuTest {
             val adapterA = context.requestAdapter().getOrThrow()
             val adapterB = context.requestAdapter().getOrThrow()
             try {
-                val deviceA = adapterA.requestDevice().getOrThrow() as DawnDevice
+                val deviceA = requestObservedDevice(adapterA)
                 val deviceB = adapterB.requestDevice().getOrThrow() as DawnDevice
                 try {
                     val foreignBuffer = deviceA.createBuffer(
@@ -340,7 +345,7 @@ class LifecycleStressGpuTest {
         val events = context.startTestProgress(this)
         try {
             val adapter = context.requestAdapter().getOrThrow()
-            val device = adapter.requestDevice().getOrThrow() as DawnDevice
+            val device = requestObservedDevice(adapter)
             try {
                 val baseline = device.session.resources.debugRemainingRefs()
                 val beforeErrors = uncapturedErrorCount(device)
@@ -734,8 +739,7 @@ class LifecycleStressGpuTest {
         val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
         try {
             context.requestAdapter().getOrThrow().use { adapter ->
-                adapter.requestDevice().getOrThrow().let { publicDevice ->
-                    val device = publicDevice as DawnDevice
+                requestObservedDevice(adapter).let { device ->
                     try {
                         block(device)
                     } finally {
@@ -755,11 +759,20 @@ class LifecycleStressGpuTest {
         }
     }
 
-    /** The uncaptured errors observed so far on [device]'s session, drained. */
+    private suspend fun requestObservedDevice(adapter: GPUAdapter): DawnDevice {
+        val errors = UncapturedErrorCollector()
+        val device = adapter.requestDevice(
+            DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { errors(it) }),
+        ).getOrThrow() as DawnDevice
+        errorsByDevice[device] = errors
+        return device
+    }
+
+    /** Errors collected by this test, after progressing the device's events. */
     private suspend fun uncapturedErrorCount(device: DawnDevice): Int {
         device.session.runtime.processEvents()
         device.session.runtime.processEvents()
-        return device.session.callbacks.uncapturedErrors.size
+        return checkNotNull(errorsByDevice[device]).size
     }
 
     /** Encodes one immediate dispatch, copies [storage] into [staging], submits. */

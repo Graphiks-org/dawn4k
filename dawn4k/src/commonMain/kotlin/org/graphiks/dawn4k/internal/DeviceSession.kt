@@ -77,8 +77,7 @@ internal class DeviceSession internal constructor(
 
 /**
  * The per-device callback choreography installed during the device request:
- * the uncaptured-error and device-lost registrations, the uncaptured errors
- * observed so far, and the terminal loss marker.
+ * the uncaptured-error and device-lost registrations and the terminal loss marker.
  *
  * Handlers run during explicit event progression. State is protected by short
  * locks; sinks, route revocation and quiescence hooks run outside those locks.
@@ -91,15 +90,7 @@ internal class DeviceCallbacks internal constructor() {
     /** Terminal marker: completed with the factual loss once both callback routes are proven stopped. */
     internal val lost = CompletableDeferred<DawnDeviceLost>()
 
-    /** Uncaptured errors observed so far, in arrival order. */
-    private val errors = mutableListOf<DawnNativeError>()
-    internal val uncapturedErrors: List<DawnNativeError> get() = lock.withLock { errors.toList() }
-
-    /**
-     * Sink the public device routes its descriptor's uncaptured-error callback
-     * into; the stored [uncapturedErrors] list above stays the runtime's own
-     * record. Installation and lookup are synchronized; invocation is not.
-     */
+    /** Descriptor callback; lookup is synchronized, invocation is outside the lock. */
     internal var uncapturedErrorSink: ((GPUError) -> Unit)?
         get() = lock.withLock { sink }
         set(value) { lock.withLock { sink = value } }
@@ -137,16 +128,18 @@ internal class DeviceCallbacks internal constructor() {
         }
     }
 
-    /** Records an observed uncaptured error, then invokes a snapshot of the sink. */
+    /** Delivers an error without retaining it; stderr is the fallback for missing or failing sinks. */
     internal fun handleUncapturedError(error: DawnNativeError) {
-        val target = lock.withLock { errors += error; sink }
-        target?.let { sink ->
-            try {
-                sink(error.gpuError)
-            } catch (failure: Throwable) {
-                // The error is already recorded above; a user callback failure
-                // must not take down the dispatch loop.
-            }
+        val target = lock.withLock { sink }
+        if (target == null) {
+            reportUncapturedError(error)
+            return
+        }
+        try {
+            target(error.gpuError)
+        } catch (failure: Throwable) {
+            // Only user callback failures are isolated from the progress loop.
+            reportUncapturedError(error, failure)
         }
     }
 

@@ -2,11 +2,14 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.testing.gpuTestEnvironment
 import org.graphiks.dawn4k.testing.gpuTestConfig
+import org.graphiks.dawn4k.testing.captureStandardError
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
@@ -16,14 +19,18 @@ import org.graphiks.webgpu.GPUDeviceLostReason
 import org.graphiks.webgpu.GPUErrorFilter
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.GPUTextureUsage
+import org.graphiks.webgpu.GPUUncapturedErrorCallback
+import org.graphiks.webgpu.GPUValidationError
 import org.graphiks.webgpu.descriptors.BufferDescriptor
 import org.graphiks.webgpu.descriptors.DeviceDescriptor
 import org.graphiks.webgpu.descriptors.Extent3D
 import org.graphiks.webgpu.descriptors.RequiredLimits
 import org.graphiks.webgpu.descriptors.TextureDescriptor
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
@@ -136,5 +143,107 @@ class PublishedApiGpuTest {
                     }
             }
         }
+    }
+
+    @Test
+    fun publicCallbackFailureIsReportedAndLaterErrorsStillArrive() {
+        if (!runGpuTest { gpuTestEnvironment("PublishedApiGpuTest.publicCallbackFailureIsReportedAndLaterErrorsStillArrive") }) return
+        var deliveries = 0
+        val first = CompletableDeferred<Unit>()
+        val second = CompletableDeferred<Unit>()
+        val output = captureStandardError {
+            runGpuTest {
+                DawnContext.create(gpuTestConfig()).useWithProgress { context ->
+                    context.requestAdapter().getOrThrow().use { adapter ->
+                        adapter.requestDevice(DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback {
+                            assertIs<GPUValidationError>(it)
+                            deliveries++
+                            if (deliveries == 1) {
+                                first.complete(Unit)
+                                throw IllegalStateException("public consumer failed")
+                            }
+                            second.complete(Unit)
+                        })).getOrThrow().use { device ->
+                            device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
+                            device.queue.onSubmittedWorkDone().getOrThrow()
+                            withTimeout(5.seconds) { first.await() }
+                            device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
+                            device.queue.onSubmittedWorkDone().getOrThrow()
+                            withTimeout(5.seconds) { second.await() }
+                            device.queue.onSubmittedWorkDone().getOrThrow()
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(2, deliveries)
+        assertContains(output, "Validation")
+        assertContains(output, "IllegalStateException")
+        assertContains(output, "public consumer failed")
+    }
+
+    @Test
+    fun callbackCannotReenterProgressOrCloseItsContext() {
+        if (!runGpuTest { gpuTestEnvironment("PublishedApiGpuTest.callbackCannotReenterProgressOrCloseItsContext") }) return
+        var deliveries = 0
+        val observed = List(3) { CompletableDeferred<Unit>() }
+        val output = captureStandardError {
+            runGpuTest {
+                DawnContext.create(gpuTestConfig()).useWithProgress { context ->
+                    context.requestAdapter().getOrThrow().use { adapter ->
+                        adapter.requestDevice(DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback {
+                            observed[deliveries++].complete(Unit)
+                            when (deliveries) {
+                                1 -> context.processEvents()
+                                2 -> context.close()
+                            }
+                        })).getOrThrow().use { device ->
+                            for (delivery in observed) {
+                                device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
+                                device.queue.onSubmittedWorkDone().getOrThrow()
+                                withTimeout(5.seconds) { delivery.await() }
+                            }
+                            device.queue.onSubmittedWorkDone().getOrThrow()
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(3, deliveries)
+        assertContains(output, "processEvents() is already active")
+        assertContains(output, "cannot close during processEvents()")
+    }
+
+    @Test
+    fun scopedErrorsDoNotReachTheCallbackOrFallbackDiagnostic() {
+        if (!runGpuTest { gpuTestEnvironment("PublishedApiGpuTest.scopedErrorsDoNotReachTheCallbackOrFallbackDiagnostic") }) return
+        var deliveries = 0
+        val output = captureStandardError {
+            runGpuTest {
+                DawnContext.create(gpuTestConfig()).useWithProgress { context ->
+                    // Each WebGPU adapter is consumed by its first device request.
+                    for (descriptor in listOf(
+                        DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { deliveries++ }),
+                        DeviceDescriptor(),
+                    )) {
+                        context.requestAdapter().getOrThrow().use { adapter ->
+                            adapter.requestDevice(descriptor).getOrThrow().use { device ->
+                                device.pushErrorScope(GPUErrorFilter.Validation)
+                                device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
+                                assertIs<GPUValidationError>(device.popErrorScope().getOrThrow())
+                                device.queue.onSubmittedWorkDone().getOrThrow()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(0, deliveries)
+        assertEquals("", output)
+    }
+
+    /** Real-time bound includes adapter/device requests and queue barriers, not only callback waits. */
+    private fun <T> runGpuTest(block: suspend () -> T): T = runBlocking {
+        withTimeout(15.seconds) { block() }
     }
 }

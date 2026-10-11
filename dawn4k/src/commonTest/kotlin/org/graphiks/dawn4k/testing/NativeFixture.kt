@@ -75,6 +75,12 @@ internal class NativeFixture(
     private val events: Job,
 ) : AutoCloseable {
 
+    internal val uncapturedErrors = UncapturedErrorCollector()
+
+    init {
+        session.callbacks.uncapturedErrorSink = uncapturedErrors
+    }
+
     /** The session's owned queue, wrapped. */
     internal val queue: DawnQueue
         get() = session.queue

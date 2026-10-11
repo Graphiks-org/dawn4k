@@ -21,7 +21,7 @@ import org.graphiks.webgpu.GPUOutOfMemoryError
 import org.graphiks.webgpu.GPUValidationError
 
 /**
- * Marker for the runtime-side bookkeeping of mapped native errors; the mapped
+ * Public-facing representation of mapped native errors; the mapped
  * errors themselves implement the WebGPU leaf interfaces, so [gpuError] hands
  * out the public face without a cast.
  */

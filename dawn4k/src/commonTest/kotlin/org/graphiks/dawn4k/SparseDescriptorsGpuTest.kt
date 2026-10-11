@@ -46,7 +46,7 @@ class SparseDescriptorsGpuTest {
         if (!gpuTestEnvironment("SparseDescriptorsGpuTest.drawingToSparseAttachmentOneProducesTheShaderColorNotTheClearColor")) return@runTest
         NativeFixture.open().use { fixture ->
             val pixel = fixture.renderPixel(GPUTextureFormat.RGBA8Unorm, sparseSlots = true)
-            assertEquals(emptyList(), fixture.session.callbacks.uncapturedErrors.map { it.message })
+            assertEquals(emptyList(), fixture.uncapturedErrors.errors.map { it.message })
             assertContentEquals(byteArrayOf(-1, 0, 0, -1), pixel)
         }
     }

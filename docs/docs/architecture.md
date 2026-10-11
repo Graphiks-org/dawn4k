@@ -34,6 +34,10 @@ Call `DawnContext.processEvents()` explicitly: it drains one finite mailbox batc
 calls `wgpuInstanceProcessEvents`, then drains another batch. Concurrent or
 reentrant progression is refused. User error callbacks run on this caller;
 none of the suspend/await methods implicitly pumps events.
+Uncaptured errors are delivered to the descriptor's callback without keeping an
+internal history. Without a callback, or if it throws, stderr receives the GPU
+error type and message; callback failures also include their stack trace and do
+not interrupt event progression. Applications own their logging and retention.
 Cancelling a wait does not cancel native delivery:
 late owned results are released during explicit progression. Native completion
 and Kotlin ownership transfer are tracked independently.

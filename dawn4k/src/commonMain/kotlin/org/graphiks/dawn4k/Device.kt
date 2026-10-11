@@ -102,12 +102,7 @@ class DawnDevice internal constructor(
         ownedQueue.label = descriptor?.defaultQueue?.label ?: ""
         descriptor?.onUncapturedError?.let { callback ->
             session.callbacks.uncapturedErrorSink = { error ->
-                try {
-                    callback.onUncapturedError(error)
-                } catch (failure: Throwable) {
-                    // The runtime has already recorded the error; a user
-                    // callback failure must not take down the dispatch loop.
-                }
+                callback.onUncapturedError(error)
             }
         }
     }

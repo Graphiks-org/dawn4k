@@ -36,6 +36,11 @@ Appeler explicitement `DawnContext.processEvents()` : un lot fini de mailbox,
 `wgpuInstanceProcessEvents`, puis un autre lot fini. La progression concurrente
 ou réentrante est refusée. Les callbacks d'erreur utilisateur s'exécutent sur cet
 appelant ; aucune méthode suspendue/await ne pompe implicitement.
+Les erreurs non capturées sont transmises au callback du descripteur sans
+historique interne. Sans callback, ou s'il lève une exception, stderr reçoit le
+type et le message de l'erreur GPU ; les exceptions du callback incluent aussi
+leur stack trace sans interrompre la progression. La journalisation et la
+conservation des erreurs appartiennent à l'application.
 Annuler une attente n'annule pas
 la livraison native : ses résultats tardifs sont libérés pendant la progression.
 La fin native et le transfert de possession Kotlin sont suivis séparément.

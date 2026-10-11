@@ -855,7 +855,7 @@ class CommandsGpuTest {
     private suspend fun NativeFixture.uncapturedErrorCount(): Int {
         runtime.processEvents()
         runtime.processEvents()
-        return session.callbacks.uncapturedErrors.size
+        return uncapturedErrors.size
     }
 
     private suspend fun readbackRow(fixture: NativeFixture, texture: DawnTexture, staging: DawnBuffer): ByteArray {
