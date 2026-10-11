@@ -5,6 +5,7 @@ import org.graphiks.dawn4k.testing.gpuTestConfig
 import org.graphiks.dawn4k.testing.gpuTestEnvironment
 import org.graphiks.webgpu.GPUError
 import org.graphiks.webgpu.GPUErrorFilter
+import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPUFeatureName
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.GPUTextureUsage
@@ -21,21 +22,21 @@ import kotlin.test.assertNull
 class TextureBindingViewDimensionGpuTest {
     @Test
     fun compatibilityDeviceRejectsCubeBindingDimensionWithOnlyTwoLayers() = runTest {
-        val options = RequestAdapterOptions(featureLevel = "compatibility")
+        val options = RequestAdapterOptions(featureLevel = GPUFeatureLevel.Compatibility)
         if (!gpuTestEnvironment("TextureBindingViewDimensionGpuTest.compatibilityDeviceRejectsCubeBindingDimensionWithOnlyTwoLayers", options)) return@runTest
         assertIs<GPUValidationError>(textureCreationError(options, layers = 2u))
     }
 
     @Test
     fun compatibilityDeviceAcceptsCubeBindingDimensionWithSixLayers() = runTest {
-        val options = RequestAdapterOptions(featureLevel = "compatibility")
+        val options = RequestAdapterOptions(featureLevel = GPUFeatureLevel.Compatibility)
         if (!gpuTestEnvironment("TextureBindingViewDimensionGpuTest.compatibilityDeviceAcceptsCubeBindingDimensionWithSixLayers", options)) return@runTest
         assertNull(textureCreationError(options, layers = 6u))
     }
 
     @Test
     fun coreDeviceIgnoresTheCompatibilityBindingDimensionRestriction() = runTest {
-        val options = RequestAdapterOptions(featureLevel = "core")
+        val options = RequestAdapterOptions(featureLevel = GPUFeatureLevel.Core)
         if (!gpuTestEnvironment("TextureBindingViewDimensionGpuTest.coreDeviceIgnoresTheCompatibilityBindingDimensionRestriction", options)) return@runTest
         assertNull(textureCreationError(options, layers = 2u))
     }
@@ -44,7 +45,7 @@ class TextureBindingViewDimensionGpuTest {
         DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter(options).getOrThrow().use { adapter ->
                 adapter.requestDevice().getOrThrow().use { device ->
-                    assertEquals(options.featureLevel == "core", GPUFeatureName.CoreFeaturesAndLimits in device.features)
+                    assertEquals(options.featureLevel == GPUFeatureLevel.Core, GPUFeatureName.CoreFeaturesAndLimits in device.features)
                     device.pushErrorScope(GPUErrorFilter.Validation)
                     device.createTexture(
                         TextureDescriptor(

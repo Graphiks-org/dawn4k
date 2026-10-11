@@ -13,6 +13,7 @@ import org.graphiks.dawn4k.native.WGPUPowerPreference_LowPower
 import org.graphiks.dawn4k.native.WGPUPowerPreference_Undefined
 import org.graphiks.dawn4k.native.WGPURequestAdapterOptions
 import org.graphiks.kffi.MemoryAllocator
+import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPUPowerPreference
 import org.graphiks.webgpu.GPURequestAdapterOptions
 
@@ -23,8 +24,8 @@ import org.graphiks.webgpu.GPURequestAdapterOptions
  *
  * - null [options] requests the C defaults (feature level and power
  *   preference undefined, no fallback), with [backend] riding along;
- * - [GPURequestAdapterOptions.featureLevel] "core"/"compatibility" maps
- *   through its named constant; anything else is refused, never guessed;
+ * - [GPURequestAdapterOptions.featureLevel] maps Core/Compatibility through
+ *   their named constants, never assuming the enum's numeric values coincide;
  * - [GPURequestAdapterOptions.xrCompatible] has no native counterpart: the
  *   WebGPU specification lets implementations without XR sessions ignore the
  *   hint, and native Dawn has none — it is accepted and ignored here.
@@ -37,11 +38,8 @@ internal fun MemoryAllocator.allocateRequestAdapterOptions(
     native.nextInChain = null
     native.featureLevel = when (options?.featureLevel) {
         null -> WGPUFeatureLevel_Undefined
-        "core" -> WGPUFeatureLevel_Core
-        "compatibility" -> WGPUFeatureLevel_Compatibility
-        else -> throw IllegalArgumentException(
-            "unsupported feature level '${options.featureLevel}' (core or compatibility)",
-        )
+        GPUFeatureLevel.Core -> WGPUFeatureLevel_Core
+        GPUFeatureLevel.Compatibility -> WGPUFeatureLevel_Compatibility
     }
     native.powerPreference = when (options?.powerPreference) {
         null -> WGPUPowerPreference_Undefined

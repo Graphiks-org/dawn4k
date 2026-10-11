@@ -19,8 +19,8 @@ import org.graphiks.kffi.MemoryBuffer
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.memoryScope
 import org.graphiks.webgpu.GPUErrorFilter
+import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPUFeatureName
-import org.graphiks.webgpu.GPURequestAdapterOptions
 import org.graphiks.webgpu.GPUSupportedLimits
 import org.graphiks.webgpu.GPURequiredLimits
 import org.graphiks.webgpu.GPUSupportedFeatures
@@ -192,7 +192,7 @@ class CapabilitiesTest {
     fun adapterOptionsMergeContractHintsAndBackend() = memoryScope { allocator ->
         val options = allocator.allocateRequestAdapterOptions(
             RequestAdapterOptions(
-                featureLevel = "core",
+                featureLevel = GPUFeatureLevel.Core,
                 powerPreference = org.graphiks.webgpu.GPUPowerPreference.LowPower,
                 forceFallbackAdapter = true,
             ),
@@ -205,18 +205,13 @@ class CapabilitiesTest {
     }
 
     @Test
-    fun unknownFeatureLevelIsRefused() {
-        memoryScope { allocator ->
-            val unknown = object : GPURequestAdapterOptions {
-                override val featureLevel = "experimental"
-                override val powerPreference = null
-                override val forceFallbackAdapter = false
-                override val xrCompatible = false
-            }
-            assertFailsWith<IllegalArgumentException> {
-                allocator.allocateRequestAdapterOptions(unknown, null)
-            }
-        }
+    fun defaultCoreAndCompatibilityMapToNativeFeatureLevels() = memoryScope { allocator ->
+        val default = allocator.allocateRequestAdapterOptions(RequestAdapterOptions(), null)
+        assertEquals(2u, default.featureLevel)
+        val compatibility = allocator.allocateRequestAdapterOptions(
+            RequestAdapterOptions(featureLevel = GPUFeatureLevel.Compatibility), null,
+        )
+        assertEquals(1u, compatibility.featureLevel)
     }
 
     // --- Device descriptor --------------------------------------------------
