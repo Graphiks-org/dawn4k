@@ -76,6 +76,9 @@ jobs:
 
       - name: Set up Android SDK for Gradle project import
         uses: android-actions/setup-android@v3
+        with:
+          # The legacy 'tools' package is no longer available in the SDK repository.
+          packages: 'platform-tools'
 
       - name: Install Android platform
         run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
