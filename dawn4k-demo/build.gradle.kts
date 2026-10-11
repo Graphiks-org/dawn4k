@@ -11,6 +11,7 @@ import javax.inject.Inject
 
 plugins {
     kotlin("multiplatform")
+    alias(libs.plugins.kotlin.serialization)
     id("com.android.kotlin.multiplatform.library")
     distribution
     alias(libs.plugins.compose.multiplatform)
@@ -41,6 +42,7 @@ kotlin {
             implementation(libs.suite.demos)
             implementation(libs.webgpu.descriptors)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.serialization.json)
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.ui)

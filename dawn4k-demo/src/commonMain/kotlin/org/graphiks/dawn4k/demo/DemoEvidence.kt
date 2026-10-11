@@ -2,12 +2,14 @@ package org.graphiks.dawn4k.demo
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.Serializable
 import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.GPUMapMode
 import org.graphiks.webgpu.descriptors.BufferDescriptor
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
 
+@Serializable
 internal data class DemoEvidenceSnapshot(
     val sessionId: Long = 1,
     val phase: DemoPhase = DemoPhase.Initializing,

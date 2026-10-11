@@ -1,8 +1,11 @@
 package org.graphiks.dawn4k.demo
 
 import kotlin.math.roundToInt
+import kotlinx.serialization.Serializable
 
+@Serializable
 internal data class LogicalViewport(val x: Float, val y: Float, val width: Float, val height: Float)
+@Serializable
 internal data class PixelExtent(val width: Int, val height: Int)
 
 internal enum class LayoutMode { Wide, Compact }
