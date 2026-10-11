@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.dataSlice
 import org.graphiks.dawn4k.mapper.initFrom
@@ -42,21 +43,18 @@ import org.graphiks.webgpu.GPUSize64
  */
 class DawnComputePassEncoder internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUComputePassEncoder,
+    handle: WGPUComputePassEncoder,
     label: String,
-) : GPUComputePassEncoder {
+) : GPUComputePassEncoder, AutoCloseable {
 
     override var label: String = label
 
-    /** Set once by [end]; a command after it would use a released native handle. */
-    private var ended = false
-
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuComputePassEncoderRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuComputePassEncoderRelease(it) })
+    internal val handle: WGPUComputePassEncoder
+        get() { session.requireOpen(); return reference.handle }
 
     private fun requireOpen() {
-        check(!ended) { "the compute pass encoder has already been ended" }
+        handle
     }
 
     override fun setPipeline(pipeline: GPUComputePipeline) {
@@ -134,10 +132,11 @@ class DawnComputePassEncoder internal constructor(
 
     override fun end() {
         requireOpen()
-        ended = true
-        wgpuComputePassEncoderEnd(handle)
-        session.resources.release(this)
+        try { wgpuComputePassEncoderEnd(handle) } finally { close() }
     }
+
+    /** Releases an abandoned pass without implicitly issuing native end. */
+    override fun close() = reference.close()
 }
 
 /**

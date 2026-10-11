@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.checkedRange
 import org.graphiks.dawn4k.mapper.allocateComputePassDescriptor
 import org.graphiks.dawn4k.mapper.allocateExtent3D
@@ -54,17 +55,17 @@ import org.graphiks.webgpu.GPUTexelCopyTextureInfo
  */
 class DawnCommandEncoder internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUCommandEncoder,
+    handle: WGPUCommandEncoder,
     label: String,
 ) : GPUCommandEncoder {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuCommandEncoderRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuCommandEncoderRelease(it) })
+    internal val handle: WGPUCommandEncoder
+        get() { session.requireOpen(); return reference.handle }
 
-    override fun beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder {
+    override fun beginRenderPass(descriptor: GPURenderPassDescriptor): DawnRenderPassEncoder {
         val temporaryViews = mutableListOf<DawnTextureView>()
         return run {
             memoryScope { allocator ->
@@ -76,7 +77,7 @@ class DawnCommandEncoder internal constructor(
         }
     }
 
-    override fun beginComputePass(descriptor: GPUComputePassDescriptor?): GPUComputePassEncoder =
+    override fun beginComputePass(descriptor: GPUComputePassDescriptor?): DawnComputePassEncoder =
         run {
             memoryScope { allocator ->
                 val native = descriptor?.let { allocator.allocateComputePassDescriptor(it) }
@@ -218,7 +219,7 @@ class DawnCommandEncoder internal constructor(
     }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 

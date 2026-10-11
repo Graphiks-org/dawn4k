@@ -798,6 +798,7 @@ class CommandsGpuTest {
                         bundleEncoder.setPipeline(pipeline)
                         bundleEncoder.draw(3u)
                         val bundle = bundleEncoder.finish()
+                        try {
                         // Execute the same bundle from two independent encoders.
                         for (pass in 0 until 2) {
                             val texture = fixture.createTexture(
@@ -842,6 +843,7 @@ class CommandsGpuTest {
                                 staging.close()
                             }
                         }
+                        } finally { bundle.close() }
                     }
                 }
             }

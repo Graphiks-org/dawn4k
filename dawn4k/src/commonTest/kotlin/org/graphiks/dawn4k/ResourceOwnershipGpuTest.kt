@@ -16,11 +16,33 @@ import org.graphiks.webgpu.descriptors.BufferDescriptor
 import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.descriptors.QuerySetDescriptor
 import org.graphiks.webgpu.descriptors.Extent3D
+import org.graphiks.webgpu.descriptors.RenderBundleEncoderDescriptor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ResourceOwnershipGpuTest {
+    @Test
+    fun bundleHasIndependentExplicitOwnership() = runTest {
+        if (!gpuTestEnvironment("ResourceOwnershipGpuTest.bundleHasIndependentExplicitOwnership")) return@runTest
+        NativeFixture.open().use { fixture ->
+            fixture.createRenderBundleEncoder(RenderBundleEncoderDescriptor(
+                colorFormats = listOf(GPUTextureFormat.RGBA8Unorm))).use { encoder ->
+                val bundle: DawnRenderBundle = encoder.finish(null)
+                bundle.close()
+                bundle.close()
+                assertFailsWith<IllegalStateException> { bundle.handle }
+            }
+            fixture.createEncoder().use { encoder ->
+                val pass = encoder.beginComputePass() as DawnComputePassEncoder
+                pass.close()
+                pass.close()
+                assertFailsWith<IllegalStateException> { pass.dispatchWorkgroups(1u) }
+                assertFailsWith<IllegalStateException> { pass.end() }
+            }
+        }
+    }
+
     @Test
     fun closedDestroyBackedResourcesCannotReachEncoding() = runTest {
         if (!gpuTestEnvironment("ResourceOwnershipGpuTest.closedDestroyBackedResourcesCannotReachEncoding")) return@runTest

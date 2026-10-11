@@ -201,7 +201,7 @@ internal class NativeFixture(
                                     ),
                                 ),
                             ),
-                        ).let { pass ->
+                        ).use { pass ->
                             pass.setPipeline(pipeline)
                             vertices?.let { pass.setVertexBuffer(1u, it) }
                             pass.draw(3u)
@@ -255,7 +255,7 @@ internal class NativeFixture(
         dynamicOffsets: UIntArray = uintArrayOf(),
     ) {
         createEncoder().use { encoder ->
-            encoder.beginComputePass().let { pass ->
+            encoder.beginComputePass().use { pass ->
                 pass.setPipeline(pipeline)
                 pass.setBindGroup(0u, bindGroup, dynamicOffsets.toList())
                 pass.dispatchWorkgroups(workgroupCountX)

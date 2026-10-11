@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.allocateRenderBundleDescriptor
 import org.graphiks.dawn4k.mapper.allocateRenderBundleEncoderDescriptor
@@ -51,21 +52,18 @@ import org.graphiks.webgpu.GPUSignedOffset32
  */
 class DawnRenderBundleEncoder internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPURenderBundleEncoder,
+    handle: WGPURenderBundleEncoder,
     label: String,
 ) : GPURenderBundleEncoder {
 
     override var label: String = label
 
-    /** Set once by [close]; a command after it would use a released native handle. */
-    private var closed = false
-
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuRenderBundleEncoderRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuRenderBundleEncoderRelease(it) })
+    internal val handle: WGPURenderBundleEncoder
+        get() { session.requireOpen(); return reference.handle }
 
     private fun requireOpen() {
-        check(!closed) { "the render bundle encoder has already been closed" }
+        handle
     }
 
     override fun setPipeline(pipeline: GPURenderPipeline) {
@@ -168,7 +166,7 @@ class DawnRenderBundleEncoder internal constructor(
         }
     }
 
-    override fun finish(descriptor: GPURenderBundleDescriptor?): GPURenderBundle {
+    override fun finish(descriptor: GPURenderBundleDescriptor?): DawnRenderBundle {
         requireOpen()
         val bundle = run {
             memoryScope { allocator ->
@@ -179,9 +177,7 @@ class DawnRenderBundleEncoder internal constructor(
     }
 
     override fun close() {
-        if (closed) return
-        closed = true
-        session.resources.release(this)
+        reference.close()
     }
 }
 

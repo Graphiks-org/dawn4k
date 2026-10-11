@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.dataSlice
 import org.graphiks.dawn4k.mapper.toNativeIndexFormat
@@ -60,22 +61,19 @@ import org.graphiks.webgpu.GPUStencilValue
  */
 class DawnRenderPassEncoder internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPURenderPassEncoder,
+    handle: WGPURenderPassEncoder,
     private val temporaryViews: List<DawnTextureView>,
     label: String,
-) : GPURenderPassEncoder {
+) : GPURenderPassEncoder, AutoCloseable {
 
     override var label: String = label
 
-    /** Set once by [end]; a command after it would use a released native handle. */
-    private var ended = false
-
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuRenderPassEncoderRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuRenderPassEncoderRelease(it) })
+    internal val handle: WGPURenderPassEncoder
+        get() { session.requireOpen(); return reference.handle }
 
     private fun requireOpen() {
-        check(!ended) { "the render pass encoder has already been ended" }
+        handle
     }
 
     override fun setPipeline(pipeline: GPURenderPipeline) {
@@ -229,10 +227,21 @@ class DawnRenderPassEncoder internal constructor(
 
     override fun end() {
         requireOpen()
-        ended = true
-        wgpuRenderPassEncoderEnd(handle)
-        session.resources.release(this)
-        temporaryViews.forEach { it.close() }
+        try { wgpuRenderPassEncoderEnd(handle) } finally { close() }
+    }
+
+    /** Releases an abandoned pass and its attachment views, without ending it. */
+    override fun close() {
+        var failure: Throwable? = null
+        fun attempt(action: () -> Unit) {
+            try { action() } catch (caught: Throwable) {
+                val first = failure
+                if (first == null) failure = caught else first.addSuppressed(caught)
+            }
+        }
+        attempt { reference.close() }
+        temporaryViews.forEach { view -> attempt { view.close() } }
+        failure?.let { throw it }
     }
 }
 
