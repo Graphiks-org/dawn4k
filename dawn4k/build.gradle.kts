@@ -109,7 +109,12 @@ kotlin {
                         linkerOpts("-rpath", dawnLibDir)
                         appleFrameworks.forEach { linkerOpts("-framework", it) }
                     }
-                    "linuxX64" -> linkerOpts("-lpthread", "-ldl", "-lm")
+                    "linuxX64" -> {
+                        // Same rationale as macOS: the test binary references Dawn
+                        // symbols, so its runtime loader must find the shared library.
+                        linkerOpts("-rpath", dawnLibDir)
+                        linkerOpts("-lpthread", "-ldl", "-lm")
+                    }
                     // iOS/tvOS link static Dawn and the Apple frameworks.
                     else -> appleFrameworks.forEach { linkerOpts("-framework", it) }
                 }
