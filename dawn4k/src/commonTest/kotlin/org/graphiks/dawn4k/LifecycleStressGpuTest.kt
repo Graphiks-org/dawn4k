@@ -6,6 +6,7 @@ import org.graphiks.dawn4k.testing.UncapturedErrorCollector
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -272,7 +273,7 @@ class LifecycleStressGpuTest {
     fun foreignThreadInteractionsAreRoutedThroughTheWorker() = runBlocking {
         if (!gpuTestEnvironment("LifecycleStressGpuTest.foreignThreadInteractionsAreRoutedThroughTheWorker")) return@runBlocking
         val context = DawnContext.create(gpuTestConfig())
-        val events = context.startTestProgress(this)
+        var events = context.startTestProgress(this)
         try {
             val adapter = context.requestAdapter().getOrThrow()
             val device = requestObservedDevice(adapter)
@@ -295,8 +296,11 @@ class LifecycleStressGpuTest {
                     val features = async(Dispatchers.Default) { device.features }.await()
                     assertTrue(features.isNotEmpty(), "a foreign-thread snapshot must read the device features")
 
-                    // The event pump entry point routes from a foreign thread too.
+                    // Progress can be called on another thread, but two pumps
+                    // must not run simultaneously. Join the background pump first.
+                    events.cancelAndJoin()
                     async(Dispatchers.Default) { context.processEvents() }.await()
+                    events = context.startTestProgress(this)
 
                     // Every thread's operation hit the same serialized state: the
                     // write landed and no validation error was observed anywhere.

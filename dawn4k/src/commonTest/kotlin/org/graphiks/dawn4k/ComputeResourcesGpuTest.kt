@@ -212,8 +212,8 @@ class ComputeResourcesGpuTest {
     }
 
     @Test
-    fun foreignBufferFromAnotherSessionIsRefused() = runTest {
-        if (!gpuTestEnvironment("ComputeResourcesGpuTest.foreignBufferFromAnotherSessionIsRefused")) return@runTest
+    fun foreignBufferFromAnotherSessionReportsNativeValidation() = runTest {
+        if (!gpuTestEnvironment("ComputeResourcesGpuTest.foreignBufferFromAnotherSessionReportsNativeValidation")) return@runTest
         val fixture = NativeFixture.open()
         try {
             val otherSession = fixture.runtime.openSession()
@@ -223,11 +223,12 @@ class ComputeResourcesGpuTest {
                     fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
                         fixture.createComputePipeline(ComputePipelineDescriptor(ProgrammableStage(shader, "main"))).use { pipeline ->
                             pipeline.getBindGroupLayout(0u).use { layout ->
-                                assertFailsWith<IllegalArgumentException> {
-                                    fixture.session.createBindGroup(
+                                val device = DawnDevice(fixture.session, null, false)
+                                device.pushErrorScope(org.graphiks.webgpu.GPUErrorFilter.Validation)
+                                fixture.session.createBindGroup(
                                         BindGroupDescriptor(layout, listOf(BindGroupEntry(0u, foreign)))
-                                    )
-                                }
+                                    ).close()
+                                kotlin.test.assertIs<org.graphiks.webgpu.GPUValidationError>(device.popErrorScope().getOrThrow())
                             }
                         }
                     }
