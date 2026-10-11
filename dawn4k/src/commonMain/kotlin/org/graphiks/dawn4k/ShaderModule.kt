@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.mapper.allocateShaderModuleDescriptor
 import org.graphiks.dawn4k.mapper.readCompilationInfo
@@ -27,17 +28,18 @@ import org.graphiks.webgpu.GPUShaderModuleDescriptor
  */
 class DawnShaderModule internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUShaderModule,
+    handle: WGPUShaderModule,
     label: String,
 ) : GPUShaderModule {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuShaderModuleRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuShaderModuleRelease(it) })
+    internal val handle: WGPUShaderModule
+        get() { session.requireOpen(); return reference.handle }
 
     override suspend fun getCompilationInfo(): Result<GPUCompilationInfo> {
+        val nativeHandle = handle
         val operation = session.runtime.pending<GPUCompilationInfo>(session) { }
         run {
             var registration: CallbackRegistration<WGPUCompilationInfoCallback>? = null
@@ -64,7 +66,7 @@ class DawnShaderModule internal constructor(
                             mode = WGPUCallbackMode_AllowProcessEvents,
                             registration = registration,
                         ).also { it.nextInChain = null }
-                        wgpuShaderModuleGetCompilationInfo(allocator, handle, callbackInfo)
+                        wgpuShaderModuleGetCompilationInfo(allocator, nativeHandle, callbackInfo)
                     }
                 },
                 closeRegistration = { registration?.close() },
@@ -74,7 +76,7 @@ class DawnShaderModule internal constructor(
     }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 

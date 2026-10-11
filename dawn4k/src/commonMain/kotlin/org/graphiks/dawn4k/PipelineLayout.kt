@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.mapper.allocatePipelineLayoutDescriptor
 import org.graphiks.dawn4k.native.WGPUPipelineLayout
 import org.graphiks.dawn4k.native.wgpuDeviceCreatePipelineLayout
@@ -15,18 +16,18 @@ import org.graphiks.webgpu.GPUPipelineLayoutDescriptor
  */
 class DawnPipelineLayout internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUPipelineLayout,
+    handle: WGPUPipelineLayout,
     label: String,
 ) : GPUPipelineLayout {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuPipelineLayoutRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuPipelineLayoutRelease(it) })
+    internal val handle: WGPUPipelineLayout
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 

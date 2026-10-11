@@ -247,12 +247,10 @@ class ComputeResourcesGpuTest {
         try {
             fixture.createShaderModule(ShaderModuleDescriptor(SCALE_SHADER)).use { shader ->
                 fixture.createComputePipeline(ComputePipelineDescriptor(ProgrammableStage(shader, "main"))).use { pipeline ->
-                    val before = fixture.session.resources.debugRemainingRefs()
-                    pipeline.getBindGroupLayout(0u).use {
-                        assertEquals(before + 1, fixture.session.resources.debugRemainingRefs())
-                    }
-                    // The owned temporary reference is released by close.
-                    assertEquals(before, fixture.session.resources.debugRemainingRefs())
+                    val layout = pipeline.getBindGroupLayout(0u) as DawnBindGroupLayout
+                    layout.close()
+                    layout.close()
+                    assertFailsWith<IllegalStateException> { layout.handle }
                 }
             }
         } finally { fixture.close() }

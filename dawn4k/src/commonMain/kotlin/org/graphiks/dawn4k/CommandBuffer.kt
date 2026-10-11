@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.native.WGPUCommandBuffer
 import org.graphiks.dawn4k.native.wgpuCommandBufferRelease
 import org.graphiks.webgpu.GPUCommandBuffer
@@ -11,17 +12,17 @@ import org.graphiks.webgpu.GPUCommandBuffer
  */
 class DawnCommandBuffer internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUCommandBuffer,
+    handle: WGPUCommandBuffer,
     label: String,
 ) : GPUCommandBuffer {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuCommandBufferRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuCommandBufferRelease(it) })
+    internal val handle: WGPUCommandBuffer
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }

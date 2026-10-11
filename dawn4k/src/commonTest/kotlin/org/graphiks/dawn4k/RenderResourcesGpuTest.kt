@@ -24,6 +24,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 /**
  * Real-GPU render resources: textures, texture views, samplers, render pipelines
@@ -63,13 +64,10 @@ class RenderResourcesGpuTest {
                 assertEquals(GPUTextureFormat.RGBA8Unorm, texture.format)
                 assertTrue(GPUTextureUsage.TextureBinding in texture.usage)
 
-                // createView(null) adopts the C defaults and owns a reference that
-                // close() releases back to the session — no leak.
-                val before = fixture.session.resources.debugRemainingRefs()
-                texture.createView(null).use {
-                    assertEquals(before + 1, fixture.session.resources.debugRemainingRefs())
-                }
-                assertEquals(before, fixture.session.resources.debugRemainingRefs())
+                val view = texture.createView(null) as DawnTextureView
+                view.close()
+                view.close()
+                assertFailsWith<IllegalStateException> { view.handle }
             }
         } finally { fixture.close() }
     }

@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.mapper.allocateSamplerDescriptor
 import org.graphiks.dawn4k.native.WGPUSampler
 import org.graphiks.dawn4k.native.wgpuDeviceCreateSampler
@@ -15,18 +16,18 @@ import org.graphiks.webgpu.GPUSamplerDescriptor
  */
 class DawnSampler internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUSampler,
+    handle: WGPUSampler,
     label: String,
 ) : GPUSampler {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuSamplerRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuSamplerRelease(it) })
+    internal val handle: WGPUSampler
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 

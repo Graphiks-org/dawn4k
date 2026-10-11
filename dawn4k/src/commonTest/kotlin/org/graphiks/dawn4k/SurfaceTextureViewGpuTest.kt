@@ -38,35 +38,30 @@ class SurfaceTextureViewGpuTest {
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             texture(fixture).use { texture ->
-                val before = fixture.session.resources.debugRemainingRefs()
                 val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
                 val view = device.adoptSurfaceTextureView(raw.handler.rawValue, "adopted")
                 assertEquals("adopted", view.label)
-                assertEquals(before + 1, fixture.session.resources.debugRemainingRefs())
                 view.close()
                 view.close()
-                assertEquals(before, fixture.session.resources.debugRemainingRefs())
+                assertFailsWith<IllegalStateException> { (view as DawnTextureView).handle }
             }
             device.close()
             device.close()
-            assertEquals(0, fixture.session.resources.debugRemainingRefs())
         }
     }
 
     @Test
-    fun deviceTeardownReleasesUnclosedAdoptedViewAndLateCloseIsHarmless() = runTest {
-        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.deviceTeardownReleasesUnclosedAdoptedViewAndLateCloseIsHarmless")) return@runTest
+    fun callerClosesAdoptedViewBeforeDeviceTeardown() = runTest {
+        if (!gpuTestEnvironment("SurfaceTextureViewGpuTest.callerClosesAdoptedViewBeforeDeviceTeardown")) return@runTest
         NativeFixture.open().use { fixture ->
             val device = DawnDevice(fixture.session, null, false)
             val texture = texture(fixture)
             val raw = assertNotNull(wgpuTextureCreateView(texture.handle, null))
             val view = device.adoptSurfaceTextureView(raw.handler.rawValue)
-            assertEquals(3, fixture.session.resources.debugRemainingRefs(), "queue, texture and adopted view")
-            device.close()
-            assertEquals(0, fixture.session.resources.debugRemainingRefs())
             view.close()
             texture.close()
-            assertEquals(0, fixture.session.resources.debugRemainingRefs())
+            device.close()
+            view.close()
         }
     }
 

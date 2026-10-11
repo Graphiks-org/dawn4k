@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.mapper.allocateBindGroupDescriptor
 import org.graphiks.dawn4k.native.WGPUBindGroup
 import org.graphiks.dawn4k.native.wgpuBindGroupRelease
@@ -15,18 +16,18 @@ import org.graphiks.webgpu.GPUBindGroupDescriptor
  */
 class DawnBindGroup internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUBindGroup,
+    handle: WGPUBindGroup,
     label: String,
 ) : GPUBindGroup {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuBindGroupRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuBindGroupRelease(it) })
+    internal val handle: WGPUBindGroup
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 

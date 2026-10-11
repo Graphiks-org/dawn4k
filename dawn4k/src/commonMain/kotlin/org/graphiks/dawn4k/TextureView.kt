@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.native.WGPUTextureView
 import org.graphiks.dawn4k.native.wgpuTextureViewRelease
 import org.graphiks.webgpu.GPUTextureView
@@ -11,17 +12,17 @@ import org.graphiks.webgpu.GPUTextureView
  */
 class DawnTextureView internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUTextureView,
+    handle: WGPUTextureView,
     label: String,
 ) : GPUTextureView {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuTextureViewRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuTextureViewRelease(it) })
+    internal val handle: WGPUTextureView
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }

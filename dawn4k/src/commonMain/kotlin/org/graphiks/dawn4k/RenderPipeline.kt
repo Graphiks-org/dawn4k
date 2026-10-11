@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.internal.copyToString
 import org.graphiks.dawn4k.mapper.allocateRenderPipelineDescriptor
@@ -30,15 +31,15 @@ import org.graphiks.webgpu.GPURenderPipelineDescriptor
  */
 class DawnRenderPipeline internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPURenderPipeline,
+    handle: WGPURenderPipeline,
     label: String,
 ) : GPURenderPipeline {
 
     override var label: String = label
 
-    init {
-        session.resources.own(key = this, destroy = null, release = { wgpuRenderPipelineRelease(handle) })
-    }
+    private val reference = OwnedReference(handle, release = { wgpuRenderPipelineRelease(it) })
+    internal val handle: WGPURenderPipeline
+        get() { session.requireOpen(); return reference.handle }
 
     /**
      * The owned bind group layout at [index]. The native call returns a NEW
@@ -52,7 +53,7 @@ class DawnRenderPipeline internal constructor(
     }
 
     override fun close() {
-        session.resources.release(this)
+        reference.close()
     }
 }
 
