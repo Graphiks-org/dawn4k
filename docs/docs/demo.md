@@ -5,6 +5,15 @@ window and renders the `ParticleScene` from
 [`suite-demos`](https://github.com/Graphiks-org/WebGPU/tree/master/suite-demos)
 through the `:dawn4k` backend (Dawn/Metal on macOS, Dawn/D3D12 on Windows).
 
+## Linux X11 native prerequisites
+
+The Linux X11 surface host uses the published `kffi-x11` bindings. Their current
+loader requires `libX11.so.6`, `libXext.so.6` and `libXcomposite.so.1`, even though
+the demo does not call Composite APIs. On Debian/Ubuntu, install them with
+`sudo apt-get install libx11-6 libxext6 libxcomposite1`. A graphical X11/XWayland
+session with `DISPLAY` set and a Vulkan-capable driver are also required.
+These libraries are not loaded on macOS or Windows paths.
+
 ## Run
 
 The demo owns its event-progression coroutine, on its consumer dispatcher.

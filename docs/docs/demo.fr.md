@@ -5,6 +5,15 @@ fenêtre et affiche la scène `ParticleScene` de
 [`suite-demos`](https://github.com/Graphiks-org/WebGPU/tree/master/suite-demos)
 via le backend `:dawn4k` (Dawn/Metal sur macOS, Dawn/D3D12 sur Windows).
 
+## Prérequis natifs Linux X11
+
+L'hôte de surface Linux X11 utilise les bindings publiés `kffi-x11`. Leur chargeur
+actuel requiert `libX11.so.6`, `libXext.so.6` et `libXcomposite.so.1`, même si
+la démo n'appelle pas les API Composite. Sous Debian/Ubuntu, les installer avec
+`sudo apt-get install libx11-6 libxext6 libxcomposite1`. Une session graphique
+X11/XWayland avec `DISPLAY` défini et un pilote compatible Vulkan sont également
+nécessaires. Ces bibliothèques ne sont pas chargées sur les chemins macOS ou Windows.
+
 ## Lancer
 
 La démo possède sa coroutine de progression, sur son dispatcher consommateur.

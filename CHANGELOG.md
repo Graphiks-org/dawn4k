@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The Linux demo uses published `kffi-x11` bindings and generated X11 event/window layouts instead of handwritten Xlib downcalls and ABI offsets.
 - Kotlin 2.4.0 → 2.4.10
 - Gradle 9.5.0 → 9.6.1 → 9.8.0
 - Added blocking pull request policy checks aligned with `CONTRIBUTING.md`.

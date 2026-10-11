@@ -65,6 +65,7 @@ kotlin {
             dependencies {
                 implementation(libs.kffi.objc.jvm)
                 implementation(libs.kffi.win32.jvm)
+                implementation(libs.kffi.x11.jvm)
                 implementation(libs.compose.desktop.currentOs)
                 runtimeOnly(libs.skiko.awt.runtime.macos.arm64)
                 runtimeOnly(libs.skiko.awt.runtime.macos.x64)
