@@ -65,6 +65,7 @@ kffi = { module = "org.graphiks:kffi", version.ref = "kffi" }
 suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
 suite-demos = { module = "org.graphiks:suite-demos", version.ref = "webgpu" }
 kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
+kffi-win32-jvm = { module = "org.graphiks:kffi-win32-jvm", version.ref = "kffi" }
 
 # Compose Desktop (application)
 compose-desktop-currentOs = { module = "org.jetbrains.compose.desktop:desktop", version.ref = "compose-multiplatform" }
