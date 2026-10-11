@@ -25,11 +25,3 @@ class DawnCommandBuffer internal constructor(
         session.resources.release(this)
     }
 }
-
-/** Refuses a foreign or foreign-session command buffer before its handle is read. */
-internal fun GPUCommandBuffer.requireDawnCommandBuffer(owner: DeviceSession): DawnCommandBuffer {
-    val dawn = this as? DawnCommandBuffer
-        ?: throw IllegalArgumentException("the command buffer does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the command buffer belongs to a different device session" }
-    return dawn
-}

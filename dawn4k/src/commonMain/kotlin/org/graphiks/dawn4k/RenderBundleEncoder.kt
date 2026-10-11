@@ -70,13 +70,13 @@ class DawnRenderBundleEncoder internal constructor(
 
     override fun setPipeline(pipeline: GPURenderPipeline) {
         requireOpen()
-        val dawn = pipeline.requireDawnRenderPipeline(session)
+        val dawn = pipeline as DawnRenderPipeline
         wgpuRenderBundleEncoderSetPipeline(handle, dawn.handle)
     }
 
     override fun setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
-        val dawn = buffer.requireDawnBuffer(session)
+        val dawn = buffer as DawnBuffer
         run {
             wgpuRenderBundleEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
         }
@@ -84,7 +84,7 @@ class DawnRenderBundleEncoder internal constructor(
 
     override fun setVertexBuffer(slot: GPUIndex32, buffer: GPUBuffer?, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
-        val dawn = buffer?.requireDawnBuffer(session)
+        val dawn = buffer as DawnBuffer?
         run {
             wgpuRenderBundleEncoderSetVertexBuffer(handle, slot, dawn?.handle, offset, size ?: WGPU_WHOLE_SIZE)
         }
@@ -112,19 +112,19 @@ class DawnRenderBundleEncoder internal constructor(
 
     override fun drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
-        val dawn = indirectBuffer.requireDawnBuffer(session)
+        val dawn = indirectBuffer as DawnBuffer
         wgpuRenderBundleEncoderDrawIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun drawIndexedIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
-        val dawn = indirectBuffer.requireDawnBuffer(session)
+        val dawn = indirectBuffer as DawnBuffer
         wgpuRenderBundleEncoderDrawIndexedIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
         requireOpen()
-        val dawn = bindGroup?.requireDawnBindGroup(session)
+        val dawn = bindGroup as DawnBindGroup?
         run {
             memoryScope { allocator ->
                 wgpuRenderBundleEncoderSetBindGroup(

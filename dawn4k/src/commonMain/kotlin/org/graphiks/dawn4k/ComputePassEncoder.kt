@@ -61,7 +61,7 @@ class DawnComputePassEncoder internal constructor(
 
     override fun setPipeline(pipeline: GPUComputePipeline) {
         requireOpen()
-        val dawn = pipeline.requireDawnComputePipeline(session)
+        val dawn = pipeline as DawnComputePipeline
         wgpuComputePassEncoderSetPipeline(handle, dawn.handle)
     }
 
@@ -74,7 +74,7 @@ class DawnComputePassEncoder internal constructor(
 
     override fun dispatchWorkgroupsIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
-        val dawn = indirectBuffer.requireDawnBuffer(session)
+        val dawn = indirectBuffer as DawnBuffer
         run {
             wgpuComputePassEncoderDispatchWorkgroupsIndirect(handle, dawn.handle, indirectOffset)
         }
@@ -82,7 +82,7 @@ class DawnComputePassEncoder internal constructor(
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
         requireOpen()
-        val dawn = bindGroup?.requireDawnBindGroup(session)
+        val dawn = bindGroup as DawnBindGroup?
         run {
             memoryScope { allocator ->
                 wgpuComputePassEncoderSetBindGroup(

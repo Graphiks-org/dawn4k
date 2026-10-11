@@ -70,14 +70,6 @@ class DawnTexture internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session texture before its handle is read. */
-internal fun GPUTexture.requireDawnTexture(owner: DeviceSession): DawnTexture {
-    val dawn = this as? DawnTexture
-        ?: throw IllegalArgumentException("the texture does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the texture belongs to a different device session" }
-    return dawn
-}
-
 /** Creates a [DawnTexture] on [this] session and registers it with the resource registry. */
 internal fun DeviceSession.createTexture(descriptor: GPUTextureDescriptor): DawnTexture =
     run {

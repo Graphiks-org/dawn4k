@@ -78,14 +78,6 @@ class DawnShaderModule internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session shader module before its handle is read. */
-internal fun GPUShaderModule.requireDawnShaderModule(owner: DeviceSession): DawnShaderModule {
-    val dawn = this as? DawnShaderModule
-        ?: throw IllegalArgumentException("the shader module does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the shader module belongs to a different device session" }
-    return dawn
-}
-
 /** Creates a [DawnShaderModule] on [this] session and registers its reference. */
 internal fun DeviceSession.createShaderModule(descriptor: GPUShaderModuleDescriptor): DawnShaderModule =
     run {

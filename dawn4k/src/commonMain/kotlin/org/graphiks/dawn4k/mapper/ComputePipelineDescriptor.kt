@@ -1,26 +1,24 @@
 package org.graphiks.dawn4k.mapper
 
-import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUComputePipelineDescriptor
 import org.graphiks.dawn4k.native.WGPUComputeState
 import org.graphiks.dawn4k.native.WGPUConstantEntry
-import org.graphiks.dawn4k.requireDawnPipelineLayout
-import org.graphiks.dawn4k.requireDawnShaderModule
+import org.graphiks.dawn4k.DawnPipelineLayout
+import org.graphiks.dawn4k.DawnShaderModule
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUComputePipelineDescriptor
 
 /**
  * Allocates a [WGPUComputePipelineDescriptor] whose compute stage references the
- * shader module (same [session]) and the optional pipeline layout (same [session]
- * or null = auto layout). `WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT` +
+ * shader module and optional pipeline layout (null = auto layout).
+ * Dawn validates device ownership. `WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT` +
  * `WGPU_COMPUTE_STATE_INIT` equivalent.
  */
 internal fun MemoryAllocator.allocateComputePipelineDescriptor(
     descriptor: GPUComputePipelineDescriptor,
-    session: DeviceSession,
 ): WGPUComputePipelineDescriptor {
-    val module = descriptor.compute.module.requireDawnShaderModule(session)
-    val layout = descriptor.layout?.requireDawnPipelineLayout(session)
+    val module = descriptor.compute.module as DawnShaderModule
+    val layout = descriptor.layout as DawnPipelineLayout?
 
     val native = WGPUComputePipelineDescriptor.allocate(this)
     native.nextInChain = null

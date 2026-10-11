@@ -81,8 +81,8 @@ assert ownership states without ever dereferencing released memory.
 
 ### Wrappers, guards and mappers
 
-Each `Dawn*` wrapper borrows its native handle and refuses foreign objects
-(`requireDawn*`) before any downcall can read a handle from another session.
+Each `Dawn*` wrapper borrows its native handle. Mappers cast WebGPU objects to
+their Dawn wrappers; cross-device use is left to Dawn's WebGPU validation.
 Pass encoders release their handle on `end()` and the render bundle encoder on
 `close()`, so each carries a Kotlin guard refusing late commands with an
 `IllegalStateException` **before** a downcall — `finish()` on a command encoder

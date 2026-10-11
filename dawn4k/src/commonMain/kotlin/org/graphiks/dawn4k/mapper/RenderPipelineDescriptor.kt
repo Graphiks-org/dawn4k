@@ -1,6 +1,5 @@
 package org.graphiks.dawn4k.mapper
 
-import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUBlendState
 import org.graphiks.dawn4k.native.WGPUColorTargetState
 import org.graphiks.dawn4k.native.WGPUColorWriteMask_All
@@ -15,8 +14,8 @@ import org.graphiks.dawn4k.native.WGPUVertexAttribute
 import org.graphiks.dawn4k.native.WGPUVertexBufferLayout
 import org.graphiks.dawn4k.native.WGPUVertexState
 import org.graphiks.dawn4k.native.WGPUStringView
-import org.graphiks.dawn4k.requireDawnPipelineLayout
-import org.graphiks.dawn4k.requireDawnShaderModule
+import org.graphiks.dawn4k.DawnPipelineLayout
+import org.graphiks.dawn4k.DawnShaderModule
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUBlendComponent
 import org.graphiks.webgpu.GPUColorTargetState
@@ -29,23 +28,22 @@ import org.graphiks.webgpu.GPUVertexState
 
 /**
  * Allocates a [WGPURenderPipelineDescriptor] whose vertex and fragment stages
- * reference their shader modules (same [session]) and the optional pipeline
- * layout (same [session] or null = auto layout). `WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT`
+ * reference their shader modules and optional pipeline layout (null = auto layout).
+ * Dawn validates device ownership. `WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT`
  * + `WGPU_VERTEX_STATE_INIT` + `WGPU_FRAGMENT_STATE_INIT` + `WGPU_PRIMITIVE_STATE_INIT`
  * + `WGPU_MULTISAMPLE_STATE_INIT` equivalent.
  */
 internal fun MemoryAllocator.allocateRenderPipelineDescriptor(
     descriptor: GPURenderPipelineDescriptor,
-    session: DeviceSession,
 ): WGPURenderPipelineDescriptor {
-    val layout = descriptor.layout?.requireDawnPipelineLayout(session)
+    val layout = descriptor.layout as DawnPipelineLayout?
 
     val native = WGPURenderPipelineDescriptor.allocate(this)
     native.nextInChain = null
     native.label.initNull()
     native.layout = layout?.handle
 
-    initVertexState(native.vertex, descriptor.vertex, session)
+    initVertexState(native.vertex, descriptor.vertex)
 
     val primitive = native.primitive
     primitive.nextInChain = null
@@ -63,7 +61,7 @@ internal fun MemoryAllocator.allocateRenderPipelineDescriptor(
     multisample.mask = descriptor.multisample.mask
     multisample.alphaToCoverageEnabled = if (descriptor.multisample.alphaToCoverageEnabled) 1u else 0u
 
-    native.fragment = descriptor.fragment?.let { allocateFragmentState(it, session) }
+    native.fragment = descriptor.fragment?.let { allocateFragmentState(it) }
     return native
 }
 
@@ -71,9 +69,8 @@ internal fun MemoryAllocator.allocateRenderPipelineDescriptor(
 private fun MemoryAllocator.initVertexState(
     state: WGPUVertexState,
     stage: GPUVertexState,
-    session: DeviceSession,
 ) {
-    val module = stage.module.requireDawnShaderModule(session)
+    val module = stage.module as DawnShaderModule
     state.nextInChain = null
     state.module = module.handle
     initProgrammableStageFields(
@@ -95,9 +92,8 @@ private fun MemoryAllocator.initVertexState(
 /** Allocates a fragment stage: module, entry point, constants, and the color targets. */
 private fun MemoryAllocator.allocateFragmentState(
     stage: GPUFragmentState,
-    session: DeviceSession,
 ): WGPUFragmentState {
-    val module = stage.module.requireDawnShaderModule(session)
+    val module = stage.module as DawnShaderModule
     val native = WGPUFragmentState.allocate(this)
     native.nextInChain = null
     native.module = module.handle

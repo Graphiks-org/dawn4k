@@ -60,20 +60,12 @@ class DawnComputePipeline internal constructor(
 internal fun DeviceSession.createComputePipeline(descriptor: GPUComputePipelineDescriptor): DawnComputePipeline =
     run {
         memoryScope { allocator ->
-            val native = allocator.allocateComputePipelineDescriptor(descriptor, this)
+            val native = allocator.allocateComputePipelineDescriptor(descriptor)
             val handle = wgpuDeviceCreateComputePipeline(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateComputePipeline returned no pipeline")
             DawnComputePipeline(this, handle, descriptor.label)
         }
     }
-
-/** Refuses a foreign or foreign-session compute pipeline before its handle is read. */
-internal fun GPUComputePipeline.requireDawnComputePipeline(owner: DeviceSession): DawnComputePipeline {
-    val dawn = this as? DawnComputePipeline
-        ?: throw IllegalArgumentException("the compute pipeline does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the compute pipeline belongs to a different device session" }
-    return dawn
-}
 
 /**
  * Creates a [DawnComputePipeline] asynchronously, resolving the returned [Result]
@@ -117,7 +109,7 @@ private suspend fun DeviceSession.createComputePipelineAsyncOnSession(
                     },
                 )
                 memoryScope { allocator ->
-                    val native = allocator.allocateComputePipelineDescriptor(descriptor, this)
+                    val native = allocator.allocateComputePipelineDescriptor(descriptor)
                     val callbackInfo = WGPUCreateComputePipelineAsyncCallbackInfo.allocate(
                         allocator = allocator,
                         mode = WGPUCallbackMode_AllowProcessEvents,

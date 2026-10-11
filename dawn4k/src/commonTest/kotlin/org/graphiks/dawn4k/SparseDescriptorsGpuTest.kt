@@ -57,11 +57,10 @@ class SparseDescriptorsGpuTest {
         DawnContext.create(gpuTestConfig()).useWithProgress { context ->
             context.requestAdapter().getOrThrow().use { adapter ->
                 (adapter.requestDevice().getOrThrow() as DawnDevice).use { device ->
-                    val session = device.session
                     device.createBindGroupLayout(BindGroupLayoutDescriptor(emptyList())).use { layout ->
                         memoryScope { allocator ->
                             val native = allocator.allocatePipelineLayoutDescriptor(
-                                PipelineLayoutDescriptor(listOf(null, layout, null)), session,
+                                PipelineLayoutDescriptor(listOf(null, layout, null)),
                             )
                             assertEquals(3uL, native.bindGroupLayoutCount)
                             val addresses = MemoryBuffer(native.bindGroupLayouts!!, 24uL)
@@ -76,7 +75,7 @@ class SparseDescriptorsGpuTest {
                             fragment = FragmentState(module = shader, entryPoint = "fs_main", targets = listOf(null, ColorTargetState(GPUTextureFormat.RGBA8Unorm))),
                         )
                         memoryScope { allocator ->
-                            val native = allocator.allocateRenderPipelineDescriptor(descriptor, session)
+                            val native = allocator.allocateRenderPipelineDescriptor(descriptor)
                             assertEquals(2uL, native.vertex.bufferCount)
                             val empty = native.vertex.buffers!!
                             assertEquals(WGPUVertexStepMode_Undefined, empty.stepMode)
@@ -98,7 +97,7 @@ class SparseDescriptorsGpuTest {
                             val views = mutableListOf<DawnTextureView>()
                             try {
                                 val native = allocator.allocateRenderPassDescriptor(
-                                    RenderPassDescriptor(listOf(null, RenderPassColorAttachment(texture, GPULoadOp.Clear, GPUStoreOp.Store))), session, views,
+                                    RenderPassDescriptor(listOf(null, RenderPassColorAttachment(texture, GPULoadOp.Clear, GPUStoreOp.Store))), views,
                                 )
                                 assertEquals(2uL, native.colorAttachmentCount)
                                 val empty = native.colorAttachments!!

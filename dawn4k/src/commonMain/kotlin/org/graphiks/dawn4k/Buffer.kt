@@ -206,14 +206,6 @@ private fun mapStateOf(state: WGPUBufferMapState): GPUBufferMapState = when (sta
     else -> GPUBufferMapState.Unmapped
 }
 
-/** Refuses a foreign or foreign-session buffer before its handle is read. */
-internal fun GPUBuffer.requireDawnBuffer(owner: DeviceSession): DawnBuffer {
-    val dawn = this as? DawnBuffer
-        ?: throw IllegalArgumentException("the buffer does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the buffer belongs to a different device session" }
-    return dawn
-}
-
 /**
  * Creates a [DawnBuffer] on [this] session and registers it with the session's
  * resource registry, so the session releases the native reference on teardown.

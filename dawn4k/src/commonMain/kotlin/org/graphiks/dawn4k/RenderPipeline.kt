@@ -56,19 +56,12 @@ class DawnRenderPipeline internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session render pipeline before its handle is read. */
-internal fun GPURenderPipeline.requireDawnRenderPipeline(owner: DeviceSession): DawnRenderPipeline {
-    val dawn = this as? DawnRenderPipeline
-        ?: throw IllegalArgumentException("the render pipeline does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the render pipeline belongs to a different device session" }
-    return dawn
-}
 
 /** Creates a [DawnRenderPipeline] on [this] session and registers its reference. */
 internal fun DeviceSession.createRenderPipeline(descriptor: GPURenderPipelineDescriptor): DawnRenderPipeline =
     run {
         memoryScope { allocator ->
-            val native = allocator.allocateRenderPipelineDescriptor(descriptor, this)
+            val native = allocator.allocateRenderPipelineDescriptor(descriptor)
             val handle = wgpuDeviceCreateRenderPipeline(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreateRenderPipeline returned no pipeline")
             DawnRenderPipeline(this, handle, descriptor.label)
@@ -117,7 +110,7 @@ private suspend fun DeviceSession.createRenderPipelineAsyncOnSession(
                     },
                 )
                 memoryScope { allocator ->
-                    val native = allocator.allocateRenderPipelineDescriptor(descriptor, this)
+                    val native = allocator.allocateRenderPipelineDescriptor(descriptor)
                     val callbackInfo = WGPUCreateRenderPipelineAsyncCallbackInfo.allocate(
                         allocator = allocator,
                         mode = WGPUCallbackMode_AllowProcessEvents,

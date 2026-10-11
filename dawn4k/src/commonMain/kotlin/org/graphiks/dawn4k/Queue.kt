@@ -35,7 +35,7 @@ class DawnQueue internal constructor(
     override fun submit(commandBuffers: List<GPUCommandBuffer>) {
         run {
             memoryScope { allocator ->
-                val buffers = commandBuffers.map { it.requireDawnCommandBuffer(session).handle }
+                val buffers = commandBuffers.map { (it as DawnCommandBuffer).handle }
                 val commands = if (buffers.isEmpty()) {
                     null
                 } else {
@@ -56,7 +56,7 @@ class DawnQueue internal constructor(
         size: GPUSize64?,
     ) {
         val slice = dataSlice(data.size, dataOffset, size)
-        val dawn = buffer.requireDawnBuffer(session)
+        val dawn = buffer as DawnBuffer
         run {
             memoryScope { allocator ->
                 val address = uploadAddress(allocator, data, slice.offset, slice.size)
@@ -73,7 +73,7 @@ class DawnQueue internal constructor(
     ) {
         run {
             memoryScope { allocator ->
-                val nativeDestination = allocator.allocateTexelCopyTextureInfo(destination, session)
+                val nativeDestination = allocator.allocateTexelCopyTextureInfo(destination)
                 val nativeLayout = allocator.allocateTexelCopyBufferLayout(dataLayout)
                 val nativeSize = allocator.allocateExtent3D(size)
                 val address = uploadAddress(allocator, data, 0uL, data.size)

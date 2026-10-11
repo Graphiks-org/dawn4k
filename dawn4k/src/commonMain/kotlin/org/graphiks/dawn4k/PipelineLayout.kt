@@ -30,19 +30,11 @@ class DawnPipelineLayout internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session pipeline layout before its handle is read. */
-internal fun GPUPipelineLayout.requireDawnPipelineLayout(owner: DeviceSession): DawnPipelineLayout {
-    val dawn = this as? DawnPipelineLayout
-        ?: throw IllegalArgumentException("the pipeline layout does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the pipeline layout belongs to a different device session" }
-    return dawn
-}
-
 /** Creates a [DawnPipelineLayout] on [this] session and registers its reference. */
 internal fun DeviceSession.createPipelineLayout(descriptor: GPUPipelineLayoutDescriptor): DawnPipelineLayout =
     run {
         memoryScope { allocator ->
-            val native = allocator.allocatePipelineLayoutDescriptor(descriptor, this)
+            val native = allocator.allocatePipelineLayoutDescriptor(descriptor)
             val handle = wgpuDeviceCreatePipelineLayout(this.handle, native)
                 ?: throw IllegalStateException("wgpuDeviceCreatePipelineLayout returned no layout")
             DawnPipelineLayout(this, handle, descriptor.label)

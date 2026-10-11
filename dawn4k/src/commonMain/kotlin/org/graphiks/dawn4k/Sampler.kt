@@ -30,14 +30,6 @@ class DawnSampler internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session sampler before its handle is read. */
-internal fun GPUSampler.requireDawnSampler(owner: DeviceSession): DawnSampler {
-    val dawn = this as? DawnSampler
-        ?: throw IllegalArgumentException("the sampler does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the sampler belongs to a different device session" }
-    return dawn
-}
-
 /** Creates a [DawnSampler] on [this] session and registers its reference. */
 internal fun DeviceSession.createSampler(descriptor: GPUSamplerDescriptor): DawnSampler =
     run {

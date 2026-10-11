@@ -80,13 +80,13 @@ class DawnRenderPassEncoder internal constructor(
 
     override fun setPipeline(pipeline: GPURenderPipeline) {
         requireOpen()
-        val dawn = pipeline.requireDawnRenderPipeline(session)
+        val dawn = pipeline as DawnRenderPipeline
         wgpuRenderPassEncoderSetPipeline(handle, dawn.handle)
     }
 
     override fun setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
-        val dawn = buffer.requireDawnBuffer(session)
+        val dawn = buffer as DawnBuffer
         run {
             wgpuRenderPassEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
         }
@@ -94,7 +94,7 @@ class DawnRenderPassEncoder internal constructor(
 
     override fun setVertexBuffer(slot: GPUIndex32, buffer: GPUBuffer?, offset: GPUSize64, size: GPUSize64?) {
         requireOpen()
-        val dawn = buffer?.requireDawnBuffer(session)
+        val dawn = buffer as DawnBuffer?
         run {
             wgpuRenderPassEncoderSetVertexBuffer(handle, slot, dawn?.handle, offset, size ?: WGPU_WHOLE_SIZE)
         }
@@ -122,19 +122,19 @@ class DawnRenderPassEncoder internal constructor(
 
     override fun drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
-        val dawn = indirectBuffer.requireDawnBuffer(session)
+        val dawn = indirectBuffer as DawnBuffer
         wgpuRenderPassEncoderDrawIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun drawIndexedIndirect(indirectBuffer: GPUBuffer, indirectOffset: GPUSize64) {
         requireOpen()
-        val dawn = indirectBuffer.requireDawnBuffer(session)
+        val dawn = indirectBuffer as DawnBuffer
         wgpuRenderPassEncoderDrawIndexedIndirect(handle, dawn.handle, indirectOffset)
     }
 
     override fun setBindGroup(index: GPUIndex32, bindGroup: GPUBindGroup?, dynamicOffsetsData: List<UInt>) {
         requireOpen()
-        val dawn = bindGroup?.requireDawnBindGroup(session)
+        val dawn = bindGroup as DawnBindGroup?
         run {
             memoryScope { allocator ->
                 wgpuRenderPassEncoderSetBindGroup(
@@ -201,7 +201,7 @@ class DawnRenderPassEncoder internal constructor(
         requireOpen()
         run {
             memoryScope { allocator ->
-                val handles = bundles.map { it.requireDawnRenderBundle(session).handle }
+                val handles = bundles.map { (it as DawnRenderBundle).handle }
                 val addresses = if (handles.isEmpty()) null else allocator.bufferOfAddresses(handles.map { it.handler }).handler
                 wgpuRenderPassEncoderExecuteBundles(handle, handles.size.toULong(), addresses)
             }
@@ -236,13 +236,6 @@ class DawnRenderPassEncoder internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session render bundle before its handle is read. */
-internal fun GPURenderBundle.requireDawnRenderBundle(owner: DeviceSession): DawnRenderBundle {
-    val dawn = this as? DawnRenderBundle
-        ?: throw IllegalArgumentException("the render bundle does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the render bundle belongs to a different device session" }
-    return dawn
-}
 
 /** Allocates a [WGPUColor] from a [GPUColor] for the blend-constant downcall. */
 internal fun MemoryAllocator.allocateColor(color: GPUColor): WGPUColor {

@@ -1,7 +1,6 @@
 package org.graphiks.dawn4k.mapper
 
 import org.graphiks.dawn4k.DawnTextureView
-import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUColor
 import org.graphiks.dawn4k.native.WGPULoadOp_Undefined
 import org.graphiks.dawn4k.native.WGPUStoreOp_Undefined
@@ -12,9 +11,8 @@ import org.graphiks.dawn4k.native.WGPURenderPassDescriptor
 import org.graphiks.dawn4k.native.WGPURenderPassMaxDrawCount
 import org.graphiks.dawn4k.native.WGPUTextureView
 import org.graphiks.dawn4k.native.WGPUSType_RenderPassMaxDrawCount
-import org.graphiks.dawn4k.requireDawnQuerySet
-import org.graphiks.dawn4k.requireDawnTexture
-import org.graphiks.dawn4k.requireDawnTextureView
+import org.graphiks.dawn4k.DawnQuerySet
+import org.graphiks.dawn4k.DawnTexture
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUColor
 import org.graphiks.webgpu.GPURenderPassColorAttachment
@@ -29,8 +27,8 @@ import org.graphiks.webgpu.GPUTextureView
 private const val DEFAULT_MAX_DRAW_COUNT: ULong = 50000000uL
 
 /**
- * Allocates a [WGPURenderPassDescriptor] whose attachments and query sets belong
- * to [session]. A [GPUTexture] attachment (not a [GPUTextureView]) gets an owned
+ * Allocates a [WGPURenderPassDescriptor]; Dawn validates device ownership.
+ * A [GPUTexture] attachment (not a [GPUTextureView]) gets an owned
  * temporary view created here and appended to [temporaryViews]; the pass encoder
  * releases those views when the pass ends, so they never outlive the encoding.
  *
@@ -43,7 +41,6 @@ private const val DEFAULT_MAX_DRAW_COUNT: ULong = 50000000uL
  */
 internal fun MemoryAllocator.allocateRenderPassDescriptor(
     descriptor: GPURenderPassDescriptor,
-    session: DeviceSession,
     temporaryViews: MutableList<DawnTextureView>,
 ): WGPURenderPassDescriptor {
     val native = WGPURenderPassDescriptor.allocate(this)
@@ -55,17 +52,17 @@ internal fun MemoryAllocator.allocateRenderPassDescriptor(
         null
     } else {
         WGPURenderPassColorAttachment.allocateArray(this, descriptor.colorAttachments.size.toUInt()) { index, target ->
-            initColorAttachment(target, descriptor.colorAttachments[index.toInt()], session, temporaryViews)
+            initColorAttachment(target, descriptor.colorAttachments[index.toInt()], temporaryViews)
         }.let { WGPURenderPassColorAttachment(it.handler) }
     }
 
     native.depthStencilAttachment = descriptor.depthStencilAttachment?.let {
-        allocateDepthStencilAttachment(it, session, temporaryViews)
+        allocateDepthStencilAttachment(it, temporaryViews)
     }
 
-    native.occlusionQuerySet = descriptor.occlusionQuerySet?.let { it.requireDawnQuerySet(session).handle }
+    native.occlusionQuerySet = (descriptor.occlusionQuerySet as DawnQuerySet?)?.handle
 
-    native.timestampWrites = descriptor.timestampWrites?.let { allocateTimestampWrites(it, session) }
+    native.timestampWrites = descriptor.timestampWrites?.let { allocateTimestampWrites(it) }
 
     if (descriptor.maxDrawCount != DEFAULT_MAX_DRAW_COUNT) {
         val maxDrawCount = WGPURenderPassMaxDrawCount.allocate(this)
@@ -81,13 +78,12 @@ internal fun MemoryAllocator.allocateRenderPassDescriptor(
 private fun initColorAttachment(
     target: WGPURenderPassColorAttachment,
     attachment: GPURenderPassColorAttachment?,
-    session: DeviceSession,
     temporaryViews: MutableList<DawnTextureView>,
 ) {
     target.nextInChain = null
-    target.view = attachment?.let { resolveAttachmentView(it.view, session, temporaryViews) }
+    target.view = attachment?.let { resolveAttachmentView(it.view, temporaryViews) }
     target.depthSlice = attachment?.depthSlice ?: WGPU_DEPTH_SLICE_UNDEFINED
-    target.resolveTarget = attachment?.resolveTarget?.let { resolveAttachmentView(it, session, temporaryViews) }
+    target.resolveTarget = attachment?.resolveTarget?.let { resolveAttachmentView(it, temporaryViews) }
     target.loadOp = attachment?.loadOp?.toNativeLoadOp() ?: WGPULoadOp_Undefined
     target.storeOp = attachment?.storeOp?.toNativeStoreOp() ?: WGPUStoreOp_Undefined
     target.clearValue.initFrom(attachment?.clearValue)
@@ -96,12 +92,11 @@ private fun initColorAttachment(
 /** `WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT` equivalent. */
 private fun MemoryAllocator.allocateDepthStencilAttachment(
     attachment: GPURenderPassDepthStencilAttachment,
-    session: DeviceSession,
     temporaryViews: MutableList<DawnTextureView>,
 ): WGPURenderPassDepthStencilAttachment {
     val native = WGPURenderPassDepthStencilAttachment.allocate(this)
     native.nextInChain = null
-    native.view = resolveAttachmentView(attachment.view, session, temporaryViews)
+    native.view = resolveAttachmentView(attachment.view, temporaryViews)
     native.depthLoadOp = attachment.depthLoadOp.toNativeOrUndefined
     native.depthStoreOp = attachment.depthStoreOp.toNativeOrUndefined
     native.depthClearValue = attachment.depthClearValue ?: Float.NaN
@@ -116,11 +111,10 @@ private fun MemoryAllocator.allocateDepthStencilAttachment(
 /** `WGPU_PASS_TIMESTAMP_WRITES_INIT` equivalent. */
 private fun MemoryAllocator.allocateTimestampWrites(
     writes: GPURenderPassTimestampWrites,
-    session: DeviceSession,
 ): WGPUPassTimestampWrites {
     val native = WGPUPassTimestampWrites.allocate(this)
     native.nextInChain = null
-    native.querySet = writes.querySet.requireDawnQuerySet(session).handle
+    native.querySet = (writes.querySet as DawnQuerySet).handle
     native.beginningOfPassWriteIndex = writes.beginningOfPassWriteIndex ?: WGPU_QUERY_SET_INDEX_UNDEFINED
     native.endOfPassWriteIndex = writes.endOfPassWriteIndex ?: WGPU_QUERY_SET_INDEX_UNDEFINED
     return native
@@ -133,15 +127,14 @@ private fun MemoryAllocator.allocateTimestampWrites(
  */
 private fun resolveAttachmentView(
     view: GPUTextureOrGPUTextureView,
-    session: DeviceSession,
     temporaryViews: MutableList<DawnTextureView>,
 ): WGPUTextureView = when (view) {
     is GPUTexture -> {
-        val temp = view.requireDawnTexture(session).createView(null).requireDawnTextureView(session)
+        val temp = (view as DawnTexture).createView(null) as DawnTextureView
         temporaryViews += temp
         temp.handle
     }
-    is GPUTextureView -> view.requireDawnTextureView(session).handle
+    is GPUTextureView -> (view as DawnTextureView).handle
 }
 
 /** The `WGPU_COLOR_INIT` clear value (transparent black) when [color] is absent. */

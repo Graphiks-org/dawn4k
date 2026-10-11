@@ -31,14 +31,6 @@ class DawnBindGroupLayout internal constructor(
     }
 }
 
-/** Refuses a foreign or foreign-session bind group layout before its handle is read. */
-internal fun GPUBindGroupLayout.requireDawnBindGroupLayout(owner: DeviceSession): DawnBindGroupLayout {
-    val dawn = this as? DawnBindGroupLayout
-        ?: throw IllegalArgumentException("the bind group layout does not belong to this Dawn backend: $this")
-    require(dawn.session === owner) { "the bind group layout belongs to a different device session" }
-    return dawn
-}
-
 /** Creates a [DawnBindGroupLayout] on [this] session and registers its reference. */
 internal fun DeviceSession.createBindGroupLayout(descriptor: GPUBindGroupLayoutDescriptor): DawnBindGroupLayout =
     run {

@@ -18,6 +18,8 @@ import org.graphiks.webgpu.GPUBufferMapState
 import org.graphiks.webgpu.GPUBufferUsage
 import org.graphiks.webgpu.GPUCompareFunction
 import org.graphiks.webgpu.GPUFeatureName
+import org.graphiks.webgpu.GPUErrorFilter
+import org.graphiks.webgpu.GPUValidationError
 import org.graphiks.webgpu.GPUIndexFormat
 import org.graphiks.webgpu.GPUMapMode
 import org.graphiks.webgpu.GPUQueryType
@@ -44,12 +46,13 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
  * Resource-lifecycle stress and out-of-suite witnesses of the public backend:
  * idempotent closes, a late callback after a cancelled wait, cross-device
- * refusal without a cross-device handle, a hundred-device open/close stress,
+ * native validation without ownership transfer, a hundred-device open/close stress,
  * foreign-thread interaction routed through the dispatcher, native validation
  * observed on invalid sources, setImmediates for real under the announced
  * maxImmediateSize, the nullable depth signatures reaching native validation,
@@ -216,8 +219,8 @@ class LifecycleStressGpuTest {
     // --- resources from another device ---------------------------------------
 
     @Test
-    fun resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle() = runTest {
-        if (!gpuTestEnvironment("LifecycleStressGpuTest.resourcesFromAnotherDeviceAreRefusedWithNoCrossDeviceHandle")) return@runTest
+    fun resourcesFromAnotherDeviceReachDawnValidationWithoutOwnershipTransfer() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.resourcesFromAnotherDeviceReachDawnValidationWithoutOwnershipTransfer")) return@runTest
         val context = DawnContext.create(gpuTestConfig())
         val events = context.startTestProgress(this)
         try {
@@ -237,16 +240,16 @@ class LifecycleStressGpuTest {
                         val ownedByB = deviceB.session.resources.debugRemainingRefs()
                         val ownedByA = deviceA.session.resources.debugRemainingRefs()
 
-                        // The refusal happens on the Kotlin side, before any
-                        // downcall can read the foreign handle.
-                        assertFailsWith<IllegalArgumentException> {
-                            deviceB.createCommandEncoder().use { encoder ->
-                                encoder.copyBufferToBuffer(foreignBuffer, 0uL, localBuffer, 0uL, 16uL)
-                            }
+                        // Dawn reports cross-device use through a WebGPU error scope,
+                        // not a Kotlin exception. Encoder validation is deferred to finish.
+                        deviceB.pushErrorScope(GPUErrorFilter.Validation)
+                        deviceB.createCommandEncoder().use { encoder ->
+                            encoder.copyBufferToBuffer(foreignBuffer, 0uL, localBuffer, 0uL, 16uL)
+                            encoder.finish().close()
                         }
+                        assertIs<GPUValidationError>(deviceB.popErrorScope().getOrThrow())
 
-                        // No cross-device handle: B's registry never learned about
-                        // the foreign buffer, and A still owns it untouched.
+                        // Validation must not transfer the foreign buffer's ownership.
                         assertEquals(
                             ownedByB,
                             deviceB.session.resources.debugRemainingRefs(),

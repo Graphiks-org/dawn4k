@@ -1,12 +1,11 @@
 package org.graphiks.dawn4k.mapper
 
-import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUBindGroupDescriptor
 import org.graphiks.dawn4k.native.WGPUBindGroupEntry
-import org.graphiks.dawn4k.requireDawnBindGroupLayout
-import org.graphiks.dawn4k.requireDawnBuffer
-import org.graphiks.dawn4k.requireDawnSampler
-import org.graphiks.dawn4k.requireDawnTextureView
+import org.graphiks.dawn4k.DawnBindGroupLayout
+import org.graphiks.dawn4k.DawnBuffer
+import org.graphiks.dawn4k.DawnSampler
+import org.graphiks.dawn4k.DawnTextureView
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUBindGroupDescriptor
 import org.graphiks.webgpu.GPUBindGroupEntry
@@ -17,15 +16,13 @@ import org.graphiks.webgpu.GPUTexture
 import org.graphiks.webgpu.GPUTextureView
 
 /**
- * Allocates a [WGPUBindGroupDescriptor] and its entry array. The layout and every
- * binding resource must belong to [session]; a foreign object is refused with a
- * Kotlin error before any handle is extracted or any downcall is made.
+ * Allocates a [WGPUBindGroupDescriptor] and its entry array.
+ * Dawn validates device ownership of the layout and binding resources.
  */
 internal fun MemoryAllocator.allocateBindGroupDescriptor(
     descriptor: GPUBindGroupDescriptor,
-    session: DeviceSession,
 ): WGPUBindGroupDescriptor {
-    val layout = descriptor.layout.requireDawnBindGroupLayout(session)
+    val layout = descriptor.layout as DawnBindGroupLayout
     val native = WGPUBindGroupDescriptor.allocate(this)
     native.nextInChain = null
     native.label.initNull()
@@ -35,7 +32,7 @@ internal fun MemoryAllocator.allocateBindGroupDescriptor(
         null
     } else {
         WGPUBindGroupEntry.allocateArray(this, descriptor.entries.size.toUInt()) { index, entry ->
-            initBindGroupEntry(entry, descriptor.entries[index.toInt()], session)
+            initBindGroupEntry(entry, descriptor.entries[index.toInt()])
         }.let { WGPUBindGroupEntry(it.handler) }
     }
     return native
@@ -46,7 +43,7 @@ internal fun MemoryAllocator.allocateBindGroupDescriptor(
  * fills the buffer members, a sampler fills `sampler`, and a texture view fills
  * `textureView`; the members of the unset families are left null.
  */
-private fun initBindGroupEntry(entry: WGPUBindGroupEntry, bind: GPUBindGroupEntry, session: DeviceSession) {
+private fun initBindGroupEntry(entry: WGPUBindGroupEntry, bind: GPUBindGroupEntry) {
     entry.nextInChain = null
     entry.binding = bind.binding
     entry.buffer = null
@@ -56,22 +53,22 @@ private fun initBindGroupEntry(entry: WGPUBindGroupEntry, bind: GPUBindGroupEntr
     entry.textureView = null
     when (val resource = bind.resource) {
         is GPUBuffer -> {
-            val buffer = resource.requireDawnBuffer(session)
+            val buffer = resource as DawnBuffer
             entry.buffer = buffer.handle
             entry.offset = 0uL
             entry.size = WGPU_WHOLE_SIZE
         }
         is GPUBufferBinding -> {
-            val buffer = resource.buffer.requireDawnBuffer(session)
+            val buffer = resource.buffer as DawnBuffer
             entry.buffer = buffer.handle
             entry.offset = resource.offset
             entry.size = resource.size ?: WGPU_WHOLE_SIZE
         }
         is GPUSampler -> {
-            entry.sampler = resource.requireDawnSampler(session).handle
+            entry.sampler = (resource as DawnSampler).handle
         }
         is GPUTextureView -> {
-            entry.textureView = resource.requireDawnTextureView(session).handle
+            entry.textureView = (resource as DawnTextureView).handle
         }
         is GPUTexture -> throw IllegalArgumentException(
             "bind a GPUTextureView instead; implicit texture views are not supported by this backend",

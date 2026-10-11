@@ -85,8 +85,9 @@ de possession sans jamais déréférencer la mémoire libérée.
 
 ### Wrappers, gardes et mappers
 
-Chaque wrapper `Dawn*` emprunte son handle natif et refuse les objets étrangers
-(`requireDawn*`) avant qu'un downcall ne lise un handle d'une autre session. Les
+Chaque wrapper `Dawn*` emprunte son handle natif. Les mappers castent les objets
+WebGPU vers leurs wrappers Dawn ; la validation WebGPU de Dawn vérifie les usages
+inter-device. Les
 passe-encoders libèrent leur handle sur `end()` et l'encodeur de render bundle
 sur `close()`, donc chacun porte une garde Kotlin qui refuse les commandes
 tardives avec une `IllegalStateException` **avant** le downcall — `finish()` du

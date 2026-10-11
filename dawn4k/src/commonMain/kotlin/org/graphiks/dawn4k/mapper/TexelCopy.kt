@@ -1,12 +1,11 @@
 package org.graphiks.dawn4k.mapper
 
-import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.native.WGPUExtent3D
 import org.graphiks.dawn4k.native.WGPUTexelCopyBufferInfo
 import org.graphiks.dawn4k.native.WGPUTexelCopyBufferLayout
 import org.graphiks.dawn4k.native.WGPUTexelCopyTextureInfo
-import org.graphiks.dawn4k.requireDawnBuffer
-import org.graphiks.dawn4k.requireDawnTexture
+import org.graphiks.dawn4k.DawnBuffer
+import org.graphiks.dawn4k.DawnTexture
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUExtent3D
 import org.graphiks.webgpu.GPUTexelCopyBufferInfo
@@ -30,14 +29,13 @@ internal fun MemoryAllocator.allocateTexelCopyBufferLayout(
 }
 
 /**
- * Allocates a [WGPUTexelCopyBufferInfo] carrying the layout and the buffer, which
- * must belong to [session]; a foreign buffer is refused before any handle is read.
+ * Allocates a [WGPUTexelCopyBufferInfo] carrying the layout and buffer handle.
+ * Dawn validates device ownership.
  */
 internal fun MemoryAllocator.allocateTexelCopyBufferInfo(
     info: GPUTexelCopyBufferInfo,
-    session: DeviceSession,
 ): WGPUTexelCopyBufferInfo {
-    val buffer = info.buffer.requireDawnBuffer(session)
+    val buffer = info.buffer as DawnBuffer
     val native = WGPUTexelCopyBufferInfo.allocate(this)
     native.layout.offset = info.offset
     native.layout.bytesPerRow = info.bytesPerRow ?: WGPU_COPY_STRIDE_UNDEFINED
@@ -47,14 +45,13 @@ internal fun MemoryAllocator.allocateTexelCopyBufferInfo(
 }
 
 /**
- * Allocates a [WGPUTexelCopyTextureInfo] whose texture belongs to [session]; a
- * foreign texture is refused before any handle is read.
+ * Allocates a [WGPUTexelCopyTextureInfo] carrying the texture handle.
+ * Dawn validates device ownership.
  */
 internal fun MemoryAllocator.allocateTexelCopyTextureInfo(
     info: GPUTexelCopyTextureInfo,
-    session: DeviceSession,
 ): WGPUTexelCopyTextureInfo {
-    val texture = info.texture.requireDawnTexture(session)
+    val texture = info.texture as DawnTexture
     val native = WGPUTexelCopyTextureInfo.allocate(this)
     native.texture = texture.handle
     native.mipLevel = info.mipLevel
