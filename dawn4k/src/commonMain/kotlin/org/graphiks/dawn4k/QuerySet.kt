@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.mapper.allocateQuerySetDescriptor
 import org.graphiks.dawn4k.native.WGPUQuerySet
 import org.graphiks.dawn4k.native.wgpuDeviceCreateQuerySet
@@ -19,7 +20,7 @@ import org.graphiks.webgpu.GPUSize32Out
  */
 class DawnQuerySet internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUQuerySet,
+    handle: WGPUQuerySet,
     descriptor: GPUQuerySetDescriptor,
 ) : GPUQuerySet {
 
@@ -28,16 +29,13 @@ class DawnQuerySet internal constructor(
 
     override var label: String = descriptor.label
 
-    init {
-        session.resources.own(
-            key = this,
-            destroy = { wgpuQuerySetDestroy(handle) },
-            release = { wgpuQuerySetRelease(handle) },
-        )
-    }
+    private val reference = OwnedReference(handle,
+        destroy = { wgpuQuerySetDestroy(it) }, release = { wgpuQuerySetRelease(it) })
+    internal val handle: WGPUQuerySet
+        get() { session.requireOpen(); return reference.handle }
 
     override fun close() {
-        session.resources.destroy(this)
+        reference.close()
     }
 }
 

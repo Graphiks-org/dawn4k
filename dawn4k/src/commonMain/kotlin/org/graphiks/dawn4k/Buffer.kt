@@ -2,6 +2,7 @@ package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.ByteRange
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.PendingOperation
 import org.graphiks.dawn4k.internal.borrowedArrayBuffer
 import org.graphiks.dawn4k.internal.checkedRange
@@ -58,7 +59,7 @@ import org.graphiks.webgpu.GPUSize64Out
  */
 class DawnBuffer internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUBuffer,
+    handle: WGPUBuffer,
     descriptor: GPUBufferDescriptor,
 ) : GPUBuffer {
 
@@ -74,6 +75,11 @@ class DawnBuffer internal constructor(
     /** Whether the current mapping is writable (mapped for write). */
     private var mappedWritable: Boolean = false
 
+    private val reference = OwnedReference(handle,
+        destroy = { wgpuBufferDestroy(it) }, release = { wgpuBufferRelease(it) })
+    internal val handle: WGPUBuffer
+        get() { session.requireOpen(); return reference.handle }
+
     init {
         if (descriptor.mappedAtCreation) {
             // A mapped-at-creation buffer starts mapped for the whole range,
@@ -81,11 +87,6 @@ class DawnBuffer internal constructor(
             mappedRange = ByteRange(0uL, descriptor.size)
             mappedWritable = true
         }
-        session.resources.own(
-            key = this,
-            destroy = { wgpuBufferDestroy(handle) },
-            release = { wgpuBufferRelease(handle) },
-        )
     }
 
     override val mapState: GPUBufferMapState
@@ -96,6 +97,7 @@ class DawnBuffer internal constructor(
         offset: GPUSize64,
         size: GPUSize64?,
     ): Result<Unit> {
+        val nativeHandle = handle
         // Normalize the range; alignment (offset % 8, size % 4) and overlap
         // constraints are deliberately NOT checked here — they must surface as
         // the native validation error, not a Kotlin exception.
@@ -124,7 +126,7 @@ class DawnBuffer internal constructor(
                         ).also { it.nextInChain = null }
                         wgpuBufferMapAsync(
                             allocator = allocator,
-                            buffer = handle,
+                            buffer = nativeHandle,
                             mode = mode.toNativeMode(),
                             offset = range.offset,
                             size = range.size,
@@ -145,6 +147,7 @@ class DawnBuffer internal constructor(
     }
 
     override fun getMappedRange(offset: GPUSize64, size: GPUSize64?): ArrayBuffer {
+        val nativeHandle = handle
         val mapped = mappedRange
             ?: throw IllegalStateException("the buffer is not mapped; call mapAsync and await it first")
         val range = checkedRange(mapped.size, offset, size)
@@ -157,9 +160,9 @@ class DawnBuffer internal constructor(
             // writable and const variants: a read mapping only exposes a const
             // range, so pick the variant matching the mapping's writability.
             if (writable) {
-                wgpuBufferGetMappedRange(handle, absoluteOffset, range.size)
+                wgpuBufferGetMappedRange(nativeHandle, absoluteOffset, range.size)
             } else {
-                wgpuBufferGetConstMappedRange(handle, absoluteOffset, range.size)
+                wgpuBufferGetConstMappedRange(nativeHandle, absoluteOffset, range.size)
             }
         } ?: throw IllegalStateException(
             "the mapped range ${range.offset}..${range.offset + range.size} is not accessible",
@@ -168,12 +171,16 @@ class DawnBuffer internal constructor(
     }
 
     override fun unmap() {
+        val nativeHandle = handle
         mappedRange = null
-        wgpuBufferUnmap(handle)
+        mappedWritable = false
+        wgpuBufferUnmap(nativeHandle)
     }
 
     override fun close() {
-        session.resources.destroy(this)
+        mappedRange = null
+        mappedWritable = false
+        reference.close()
     }
 }
 

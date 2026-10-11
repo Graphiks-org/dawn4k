@@ -198,17 +198,15 @@ class BufferGpuTest {
     }
 
     @Test
-    fun mapAfterDestroyFailsWithNativeErrorAndHandleStaysValid() = runBlocking {
-        if (!gpuTestEnvironment("BufferGpuTest.mapAfterDestroyFailsWithNativeErrorAndHandleStaysValid")) return@runBlocking
+    fun mapAfterCloseIsRejectedBeforeIssuingNativeWork() = runBlocking {
+        if (!gpuTestEnvironment("BufferGpuTest.mapAfterCloseIsRejectedBeforeIssuingNativeWork")) return@runBlocking
         val fixture = NativeFixture.open()
         try {
             val buffer = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
             buffer.close()
-            val result = buffer.mapAsync(GPUMapMode.Read)
-            assertTrue(result.isFailure)
-            assertTrue(result.exceptionOrNull() is DawnBufferMapException)
-            // The tombstone handle stays valid: an idempotent close must never
-            // dereference a freed view.
+            assertFailsWith<IllegalStateException> { buffer.mapAsync(GPUMapMode.Read) }
+            assertFailsWith<IllegalStateException> { buffer.mapState }
+            assertEquals(16uL, buffer.size)
             buffer.close()
         } finally {
             fixture.close()

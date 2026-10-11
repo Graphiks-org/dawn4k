@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k
 
 import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.mapper.allocateTextureDescriptor
 import org.graphiks.dawn4k.mapper.allocateTextureViewDescriptor
 import org.graphiks.dawn4k.native.WGPUTexture
@@ -26,7 +27,7 @@ import org.graphiks.webgpu.GPUSize32Out
  */
 class DawnTexture internal constructor(
     internal val session: DeviceSession,
-    internal val handle: WGPUTexture,
+    handle: WGPUTexture,
     descriptor: GPUTextureDescriptor,
 ) : GPUTexture {
 
@@ -41,13 +42,10 @@ class DawnTexture internal constructor(
 
     override var label: String = descriptor.label
 
-    init {
-        session.resources.own(
-            key = this,
-            destroy = { wgpuTextureDestroy(handle) },
-            release = { wgpuTextureRelease(handle) },
-        )
-    }
+    private val reference = OwnedReference(handle,
+        destroy = { wgpuTextureDestroy(it) }, release = { wgpuTextureRelease(it) })
+    internal val handle: WGPUTexture
+        get() { session.requireOpen(); return reference.handle }
 
     /**
      * Creates a [DawnTextureView] over this texture. A null [descriptor] is passed
@@ -66,7 +64,7 @@ class DawnTexture internal constructor(
         }
 
     override fun close() {
-        session.resources.destroy(this)
+        reference.close()
     }
 }
 
