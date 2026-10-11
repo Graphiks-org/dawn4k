@@ -25,27 +25,6 @@ import org.graphiks.webgpu.GPUMapMode
 /** webgpu.h `WGPU_STRLEN` (SIZE_MAX): the NUL-terminated length sentinel. */
 internal const val WGPU_STRLEN: ULong = ULong.MAX_VALUE
 
-/**
- * Explicit conversion table Kotlin `GPUBufferUsage` -> native `WGPUBufferUsage`.
- * The numeric values happen to coincide with the WebGPU header, but this module
- * never relies on that: each bit is mapped through its named constant.
- */
-internal fun GPUBufferUsage.toNativeUsage(): WGPUBufferUsage {
-    val value = this.value
-    var usage = WGPUBufferUsage_None
-    if (value and GPUBufferUsage.MapRead.value != 0uL) usage = usage or WGPUBufferUsage_MapRead
-    if (value and GPUBufferUsage.MapWrite.value != 0uL) usage = usage or WGPUBufferUsage_MapWrite
-    if (value and GPUBufferUsage.CopySrc.value != 0uL) usage = usage or WGPUBufferUsage_CopySrc
-    if (value and GPUBufferUsage.CopyDst.value != 0uL) usage = usage or WGPUBufferUsage_CopyDst
-    if (value and GPUBufferUsage.Index.value != 0uL) usage = usage or WGPUBufferUsage_Index
-    if (value and GPUBufferUsage.Vertex.value != 0uL) usage = usage or WGPUBufferUsage_Vertex
-    if (value and GPUBufferUsage.Uniform.value != 0uL) usage = usage or WGPUBufferUsage_Uniform
-    if (value and GPUBufferUsage.Storage.value != 0uL) usage = usage or WGPUBufferUsage_Storage
-    if (value and GPUBufferUsage.Indirect.value != 0uL) usage = usage or WGPUBufferUsage_Indirect
-    if (value and GPUBufferUsage.QueryResolve.value != 0uL) usage = usage or WGPUBufferUsage_QueryResolve
-    return usage
-}
-
 /** Explicit conversion table Kotlin `GPUMapMode` -> native `WGPUMapMode`. */
 internal fun GPUMapMode.toNativeMode(): WGPUMapMode {
     val value = this.value
@@ -66,7 +45,7 @@ internal fun MemoryAllocator.allocateBufferDescriptor(descriptor: GPUBufferDescr
     native.nextInChain = null
     native.label.data = null
     native.label.length = WGPU_STRLEN
-    native.usage = descriptor.usage.toNativeUsage()
+    native.usage = descriptor.usage.value
     native.size = descriptor.size
     native.mappedAtCreation = if (descriptor.mappedAtCreation) 1u else 0u
     return native
