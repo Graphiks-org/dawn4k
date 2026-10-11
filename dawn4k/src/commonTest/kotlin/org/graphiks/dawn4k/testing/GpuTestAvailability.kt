@@ -6,6 +6,7 @@ import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.useWithProgress
 import org.graphiks.dawn4k.native.WGPURequestAdapterStatus_Unavailable
+import org.graphiks.webgpu.GPURequestAdapterOptions
 
 internal fun isUnavailable(failure: Throwable): Boolean =
     failure is DawnRequestAdapterException && failure.status == WGPURequestAdapterStatus_Unavailable
@@ -46,11 +47,11 @@ private fun gpuTestSettings(): GpuTestSettings = GpuTestSettings.parse(
 internal fun gpuTestConfig(): DawnConfig = DawnConfig(gpuTestSettings().backend, implicitDeviceSynchronization = true)
 
 /** Only adapter Unavailable permits not executing a GPU test; no device/body error is swallowed. */
-internal suspend fun gpuTestEnvironment(name: String): Boolean {
+internal suspend fun gpuTestEnvironment(name: String, options: GPURequestAdapterOptions? = null): Boolean {
     val settings = gpuTestSettings()
     return checkGpuTestEnvironment(name, settings.requireAdapter, probe = {
         DawnContext.create(DawnConfig(settings.backend)).useWithProgress { context ->
-            val result = context.requestAdapter()
+            val result = context.requestAdapter(options)
             val failure = result.exceptionOrNull()
             if (failure != null) {
                 Result.failure(failure)

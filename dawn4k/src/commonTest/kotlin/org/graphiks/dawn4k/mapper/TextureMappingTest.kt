@@ -65,10 +65,12 @@ import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_ReadOnly
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_ReadWrite
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_WriteOnly
 import org.graphiks.dawn4k.native.WGPUSType_TextureComponentSwizzleDescriptor
+import org.graphiks.dawn4k.native.WGPUSType_TextureBindingViewDimension
 import org.graphiks.dawn4k.native.WGPUTextureAspect_All
 import org.graphiks.dawn4k.native.WGPUTextureAspect_DepthOnly
 import org.graphiks.dawn4k.native.WGPUTextureAspect_StencilOnly
 import org.graphiks.dawn4k.native.WGPUTextureComponentSwizzleDescriptor
+import org.graphiks.dawn4k.native.WGPUTextureBindingViewDimension
 import org.graphiks.dawn4k.native.WGPUTextureDimension_1D
 import org.graphiks.dawn4k.native.WGPUTextureDimension_2D
 import org.graphiks.dawn4k.native.WGPUTextureDimension_3D
@@ -438,6 +440,35 @@ class TextureMappingTest {
         val buffer = MemoryBuffer(formats, 8uL)
         assertEquals(WGPUTextureFormat_RGBA8Unorm, buffer.readUInt(0uL))
         assertEquals(WGPUTextureFormat_BGRA8Unorm, buffer.readUInt(4uL))
+    }
+
+    @Test
+    fun absentTextureBindingViewDimensionChainsNothing() = memoryScope { allocator ->
+        val native = allocator.allocateTextureDescriptor(
+            TextureDescriptor(
+                size = Extent3D(4u),
+                format = GPUTextureFormat.RGBA8Unorm,
+                usage = GPUTextureUsage.TextureBinding,
+            ),
+        )
+        assertNull(native.nextInChain)
+    }
+
+    @Test
+    fun explicitTextureBindingViewDimensionReachesTheNativeDescriptor() = memoryScope { allocator ->
+        val native = allocator.allocateTextureDescriptor(
+            TextureDescriptor(
+                size = Extent3D(width = 4u, height = 4u, depthOrArrayLayers = 6u),
+                format = GPUTextureFormat.RGBA8Unorm,
+                usage = GPUTextureUsage.TextureBinding,
+                textureBindingViewDimension = GPUTextureViewDimension.Cube,
+            ),
+        )
+        val chain = native.nextInChain ?: fail("an explicit texture binding view dimension must reach Dawn")
+        assertEquals(WGPUSType_TextureBindingViewDimension, chain.sType)
+        assertNull(chain.next)
+        val dimension = WGPUTextureBindingViewDimension(chain.handler)
+        assertEquals(WGPUTextureViewDimension_Cube, dimension.textureBindingViewDimension)
     }
 
     @Test

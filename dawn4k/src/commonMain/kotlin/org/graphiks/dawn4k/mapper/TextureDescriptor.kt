@@ -1,6 +1,8 @@
 package org.graphiks.dawn4k.mapper
 
 import org.graphiks.dawn4k.native.WGPUTextureDescriptor
+import org.graphiks.dawn4k.native.WGPUTextureBindingViewDimension
+import org.graphiks.dawn4k.native.WGPUSType_TextureBindingViewDimension
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUTextureDescriptor
 
@@ -10,16 +12,23 @@ import org.graphiks.webgpu.GPUTextureDescriptor
  * plus the view-format array when present. The label is left at its C default;
  * the texture keeps it as Kotlin-side metadata.
  *
- * The optional `textureBindingViewDimension` is deliberately not chained: the
- * `WGPUTextureBindingViewDimension` chained struct only constrains pre-core
- * devices, and it is never requested implicitly. On the core-features devices
- * this runtime requests, the field is ignored — matching the C default.
+ * An explicit `textureBindingViewDimension` chains [WGPUTextureBindingViewDimension]
+ * in the same arena. Dawn applies the compatibility-mode restriction and ignores
+ * it on core devices; an absent dimension keeps the C default without a chain.
  */
 internal fun MemoryAllocator.allocateTextureDescriptor(
     descriptor: GPUTextureDescriptor,
 ): WGPUTextureDescriptor {
     val native = WGPUTextureDescriptor.allocate(this)
     native.nextInChain = null
+    descriptor.textureBindingViewDimension?.let { dimension ->
+        val bindingDimension = WGPUTextureBindingViewDimension.allocate(this)
+        val chain = bindingDimension.chain
+        chain.next = null
+        chain.sType = WGPUSType_TextureBindingViewDimension
+        bindingDimension.textureBindingViewDimension = dimension.toNativeTextureViewDimension()
+        native.nextInChain = chain
+    }
     native.label.initNull()
     native.usage = descriptor.usage.toNativeTextureUsage()
     native.dimension = descriptor.dimension.toNativeTextureDimension()
