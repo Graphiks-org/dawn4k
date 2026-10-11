@@ -48,7 +48,6 @@ jobs:
       - name: Boot Apple simulators for Metal tests
         if: steps.test-strategy.outputs.strategy == 'deep'
         run: |
-          python3 -m unittest discover -s scripts/tests -p 'test_boot_apple_simulators.py'
           python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
 
       # Step 3: Run Deep tests (JVM, Android, and iOS Simulator/Link)
