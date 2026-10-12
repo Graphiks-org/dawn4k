@@ -12,7 +12,6 @@ import org.graphiks.dawn4k.mapper.allocateLimitsSnapshot
 import org.graphiks.dawn4k.mapper.copyAdapterInfo
 import org.graphiks.dawn4k.mapper.copySupportedFeatures
 import org.graphiks.dawn4k.mapper.readLimits
-import org.graphiks.dawn4k.mapper.toNativeErrorFilter
 import org.graphiks.dawn4k.native.WGPUCallbackMode_AllowProcessEvents
 import org.graphiks.dawn4k.native.WGPUErrorType
 import org.graphiks.dawn4k.native.WGPUErrorType_NoError
@@ -223,7 +222,7 @@ class DawnDevice internal constructor(
 
     override fun pushErrorScope(filter: GPUErrorFilter) {
         run {
-            wgpuDevicePushErrorScope(session.handle, filter.toNativeErrorFilter())
+            wgpuDevicePushErrorScope(session.handle, filter.value)
         }
     }
 

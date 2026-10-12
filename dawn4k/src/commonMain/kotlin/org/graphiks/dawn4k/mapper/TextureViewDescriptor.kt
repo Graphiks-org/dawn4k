@@ -29,14 +29,14 @@ internal fun MemoryAllocator.allocateTextureViewDescriptor(
     val native = WGPUTextureViewDescriptor.allocate(this)
     native.nextInChain = null
     native.label.initNull()
-    native.format = descriptor.format?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined
-    native.dimension = descriptor.dimension?.toNativeTextureViewDimension() ?: WGPUTextureViewDimension_Undefined
+    native.format = descriptor.format?.value ?: WGPUTextureFormat_Undefined
+    native.dimension = descriptor.dimension?.value ?: WGPUTextureViewDimension_Undefined
     native.baseMipLevel = descriptor.baseMipLevel
     native.mipLevelCount = descriptor.mipLevelCount ?: WGPU_MIP_LEVEL_COUNT_UNDEFINED
     native.baseArrayLayer = descriptor.baseArrayLayer
     native.arrayLayerCount = descriptor.arrayLayerCount ?: WGPU_ARRAY_LAYER_COUNT_UNDEFINED
-    native.aspect = descriptor.aspect.toNativeTextureAspect()
-    native.usage = descriptor.usage.toNativeTextureUsage()
+    native.aspect = descriptor.aspect.value
+    native.usage = descriptor.usage.value
 
     if (descriptor.swizzle != GPUTextureSwizzle()) {
         val swizzle = WGPUTextureComponentSwizzleDescriptor.allocate(this)

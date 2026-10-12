@@ -58,7 +58,7 @@ internal fun MemoryAllocator.allocateTexelCopyTextureInfo(
     native.origin.x = info.origin.x
     native.origin.y = info.origin.y
     native.origin.z = info.origin.z
-    native.aspect = info.aspect.toNativeTextureAspect()
+    native.aspect = info.aspect.value
     return native
 }
 

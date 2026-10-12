@@ -26,19 +26,19 @@ internal fun MemoryAllocator.allocateTextureDescriptor(
         val chain = bindingDimension.chain
         chain.next = null
         chain.sType = WGPUSType_TextureBindingViewDimension
-        bindingDimension.textureBindingViewDimension = dimension.toNativeTextureViewDimension()
+        bindingDimension.textureBindingViewDimension = dimension.value
         native.nextInChain = chain
     }
     native.label.initNull()
-    native.usage = descriptor.usage.toNativeTextureUsage()
-    native.dimension = descriptor.dimension.toNativeTextureDimension()
+    native.usage = descriptor.usage.value
+    native.dimension = descriptor.dimension.value
 
     val size = native.size
     size.width = descriptor.size.width
     size.height = descriptor.size.height
     size.depthOrArrayLayers = descriptor.size.depthOrArrayLayers
 
-    native.format = descriptor.format.toNativeTextureFormat()
+    native.format = descriptor.format.value
     native.mipLevelCount = descriptor.mipLevelCount
     native.sampleCount = descriptor.sampleCount
 
@@ -47,7 +47,7 @@ internal fun MemoryAllocator.allocateTextureDescriptor(
         null
     } else {
         allocateBuffer((descriptor.viewFormats.size * 4).toULong()).apply {
-            writeUInts(descriptor.viewFormats.map { it.toNativeTextureFormat() }.toUIntArray())
+            writeUInts(descriptor.viewFormats.map { it.value }.toUIntArray())
         }.handler
     }
     return native

@@ -47,10 +47,10 @@ internal fun MemoryAllocator.allocateRenderPipelineDescriptor(
 
     val primitive = native.primitive
     primitive.nextInChain = null
-    primitive.topology = descriptor.primitive.topology.toNativePrimitiveTopology()
+    primitive.topology = descriptor.primitive.topology.value
     primitive.stripIndexFormat = descriptor.primitive.stripIndexFormat.toNativeOrUndefined
-    primitive.frontFace = descriptor.primitive.frontFace.toNativeFrontFace()
-    primitive.cullMode = descriptor.primitive.cullMode.toNativeCullMode()
+    primitive.frontFace = descriptor.primitive.frontFace.value
+    primitive.cullMode = descriptor.primitive.cullMode.value
     primitive.unclippedDepth = if (descriptor.primitive.unclippedDepth) 1u else 0u
 
     native.depthStencil = descriptor.depthStencil?.let { allocateDepthStencilState(it) }
@@ -145,9 +145,9 @@ private fun MemoryAllocator.allocateDepthStencilState(
 ): WGPUDepthStencilState {
     val native = WGPUDepthStencilState.allocate(this)
     native.nextInChain = null
-    native.format = state.format.toNativeTextureFormat()
+    native.format = state.format.value
     native.depthWriteEnabled = state.depthWriteEnabled.toNativeOptionalBool()
-    native.depthCompare = state.depthCompare?.toNativeCompareFunction() ?: WGPUCompareFunction_Undefined
+    native.depthCompare = state.depthCompare?.value ?: WGPUCompareFunction_Undefined
     initStencilFaceState(native.stencilFront, state.stencilFront)
     initStencilFaceState(native.stencilBack, state.stencilBack)
     native.stencilReadMask = state.stencilReadMask
@@ -162,15 +162,15 @@ private fun initStencilFaceState(
     face: org.graphiks.dawn4k.native.WGPUStencilFaceState,
     state: org.graphiks.webgpu.GPUStencilFaceState,
 ) {
-    face.compare = state.compare.toNativeCompareFunction()
-    face.failOp = state.failOp.toNativeStencilOperation()
-    face.depthFailOp = state.depthFailOp.toNativeStencilOperation()
-    face.passOp = state.passOp.toNativeStencilOperation()
+    face.compare = state.compare.value
+    face.failOp = state.failOp.value
+    face.depthFailOp = state.depthFailOp.value
+    face.passOp = state.passOp.value
 }
 
 private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayout, layout: GPUVertexBufferLayout?) {
     buffer.nextInChain = null
-    buffer.stepMode = layout?.stepMode?.toNativeVertexStepMode() ?: WGPUVertexStepMode_Undefined
+    buffer.stepMode = layout?.stepMode?.value ?: WGPUVertexStepMode_Undefined
     buffer.arrayStride = layout?.arrayStride ?: 0uL
     val attributes = layout?.attributes.orEmpty()
     buffer.attributeCount = attributes.size.toULong()
@@ -180,7 +180,7 @@ private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayou
         WGPUVertexAttribute.allocateArray(this, attributes.size.toUInt()) { index, attribute ->
             val source = attributes[index.toInt()]
             attribute.nextInChain = null
-            attribute.format = source.format.toNativeVertexFormat()
+            attribute.format = source.format.value
             attribute.offset = source.offset
             attribute.shaderLocation = source.shaderLocation
         }.let { WGPUVertexAttribute(it.handler) }
@@ -189,9 +189,9 @@ private fun MemoryAllocator.initVertexBufferLayout(buffer: WGPUVertexBufferLayou
 
 private fun MemoryAllocator.initColorTargetState(target: WGPUColorTargetState, state: GPUColorTargetState?) {
     target.nextInChain = null
-    target.format = state?.format?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined
+    target.format = state?.format?.value ?: WGPUTextureFormat_Undefined
     target.blend = state?.blend?.let { allocateBlendState(it) }
-    target.writeMask = state?.writeMask?.toNativeColorWriteMask() ?: WGPUColorWriteMask_All
+    target.writeMask = state?.writeMask?.value ?: WGPUColorWriteMask_All
 }
 
 private fun MemoryAllocator.allocateBlendState(
@@ -207,7 +207,7 @@ private fun initBlendComponent(
     component: org.graphiks.dawn4k.native.WGPUBlendComponent,
     state: GPUBlendComponent,
 ) {
-    component.operation = state.operation.toNativeBlendOperation()
-    component.srcFactor = state.srcFactor.toNativeBlendFactor()
-    component.dstFactor = state.dstFactor.toNativeBlendFactor()
+    component.operation = state.operation.value
+    component.srcFactor = state.srcFactor.value
+    component.dstFactor = state.dstFactor.value
 }

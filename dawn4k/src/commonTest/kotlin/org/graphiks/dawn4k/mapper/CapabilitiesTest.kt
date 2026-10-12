@@ -303,9 +303,9 @@ class CapabilitiesTest {
 
     @Test
     fun errorFilterTableIsExhaustive() {
-        assertEquals(WGPUErrorFilter_Validation, GPUErrorFilter.Validation.toNativeErrorFilter())
-        assertEquals(WGPUErrorFilter_OutOfMemory, GPUErrorFilter.OutOfMemory.toNativeErrorFilter())
-        assertEquals(WGPUErrorFilter_Internal, GPUErrorFilter.Internal.toNativeErrorFilter())
+        assertEquals(WGPUErrorFilter_Validation, GPUErrorFilter.Validation.value)
+        assertEquals(WGPUErrorFilter_OutOfMemory, GPUErrorFilter.OutOfMemory.value)
+        assertEquals(WGPUErrorFilter_Internal, GPUErrorFilter.Internal.value)
     }
 }
 

@@ -4,7 +4,6 @@ import org.graphiks.dawn4k.internal.DeviceSession
 import org.graphiks.dawn4k.internal.OwnedReference
 import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.dataSlice
-import org.graphiks.dawn4k.mapper.toNativeIndexFormat
 import org.graphiks.dawn4k.mapper.WGPU_WHOLE_SIZE
 import org.graphiks.dawn4k.native.WGPUColor
 import org.graphiks.dawn4k.native.WGPURenderPassEncoder
@@ -85,7 +84,7 @@ class DawnRenderPassEncoder internal constructor(
         requireOpen()
         val dawn = buffer as DawnBuffer
         run {
-            wgpuRenderPassEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
+            wgpuRenderPassEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.value, offset, size ?: WGPU_WHOLE_SIZE)
         }
     }
 

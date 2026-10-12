@@ -14,7 +14,7 @@ internal fun MemoryAllocator.allocateQuerySetDescriptor(
     val native = WGPUQuerySetDescriptor.allocate(this)
     native.nextInChain = null
     native.label.initNull()
-    native.type = descriptor.type.toNativeQueryType()
+    native.type = descriptor.type.value
     native.count = descriptor.count
     return native
 }

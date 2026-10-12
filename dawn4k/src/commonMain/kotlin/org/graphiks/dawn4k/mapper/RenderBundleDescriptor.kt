@@ -24,10 +24,10 @@ internal fun MemoryAllocator.allocateRenderBundleEncoderDescriptor(
         null
     } else {
         allocateBuffer((descriptor.colorFormats.size * 4).toULong()).apply {
-            writeUInts(descriptor.colorFormats.map { it?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined }.toUIntArray())
+            writeUInts(descriptor.colorFormats.map { it?.value ?: WGPUTextureFormat_Undefined }.toUIntArray())
         }.handler
     }
-    native.depthStencilFormat = descriptor.depthStencilFormat?.toNativeTextureFormat() ?: WGPUTextureFormat_Undefined
+    native.depthStencilFormat = descriptor.depthStencilFormat?.value ?: WGPUTextureFormat_Undefined
     native.sampleCount = descriptor.sampleCount
     native.depthReadOnly = if (descriptor.depthReadOnly) 1u else 0u
     native.stencilReadOnly = if (descriptor.stencilReadOnly) 1u else 0u

@@ -88,20 +88,20 @@ private fun initBindGroupLayoutEntry(entry: WGPUBindGroupLayoutEntry, layout: GP
     entry.buffer.minBindingSize = layout.buffer?.minBindingSize ?: 0uL
 
     entry.sampler.nextInChain = null
-    entry.sampler.type = layout.sampler?.type?.toNativeSamplerBindingType() ?: WGPUSamplerBindingType_BindingNotUsed
+    entry.sampler.type = layout.sampler?.type?.value ?: WGPUSamplerBindingType_BindingNotUsed
 
     entry.texture.nextInChain = null
-    entry.texture.sampleType = layout.texture?.sampleType?.toNativeTextureSampleType()
+    entry.texture.sampleType = layout.texture?.sampleType?.value
         ?: WGPUTextureSampleType_BindingNotUsed
-    entry.texture.viewDimension = layout.texture?.viewDimension?.toNativeTextureViewDimension()
+    entry.texture.viewDimension = layout.texture?.viewDimension?.value
         ?: WGPUTextureViewDimension_Undefined
     entry.texture.multisampled = if (layout.texture?.multisampled == true) 1u else 0u
 
     entry.storageTexture.nextInChain = null
-    entry.storageTexture.access = layout.storageTexture?.access?.toNativeStorageTextureAccess()
+    entry.storageTexture.access = layout.storageTexture?.access?.value
         ?: WGPUStorageTextureAccess_BindingNotUsed
-    entry.storageTexture.format = layout.storageTexture?.format?.toNativeTextureFormat()
+    entry.storageTexture.format = layout.storageTexture?.format?.value
         ?: WGPUTextureFormat_Undefined
-    entry.storageTexture.viewDimension = layout.storageTexture?.viewDimension?.toNativeTextureViewDimension()
+    entry.storageTexture.viewDimension = layout.storageTexture?.viewDimension?.value
         ?: WGPUTextureViewDimension_Undefined
 }

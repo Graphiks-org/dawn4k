@@ -145,180 +145,180 @@ class TextureMappingTest {
 
     @Test
     fun textureFormatTableMapsEveryEntryDistinctly() {
-        val mapped = GPUTextureFormat.entries.map { it.toNativeTextureFormat() }
+        val mapped = GPUTextureFormat.entries.map { it.value }
         assertEquals(GPUTextureFormat.entries.size, mapped.toSet().size)
-        assertEquals(WGPUTextureFormat_RGBA8Unorm, GPUTextureFormat.RGBA8Unorm.toNativeTextureFormat())
-        assertEquals(WGPUTextureFormat_Depth32Float, GPUTextureFormat.Depth32Float.toNativeTextureFormat())
-        assertEquals(WGPUTextureFormat_BGRA8Unorm, GPUTextureFormat.BGRA8Unorm.toNativeTextureFormat())
-        assertEquals(WGPUTextureFormat_ASTC12x12UnormSrgb, GPUTextureFormat.ASTC12x12UnormSrgb.toNativeTextureFormat())
+        assertEquals(WGPUTextureFormat_RGBA8Unorm, GPUTextureFormat.RGBA8Unorm.value)
+        assertEquals(WGPUTextureFormat_Depth32Float, GPUTextureFormat.Depth32Float.value)
+        assertEquals(WGPUTextureFormat_BGRA8Unorm, GPUTextureFormat.BGRA8Unorm.value)
+        assertEquals(WGPUTextureFormat_ASTC12x12UnormSrgb, GPUTextureFormat.ASTC12x12UnormSrgb.value)
     }
 
     @Test
     fun textureDimensionTableIsExhaustive() {
-        assertEquals(WGPUTextureDimension_1D, GPUTextureDimension.OneD.toNativeTextureDimension())
-        assertEquals(WGPUTextureDimension_2D, GPUTextureDimension.TwoD.toNativeTextureDimension())
-        assertEquals(WGPUTextureDimension_3D, GPUTextureDimension.ThreeD.toNativeTextureDimension())
+        assertEquals(WGPUTextureDimension_1D, GPUTextureDimension.OneD.value)
+        assertEquals(WGPUTextureDimension_2D, GPUTextureDimension.TwoD.value)
+        assertEquals(WGPUTextureDimension_3D, GPUTextureDimension.ThreeD.value)
     }
 
     @Test
     fun textureViewDimensionTableIsExhaustive() {
-        assertEquals(WGPUTextureViewDimension_1D, GPUTextureViewDimension.OneD.toNativeTextureViewDimension())
-        assertEquals(WGPUTextureViewDimension_2D, GPUTextureViewDimension.TwoD.toNativeTextureViewDimension())
-        assertEquals(WGPUTextureViewDimension_2DArray, GPUTextureViewDimension.TwoDArray.toNativeTextureViewDimension())
-        assertEquals(WGPUTextureViewDimension_Cube, GPUTextureViewDimension.Cube.toNativeTextureViewDimension())
-        assertEquals(WGPUTextureViewDimension_CubeArray, GPUTextureViewDimension.CubeArray.toNativeTextureViewDimension())
-        assertEquals(WGPUTextureViewDimension_3D, GPUTextureViewDimension.ThreeD.toNativeTextureViewDimension())
+        assertEquals(WGPUTextureViewDimension_1D, GPUTextureViewDimension.OneD.value)
+        assertEquals(WGPUTextureViewDimension_2D, GPUTextureViewDimension.TwoD.value)
+        assertEquals(WGPUTextureViewDimension_2DArray, GPUTextureViewDimension.TwoDArray.value)
+        assertEquals(WGPUTextureViewDimension_Cube, GPUTextureViewDimension.Cube.value)
+        assertEquals(WGPUTextureViewDimension_CubeArray, GPUTextureViewDimension.CubeArray.value)
+        assertEquals(WGPUTextureViewDimension_3D, GPUTextureViewDimension.ThreeD.value)
     }
 
     @Test
     fun textureAspectTableIsExhaustive() {
-        assertEquals(WGPUTextureAspect_All, GPUTextureAspect.All.toNativeTextureAspect())
-        assertEquals(WGPUTextureAspect_StencilOnly, GPUTextureAspect.StencilOnly.toNativeTextureAspect())
-        assertEquals(WGPUTextureAspect_DepthOnly, GPUTextureAspect.DepthOnly.toNativeTextureAspect())
+        assertEquals(WGPUTextureAspect_All, GPUTextureAspect.All.value)
+        assertEquals(WGPUTextureAspect_StencilOnly, GPUTextureAspect.StencilOnly.value)
+        assertEquals(WGPUTextureAspect_DepthOnly, GPUTextureAspect.DepthOnly.value)
     }
 
     @Test
     fun addressModeTableIsExhaustive() {
-        assertEquals(WGPUAddressMode_ClampToEdge, GPUAddressMode.ClampToEdge.toNativeAddressMode())
-        assertEquals(WGPUAddressMode_Repeat, GPUAddressMode.Repeat.toNativeAddressMode())
-        assertEquals(WGPUAddressMode_MirrorRepeat, GPUAddressMode.MirrorRepeat.toNativeAddressMode())
+        assertEquals(WGPUAddressMode_ClampToEdge, GPUAddressMode.ClampToEdge.value)
+        assertEquals(WGPUAddressMode_Repeat, GPUAddressMode.Repeat.value)
+        assertEquals(WGPUAddressMode_MirrorRepeat, GPUAddressMode.MirrorRepeat.value)
     }
 
     @Test
     fun filterModeTableIsExhaustive() {
-        assertEquals(WGPUFilterMode_Nearest, GPUFilterMode.Nearest.toNativeFilterMode())
-        assertEquals(WGPUFilterMode_Linear, GPUFilterMode.Linear.toNativeFilterMode())
+        assertEquals(WGPUFilterMode_Nearest, GPUFilterMode.Nearest.value)
+        assertEquals(WGPUFilterMode_Linear, GPUFilterMode.Linear.value)
     }
 
     @Test
     fun mipmapFilterModeTableIsExhaustive() {
-        assertEquals(WGPUMipmapFilterMode_Nearest, GPUMipmapFilterMode.Nearest.toNativeMipmapFilterMode())
-        assertEquals(WGPUMipmapFilterMode_Linear, GPUMipmapFilterMode.Linear.toNativeMipmapFilterMode())
+        assertEquals(WGPUMipmapFilterMode_Nearest, GPUMipmapFilterMode.Nearest.value)
+        assertEquals(WGPUMipmapFilterMode_Linear, GPUMipmapFilterMode.Linear.value)
     }
 
     @Test
     fun compareFunctionTableIsExhaustive() {
-        assertEquals(WGPUCompareFunction_Never, GPUCompareFunction.Never.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_Less, GPUCompareFunction.Less.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_Equal, GPUCompareFunction.Equal.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_LessEqual, GPUCompareFunction.LessEqual.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_Greater, GPUCompareFunction.Greater.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_NotEqual, GPUCompareFunction.NotEqual.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_GreaterEqual, GPUCompareFunction.GreaterEqual.toNativeCompareFunction())
-        assertEquals(WGPUCompareFunction_Always, GPUCompareFunction.Always.toNativeCompareFunction())
+        assertEquals(WGPUCompareFunction_Never, GPUCompareFunction.Never.value)
+        assertEquals(WGPUCompareFunction_Less, GPUCompareFunction.Less.value)
+        assertEquals(WGPUCompareFunction_Equal, GPUCompareFunction.Equal.value)
+        assertEquals(WGPUCompareFunction_LessEqual, GPUCompareFunction.LessEqual.value)
+        assertEquals(WGPUCompareFunction_Greater, GPUCompareFunction.Greater.value)
+        assertEquals(WGPUCompareFunction_NotEqual, GPUCompareFunction.NotEqual.value)
+        assertEquals(WGPUCompareFunction_GreaterEqual, GPUCompareFunction.GreaterEqual.value)
+        assertEquals(WGPUCompareFunction_Always, GPUCompareFunction.Always.value)
     }
 
     @Test
     fun queryTypeTableIsExhaustive() {
-        assertEquals(WGPUQueryType_Occlusion, GPUQueryType.Occlusion.toNativeQueryType())
-        assertEquals(WGPUQueryType_Timestamp, GPUQueryType.Timestamp.toNativeQueryType())
+        assertEquals(WGPUQueryType_Occlusion, GPUQueryType.Occlusion.value)
+        assertEquals(WGPUQueryType_Timestamp, GPUQueryType.Timestamp.value)
     }
 
     @Test
     fun primitiveTopologyTableIsExhaustive() {
-        assertEquals(WGPUPrimitiveTopology_PointList, GPUPrimitiveTopology.PointList.toNativePrimitiveTopology())
-        assertEquals(WGPUPrimitiveTopology_LineList, GPUPrimitiveTopology.LineList.toNativePrimitiveTopology())
-        assertEquals(WGPUPrimitiveTopology_LineStrip, GPUPrimitiveTopology.LineStrip.toNativePrimitiveTopology())
-        assertEquals(WGPUPrimitiveTopology_TriangleList, GPUPrimitiveTopology.TriangleList.toNativePrimitiveTopology())
-        assertEquals(WGPUPrimitiveTopology_TriangleStrip, GPUPrimitiveTopology.TriangleStrip.toNativePrimitiveTopology())
+        assertEquals(WGPUPrimitiveTopology_PointList, GPUPrimitiveTopology.PointList.value)
+        assertEquals(WGPUPrimitiveTopology_LineList, GPUPrimitiveTopology.LineList.value)
+        assertEquals(WGPUPrimitiveTopology_LineStrip, GPUPrimitiveTopology.LineStrip.value)
+        assertEquals(WGPUPrimitiveTopology_TriangleList, GPUPrimitiveTopology.TriangleList.value)
+        assertEquals(WGPUPrimitiveTopology_TriangleStrip, GPUPrimitiveTopology.TriangleStrip.value)
     }
 
     @Test
     fun indexFormatTableIsExhaustive() {
-        assertEquals(WGPUIndexFormat_Uint16, GPUIndexFormat.Uint16.toNativeIndexFormat())
-        assertEquals(WGPUIndexFormat_Uint32, GPUIndexFormat.Uint32.toNativeIndexFormat())
+        assertEquals(WGPUIndexFormat_Uint16, GPUIndexFormat.Uint16.value)
+        assertEquals(WGPUIndexFormat_Uint32, GPUIndexFormat.Uint32.value)
     }
 
     @Test
     fun frontFaceTableIsExhaustive() {
-        assertEquals(WGPUFrontFace_CCW, GPUFrontFace.CCW.toNativeFrontFace())
-        assertEquals(WGPUFrontFace_CW, GPUFrontFace.CW.toNativeFrontFace())
+        assertEquals(WGPUFrontFace_CCW, GPUFrontFace.CCW.value)
+        assertEquals(WGPUFrontFace_CW, GPUFrontFace.CW.value)
     }
 
     @Test
     fun cullModeTableIsExhaustive() {
-        assertEquals(WGPUCullMode_None, GPUCullMode.None.toNativeCullMode())
-        assertEquals(WGPUCullMode_Front, GPUCullMode.Front.toNativeCullMode())
-        assertEquals(WGPUCullMode_Back, GPUCullMode.Back.toNativeCullMode())
+        assertEquals(WGPUCullMode_None, GPUCullMode.None.value)
+        assertEquals(WGPUCullMode_Front, GPUCullMode.Front.value)
+        assertEquals(WGPUCullMode_Back, GPUCullMode.Back.value)
     }
 
     @Test
     fun vertexStepModeTableIsExhaustive() {
-        assertEquals(WGPUVertexStepMode_Vertex, GPUVertexStepMode.Vertex.toNativeVertexStepMode())
-        assertEquals(WGPUVertexStepMode_Instance, GPUVertexStepMode.Instance.toNativeVertexStepMode())
+        assertEquals(WGPUVertexStepMode_Vertex, GPUVertexStepMode.Vertex.value)
+        assertEquals(WGPUVertexStepMode_Instance, GPUVertexStepMode.Instance.value)
     }
 
     @Test
     fun vertexFormatTableMapsEveryEntryDistinctly() {
-        val mapped = GPUVertexFormat.entries.map { it.toNativeVertexFormat() }
+        val mapped = GPUVertexFormat.entries.map { it.value }
         assertEquals(GPUVertexFormat.entries.size, mapped.toSet().size)
-        assertEquals(WGPUVertexFormat_Float32x3, GPUVertexFormat.Float32x3.toNativeVertexFormat())
-        assertEquals(WGPUVertexFormat_Unorm8x4BGRA, GPUVertexFormat.Unorm8x4BGRA.toNativeVertexFormat())
+        assertEquals(WGPUVertexFormat_Float32x3, GPUVertexFormat.Float32x3.value)
+        assertEquals(WGPUVertexFormat_Unorm8x4BGRA, GPUVertexFormat.Unorm8x4BGRA.value)
         // The WebGPU name differs from the Dawn name for the packed unorm format.
-        assertEquals(WGPUVertexFormat_Unorm10_10_10_2, GPUVertexFormat.Unorm1010102.toNativeVertexFormat())
+        assertEquals(WGPUVertexFormat_Unorm10_10_10_2, GPUVertexFormat.Unorm1010102.value)
     }
 
     @Test
     fun blendFactorTableIsExhaustive() {
-        assertEquals(WGPUBlendFactor_Zero, GPUBlendFactor.Zero.toNativeBlendFactor())
-        assertEquals(WGPUBlendFactor_One, GPUBlendFactor.One.toNativeBlendFactor())
-        assertEquals(WGPUBlendFactor_Src, GPUBlendFactor.Src.toNativeBlendFactor())
-        assertEquals(WGPUBlendFactor_OneMinusSrc, GPUBlendFactor.OneMinusSrc.toNativeBlendFactor())
-        assertEquals(WGPUBlendFactor_SrcAlpha, GPUBlendFactor.SrcAlpha.toNativeBlendFactor())
-        assertEquals(WGPUBlendFactor_Dst, GPUBlendFactor.Dst.toNativeBlendFactor())
+        assertEquals(WGPUBlendFactor_Zero, GPUBlendFactor.Zero.value)
+        assertEquals(WGPUBlendFactor_One, GPUBlendFactor.One.value)
+        assertEquals(WGPUBlendFactor_Src, GPUBlendFactor.Src.value)
+        assertEquals(WGPUBlendFactor_OneMinusSrc, GPUBlendFactor.OneMinusSrc.value)
+        assertEquals(WGPUBlendFactor_SrcAlpha, GPUBlendFactor.SrcAlpha.value)
+        assertEquals(WGPUBlendFactor_Dst, GPUBlendFactor.Dst.value)
     }
 
     @Test
     fun blendOperationTableIsExhaustive() {
-        assertEquals(WGPUBlendOperation_Add, GPUBlendOperation.Add.toNativeBlendOperation())
-        assertEquals(WGPUBlendOperation_Subtract, GPUBlendOperation.Subtract.toNativeBlendOperation())
-        assertEquals(WGPUBlendOperation_ReverseSubtract, GPUBlendOperation.ReverseSubtract.toNativeBlendOperation())
-        assertEquals(WGPUBlendOperation_Min, GPUBlendOperation.Min.toNativeBlendOperation())
-        assertEquals(WGPUBlendOperation_Max, GPUBlendOperation.Max.toNativeBlendOperation())
+        assertEquals(WGPUBlendOperation_Add, GPUBlendOperation.Add.value)
+        assertEquals(WGPUBlendOperation_Subtract, GPUBlendOperation.Subtract.value)
+        assertEquals(WGPUBlendOperation_ReverseSubtract, GPUBlendOperation.ReverseSubtract.value)
+        assertEquals(WGPUBlendOperation_Min, GPUBlendOperation.Min.value)
+        assertEquals(WGPUBlendOperation_Max, GPUBlendOperation.Max.value)
     }
 
     @Test
     fun stencilOperationTableIsExhaustive() {
-        assertEquals(WGPUStencilOperation_Keep, GPUStencilOperation.Keep.toNativeStencilOperation())
-        assertEquals(WGPUStencilOperation_Zero, GPUStencilOperation.Zero.toNativeStencilOperation())
-        assertEquals(WGPUStencilOperation_Replace, GPUStencilOperation.Replace.toNativeStencilOperation())
-        assertEquals(WGPUStencilOperation_IncrementWrap, GPUStencilOperation.IncrementWrap.toNativeStencilOperation())
+        assertEquals(WGPUStencilOperation_Keep, GPUStencilOperation.Keep.value)
+        assertEquals(WGPUStencilOperation_Zero, GPUStencilOperation.Zero.value)
+        assertEquals(WGPUStencilOperation_Replace, GPUStencilOperation.Replace.value)
+        assertEquals(WGPUStencilOperation_IncrementWrap, GPUStencilOperation.IncrementWrap.value)
     }
 
     @Test
     fun textureSampleTypeTableIsExhaustive() {
-        assertEquals(WGPUTextureSampleType_BindingNotUsed, GPUTextureSampleType.BindingNotUsed.toNativeTextureSampleType())
-        assertEquals(WGPUTextureSampleType_Float, GPUTextureSampleType.Float.toNativeTextureSampleType())
-        assertEquals(WGPUTextureSampleType_UnfilterableFloat, GPUTextureSampleType.UnfilterableFloat.toNativeTextureSampleType())
-        assertEquals(WGPUTextureSampleType_Depth, GPUTextureSampleType.Depth.toNativeTextureSampleType())
-        assertEquals(WGPUTextureSampleType_Sint, GPUTextureSampleType.Sint.toNativeTextureSampleType())
-        assertEquals(WGPUTextureSampleType_Uint, GPUTextureSampleType.Uint.toNativeTextureSampleType())
+        assertEquals(WGPUTextureSampleType_BindingNotUsed, GPUTextureSampleType.BindingNotUsed.value)
+        assertEquals(WGPUTextureSampleType_Float, GPUTextureSampleType.Float.value)
+        assertEquals(WGPUTextureSampleType_UnfilterableFloat, GPUTextureSampleType.UnfilterableFloat.value)
+        assertEquals(WGPUTextureSampleType_Depth, GPUTextureSampleType.Depth.value)
+        assertEquals(WGPUTextureSampleType_Sint, GPUTextureSampleType.Sint.value)
+        assertEquals(WGPUTextureSampleType_Uint, GPUTextureSampleType.Uint.value)
     }
 
     @Test
     fun samplerBindingTypeTableIsExhaustive() {
-        assertEquals(WGPUSamplerBindingType_BindingNotUsed, GPUSamplerBindingType.BindingNotUsed.toNativeSamplerBindingType())
-        assertEquals(WGPUSamplerBindingType_Filtering, GPUSamplerBindingType.Filtering.toNativeSamplerBindingType())
-        assertEquals(WGPUSamplerBindingType_NonFiltering, GPUSamplerBindingType.NonFiltering.toNativeSamplerBindingType())
-        assertEquals(WGPUSamplerBindingType_Comparison, GPUSamplerBindingType.Comparison.toNativeSamplerBindingType())
+        assertEquals(WGPUSamplerBindingType_BindingNotUsed, GPUSamplerBindingType.BindingNotUsed.value)
+        assertEquals(WGPUSamplerBindingType_Filtering, GPUSamplerBindingType.Filtering.value)
+        assertEquals(WGPUSamplerBindingType_NonFiltering, GPUSamplerBindingType.NonFiltering.value)
+        assertEquals(WGPUSamplerBindingType_Comparison, GPUSamplerBindingType.Comparison.value)
     }
 
     @Test
     fun storageTextureAccessTableIsExhaustive() {
-        assertEquals(WGPUStorageTextureAccess_BindingNotUsed, GPUStorageTextureAccess.BindingNotUsed.toNativeStorageTextureAccess())
-        assertEquals(WGPUStorageTextureAccess_WriteOnly, GPUStorageTextureAccess.WriteOnly.toNativeStorageTextureAccess())
-        assertEquals(WGPUStorageTextureAccess_ReadOnly, GPUStorageTextureAccess.ReadOnly.toNativeStorageTextureAccess())
-        assertEquals(WGPUStorageTextureAccess_ReadWrite, GPUStorageTextureAccess.ReadWrite.toNativeStorageTextureAccess())
+        assertEquals(WGPUStorageTextureAccess_BindingNotUsed, GPUStorageTextureAccess.BindingNotUsed.value)
+        assertEquals(WGPUStorageTextureAccess_WriteOnly, GPUStorageTextureAccess.WriteOnly.value)
+        assertEquals(WGPUStorageTextureAccess_ReadOnly, GPUStorageTextureAccess.ReadOnly.value)
+        assertEquals(WGPUStorageTextureAccess_ReadWrite, GPUStorageTextureAccess.ReadWrite.value)
     }
 
     @Test
     fun colorWriteMaskCombinesFlags() {
-        assertEquals(WGPUColorWriteMask_Red, GPUColorWrite.Red.toNativeColorWriteMask())
+        assertEquals(WGPUColorWriteMask_Red, GPUColorWrite.Red.value)
         assertEquals(
             WGPUColorWriteMask_Red or WGPUColorWriteMask_Green or WGPUColorWriteMask_Blue,
-            (GPUColorWrite.Red or GPUColorWrite.Green or GPUColorWrite.Blue).toNativeColorWriteMask(),
+            (GPUColorWrite.Red or GPUColorWrite.Green or GPUColorWrite.Blue).value,
         )
-        assertEquals(WGPUColorWriteMask_All, GPUColorWrite.All.toNativeColorWriteMask())
+        assertEquals(WGPUColorWriteMask_All, GPUColorWrite.All.value)
     }
 
     @Test
@@ -482,7 +482,7 @@ class TextureMappingTest {
     fun textureUsageTableCombinesFlags() {
         assertEquals(
             org.graphiks.dawn4k.native.WGPUTextureUsage_RenderAttachment or org.graphiks.dawn4k.native.WGPUTextureUsage_CopySrc,
-            (GPUTextureUsage.RenderAttachment or GPUTextureUsage.CopySrc).toNativeTextureUsage(),
+            (GPUTextureUsage.RenderAttachment or GPUTextureUsage.CopySrc).value,
         )
     }
 }

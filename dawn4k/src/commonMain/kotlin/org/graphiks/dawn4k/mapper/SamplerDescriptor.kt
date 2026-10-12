@@ -17,15 +17,15 @@ internal fun MemoryAllocator.allocateSamplerDescriptor(
     val native = WGPUSamplerDescriptor.allocate(this)
     native.nextInChain = null
     native.label.initNull()
-    native.addressModeU = descriptor.addressModeU.toNativeAddressMode()
-    native.addressModeV = descriptor.addressModeV.toNativeAddressMode()
-    native.addressModeW = descriptor.addressModeW.toNativeAddressMode()
-    native.magFilter = descriptor.magFilter.toNativeFilterMode()
-    native.minFilter = descriptor.minFilter.toNativeFilterMode()
-    native.mipmapFilter = descriptor.mipmapFilter.toNativeMipmapFilterMode()
+    native.addressModeU = descriptor.addressModeU.value
+    native.addressModeV = descriptor.addressModeV.value
+    native.addressModeW = descriptor.addressModeW.value
+    native.magFilter = descriptor.magFilter.value
+    native.minFilter = descriptor.minFilter.value
+    native.mipmapFilter = descriptor.mipmapFilter.value
     native.lodMinClamp = descriptor.lodMinClamp
     native.lodMaxClamp = descriptor.lodMaxClamp
-    native.compare = descriptor.compare?.toNativeCompareFunction() ?: WGPUCompareFunction_Undefined
+    native.compare = descriptor.compare?.value ?: WGPUCompareFunction_Undefined
     native.maxAnisotropy = descriptor.maxAnisotropy
     return native
 }

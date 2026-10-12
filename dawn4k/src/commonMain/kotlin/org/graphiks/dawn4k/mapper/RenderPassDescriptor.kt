@@ -84,8 +84,8 @@ private fun initColorAttachment(
     target.view = attachment?.let { resolveAttachmentView(it.view, temporaryViews) }
     target.depthSlice = attachment?.depthSlice ?: WGPU_DEPTH_SLICE_UNDEFINED
     target.resolveTarget = attachment?.resolveTarget?.let { resolveAttachmentView(it, temporaryViews) }
-    target.loadOp = attachment?.loadOp?.toNativeLoadOp() ?: WGPULoadOp_Undefined
-    target.storeOp = attachment?.storeOp?.toNativeStoreOp() ?: WGPUStoreOp_Undefined
+    target.loadOp = attachment?.loadOp?.value ?: WGPULoadOp_Undefined
+    target.storeOp = attachment?.storeOp?.value ?: WGPUStoreOp_Undefined
     target.clearValue.initFrom(attachment?.clearValue)
 }
 

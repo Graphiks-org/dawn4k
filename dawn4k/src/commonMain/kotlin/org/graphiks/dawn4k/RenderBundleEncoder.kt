@@ -8,7 +8,6 @@ import org.graphiks.dawn4k.internal.uploadAddress
 import org.graphiks.dawn4k.mapper.allocateRenderBundleDescriptor
 import org.graphiks.dawn4k.mapper.allocateRenderBundleEncoderDescriptor
 import org.graphiks.dawn4k.mapper.dataSlice
-import org.graphiks.dawn4k.mapper.toNativeIndexFormat
 import org.graphiks.dawn4k.mapper.WGPU_WHOLE_SIZE
 import org.graphiks.dawn4k.native.WGPURenderBundleEncoder
 import org.graphiks.dawn4k.native.wgpuDeviceCreateRenderBundleEncoder
@@ -78,7 +77,7 @@ class DawnRenderBundleEncoder internal constructor(
         requireOpen()
         val dawn = buffer as DawnBuffer
         run {
-            wgpuRenderBundleEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.toNativeIndexFormat(), offset, size ?: WGPU_WHOLE_SIZE)
+            wgpuRenderBundleEncoderSetIndexBuffer(handle, dawn.handle, indexFormat.value, offset, size ?: WGPU_WHOLE_SIZE)
         }
     }
 
