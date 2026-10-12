@@ -218,28 +218,32 @@ class PublishedApiGpuTest {
     fun scopedErrorsDoNotReachTheCallbackOrFallbackDiagnostic() {
         if (!runGpuTest { gpuTestEnvironment("PublishedApiGpuTest.scopedErrorsDoNotReachTheCallbackOrFallbackDiagnostic") }) return
         var deliveries = 0
-        val output = captureStandardError {
-            runGpuTest {
-                DawnContext.create(gpuTestConfig()).useWithProgress { context ->
-                    // Each WebGPU adapter is consumed by its first device request.
-                    for (descriptor in listOf(
-                        DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { deliveries++ }),
-                        DeviceDescriptor(),
-                    )) {
-                        context.requestAdapter().getOrThrow().use { adapter ->
-                            adapter.requestDevice(descriptor).getOrThrow().use { device ->
-                                device.pushErrorScope(GPUErrorFilter.Validation)
-                                device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
-                                assertIs<GPUValidationError>(device.popErrorScope().getOrThrow())
-                                device.queue.onSubmittedWorkDone().getOrThrow()
+        runGpuTest {
+            DawnContext.create(gpuTestConfig()).useWithProgress { context ->
+                // Each WebGPU adapter is consumed by its first device request.
+                for (descriptor in listOf(
+                    DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { deliveries++ }),
+                    DeviceDescriptor(),
+                )) {
+                    context.requestAdapter().getOrThrow().use { adapter ->
+                        adapter.requestDevice(descriptor).getOrThrow().use { device ->
+                            // Adapter/device initialization can emit native driver warnings.
+                            // Capture only the scoped operations, without filtering diagnostics.
+                            val output = captureStandardError {
+                                runGpuTest {
+                                    device.pushErrorScope(GPUErrorFilter.Validation)
+                                    device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
+                                    assertIs<GPUValidationError>(device.popErrorScope().getOrThrow())
+                                    device.queue.onSubmittedWorkDone().getOrThrow()
+                                }
                             }
+                            assertEquals("", output)
                         }
                     }
                 }
             }
         }
         assertEquals(0, deliveries)
-        assertEquals("", output)
     }
 
     /** Real-time bound includes adapter/device requests and queue barriers, not only callback waits. */
