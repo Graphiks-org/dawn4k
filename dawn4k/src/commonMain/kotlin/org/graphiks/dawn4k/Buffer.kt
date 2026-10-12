@@ -10,7 +10,6 @@ import org.graphiks.dawn4k.internal.checkedRange
 import org.graphiks.dawn4k.internal.copyToString
 import org.graphiks.dawn4k.internal.requireRepresentableSize
 import org.graphiks.dawn4k.mapper.allocateBufferDescriptor
-import org.graphiks.dawn4k.mapper.toNativeMode
 import org.graphiks.dawn4k.native.WGPUBuffer
 import org.graphiks.dawn4k.native.WGPUBufferMapCallback
 import org.graphiks.dawn4k.native.WGPUBufferMapCallbackInfo
@@ -125,7 +124,7 @@ class DawnBuffer internal constructor(
                         wgpuBufferMapAsync(
                             allocator = allocator,
                             buffer = nativeHandle,
-                            mode = mode.toNativeMode(),
+                            mode = mode.value,
                             offset = range.offset,
                             size = range.size,
                             callbackInfo = callbackInfo,

@@ -4,11 +4,6 @@ import org.graphiks.dawn4k.native.WGPUBindGroupLayoutDescriptor
 import org.graphiks.dawn4k.native.WGPUBindGroupLayoutEntry
 import org.graphiks.dawn4k.native.WGPUBufferBindingType_BindingNotUsed
 import org.graphiks.dawn4k.native.WGPUSamplerBindingType_BindingNotUsed
-import org.graphiks.dawn4k.native.WGPUShaderStage
-import org.graphiks.dawn4k.native.WGPUShaderStage_Compute
-import org.graphiks.dawn4k.native.WGPUShaderStage_Fragment
-import org.graphiks.dawn4k.native.WGPUShaderStage_None
-import org.graphiks.dawn4k.native.WGPUShaderStage_Vertex
 import org.graphiks.dawn4k.native.WGPUStorageTextureAccess_BindingNotUsed
 import org.graphiks.dawn4k.native.WGPUTextureFormat_Undefined
 import org.graphiks.dawn4k.native.WGPUTextureSampleType_BindingNotUsed
@@ -16,21 +11,6 @@ import org.graphiks.dawn4k.native.WGPUTextureViewDimension_Undefined
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUBindGroupLayoutDescriptor
 import org.graphiks.webgpu.GPUBindGroupLayoutEntry
-import org.graphiks.webgpu.GPUShaderStage
-
-/**
- * Explicit conversion table Kotlin `GPUShaderStage` -> native `WGPUShaderStage`.
- * Each set bit is mapped through its named constant; the numeric values are never
- * assumed to coincide.
- */
-internal fun GPUShaderStage.toNativeShaderStage(): WGPUShaderStage {
-    val value = this.value
-    var stage = WGPUShaderStage_None
-    if (value and GPUShaderStage.Vertex.value != 0uL) stage = stage or WGPUShaderStage_Vertex
-    if (value and GPUShaderStage.Fragment.value != 0uL) stage = stage or WGPUShaderStage_Fragment
-    if (value and GPUShaderStage.Compute.value != 0uL) stage = stage or WGPUShaderStage_Compute
-    return stage
-}
 
 /**
  * Allocates a [WGPUBindGroupLayoutDescriptor] with every field set explicitly
@@ -63,7 +43,7 @@ internal fun MemoryAllocator.allocateBindGroupLayoutDescriptor(
 private fun initBindGroupLayoutEntry(entry: WGPUBindGroupLayoutEntry, layout: GPUBindGroupLayoutEntry) {
     entry.nextInChain = null
     entry.binding = layout.binding
-    entry.visibility = layout.visibility.toNativeShaderStage()
+    entry.visibility = layout.visibility.value
     entry.bindingArraySize = 0u
 
     entry.buffer.nextInChain = null

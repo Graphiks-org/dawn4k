@@ -23,28 +23,33 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 /**
- * Pure mapping tests: every conversion table maps its Kotlin value through its
- * named Dawn constant (never assuming the numeric values coincide), and the
+ * Pure mapping tests: Kotlin values match their named Dawn constants, and the
  * compute-state builder keeps UTF-8 keys and nullable entry points inside the
  * consumed allocator scope with bit-exact f64 constant values.
  */
 class BindingsMappingTest {
 
     @Test
-    fun shaderStageTableMapsEveryFlagIndividually() {
-        assertEquals(WGPUShaderStage_None, GPUShaderStage.None.toNativeShaderStage())
-        assertEquals(WGPUShaderStage_Vertex, GPUShaderStage.Vertex.toNativeShaderStage())
-        assertEquals(WGPUShaderStage_Fragment, GPUShaderStage.Fragment.toNativeShaderStage())
-        assertEquals(WGPUShaderStage_Compute, GPUShaderStage.Compute.toNativeShaderStage())
+    fun shaderStageValuesMatchDawnConstants() {
+        assertEquals(WGPUShaderStage_None, GPUShaderStage.None.value)
+        assertEquals(WGPUShaderStage_Vertex, GPUShaderStage.Vertex.value)
+        assertEquals(WGPUShaderStage_Fragment, GPUShaderStage.Fragment.value)
+        assertEquals(WGPUShaderStage_Compute, GPUShaderStage.Compute.value)
     }
 
     @Test
-    fun shaderStageTableCombinesFlags() {
-        val combined = GPUShaderStage.Vertex or GPUShaderStage.Fragment
-        assertEquals(
-            WGPUShaderStage_Vertex or WGPUShaderStage_Fragment,
-            combined.toNativeShaderStage(),
+    fun shaderStagePreservesEveryCombination() {
+        val flags = listOf(
+            GPUShaderStage.Vertex to WGPUShaderStage_Vertex,
+            GPUShaderStage.Fragment to WGPUShaderStage_Fragment,
+            GPUShaderStage.Compute to WGPUShaderStage_Compute,
         )
+        for (bits in 0 until (1 shl flags.size)) {
+            val selected = flags.filterIndexed { index, _ -> bits and (1 shl index) != 0 }
+            val combined = selected.fold(GPUShaderStage.None) { acc, flag -> acc or flag.first }
+            val expected = selected.fold(WGPUShaderStage_None) { acc, flag -> acc or flag.second }
+            assertEquals(expected, combined.value, "combination $bits")
+        }
     }
 
     @Test
