@@ -1,0 +1,250 @@
+package org.graphiks.dawn4k
+
+import org.graphiks.dawn4k.internal.ByteRange
+import org.graphiks.dawn4k.internal.DeviceSession
+import org.graphiks.dawn4k.internal.OwnedReference
+import org.graphiks.dawn4k.internal.transferOwnership
+import org.graphiks.dawn4k.internal.PendingOperation
+import org.graphiks.dawn4k.internal.borrowedArrayBuffer
+import org.graphiks.dawn4k.internal.checkedRange
+import org.graphiks.dawn4k.internal.copyToString
+import org.graphiks.dawn4k.internal.requireRepresentableSize
+import org.graphiks.dawn4k.mapper.allocateBufferDescriptor
+import org.graphiks.dawn4k.native.WGPUBuffer
+import org.graphiks.dawn4k.native.WGPUBufferMapCallback
+import org.graphiks.dawn4k.native.WGPUBufferMapCallbackInfo
+import org.graphiks.dawn4k.native.WGPUCallbackMode_AllowProcessEvents
+import org.graphiks.dawn4k.native.WGPUMapAsyncStatus
+import org.graphiks.dawn4k.native.WGPUMapAsyncStatus_Success
+import org.graphiks.dawn4k.native.WGPUQueueWorkDoneCallback
+import org.graphiks.dawn4k.native.WGPUQueueWorkDoneCallbackInfo
+import org.graphiks.dawn4k.native.WGPUQueueWorkDoneStatus
+import org.graphiks.dawn4k.native.WGPUQueueWorkDoneStatus_Success
+import org.graphiks.dawn4k.native.wgpuBufferDestroy
+import org.graphiks.dawn4k.native.wgpuBufferGetConstMappedRange
+import org.graphiks.dawn4k.native.wgpuBufferGetMappedRange
+import org.graphiks.dawn4k.native.wgpuBufferGetMapState
+import org.graphiks.dawn4k.native.wgpuBufferMapAsync
+import org.graphiks.dawn4k.native.wgpuBufferRelease
+import org.graphiks.dawn4k.native.wgpuBufferUnmap
+import org.graphiks.dawn4k.native.wgpuDeviceCreateBuffer
+import org.graphiks.dawn4k.native.wgpuQueueOnSubmittedWorkDone
+import org.graphiks.dawn4k.native.allocate
+import org.graphiks.dawn4k.native.register
+import org.graphiks.kffi.CallbackPolicy
+import org.graphiks.kffi.CallbackRegistration
+import org.graphiks.kffi.memoryScope
+import org.graphiks.webgpu.ArrayBuffer
+import org.graphiks.webgpu.GPUBuffer
+import org.graphiks.webgpu.GPUBufferDescriptor
+import org.graphiks.webgpu.GPUBufferMapState
+import org.graphiks.webgpu.GPUBufferUsage
+import org.graphiks.webgpu.GPUMapMode
+import org.graphiks.webgpu.GPUSize64
+import org.graphiks.webgpu.GPUSize64Out
+
+/**
+ * A raw [GPUBuffer] backed by a Dawn `WGPUBuffer`.
+ *
+ * Mapping is real: [getMappedRange] wraps the actual mapped memory (a borrowed
+ * view, never a CPU copy). The returned [ArrayBuffer] is valid only while the
+ * buffer is mapped — after [unmap] (or [close]) its memory is returned to the
+ * device and the view must not be read.
+ *
+ * The object is single-threaded, matching the WebGPU object model: map, unmap
+ * and close must not race one another.
+ */
+class DawnBuffer internal constructor(
+    internal val session: DeviceSession,
+    handle: WGPUBuffer,
+    descriptor: GPUBufferDescriptor,
+) : GPUBuffer {
+
+    override val size: GPUSize64Out = descriptor.size
+
+    override val usage: GPUBufferUsage = descriptor.usage
+
+    override var label: String = descriptor.label
+
+    /** The range mapped by the last successful [mapAsync]; null when unmapped. */
+    private var mappedRange: ByteRange? = null
+
+    /** Whether the current mapping is writable (mapped for write). */
+    private var mappedWritable: Boolean = false
+
+    private val reference = OwnedReference(handle,
+        destroy = { wgpuBufferDestroy(it) }, release = { wgpuBufferRelease(it) })
+    internal val handle: WGPUBuffer
+        get() { session.requireOpen(); return reference.handle }
+
+    init {
+        if (descriptor.mappedAtCreation) {
+            // A mapped-at-creation buffer starts mapped for the whole range,
+            // writable.
+            mappedRange = ByteRange(0uL, descriptor.size)
+            mappedWritable = true
+        }
+    }
+
+    override val mapState: GPUBufferMapState
+        get() = GPUBufferMapState.of(wgpuBufferGetMapState(handle)) ?: GPUBufferMapState.Unmapped
+
+    override suspend fun mapAsync(
+        mode: GPUMapMode,
+        offset: GPUSize64,
+        size: GPUSize64?,
+    ): Result<Unit> {
+        val nativeHandle = handle
+        // Normalize the range; alignment (offset % 8, size % 4) and overlap
+        // constraints are deliberately NOT checked here — they must surface as
+        // the native validation error, not a Kotlin exception.
+        val range = checkedRange(this.size, offset, size)
+        val operation = session.runtime.pending<Unit>(session) { }
+        run {
+            var registration: CallbackRegistration<WGPUBufferMapCallback>? = null
+            session.runtime.beginSubdeviceOperation(
+                operation = operation,
+                issue = {
+                    registration = WGPUBufferMapCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
+                        val outcome = BufferMapOutcome(status, message.copyToString())
+                        session.runtime.postCallback {
+                            session.runtime.finishSubdeviceOperation(
+                                operation,
+                                registration!!,
+                                outcome.toResult(),
+                            )
+                        }
+                    }
+                    memoryScope { allocator ->
+                        val callbackInfo = WGPUBufferMapCallbackInfo.allocate(
+                            allocator = allocator,
+                            mode = WGPUCallbackMode_AllowProcessEvents,
+                            registration = registration,
+                        ).also { it.nextInChain = null }
+                        wgpuBufferMapAsync(
+                            allocator = allocator,
+                            buffer = nativeHandle,
+                            mode = mode.value,
+                            offset = range.offset,
+                            size = range.size,
+                            callbackInfo = callbackInfo,
+                        )
+                    }
+                },
+                closeRegistration = { registration?.close() },
+            )
+        }
+        val result = operation.await()
+        operation.acceptOwnership()
+        if (result.isSuccess) {
+            mappedRange = range
+            mappedWritable = mode.value == GPUMapMode.Write.value
+        }
+        return result
+    }
+
+    override fun getMappedRange(offset: GPUSize64, size: GPUSize64?): ArrayBuffer {
+        val nativeHandle = handle
+        val mapped = mappedRange
+            ?: throw IllegalStateException("the buffer is not mapped; call mapAsync and await it first")
+        val range = checkedRange(mapped.size, offset, size)
+        if (range.size == 0uL) return ArrayBuffer.allocate(0uL)
+        requireRepresentableSize(range.size)
+        val absoluteOffset = mapped.offset + range.offset
+        val writable = mappedWritable
+        val address = run {
+            // Dawn's C API takes an absolute buffer offset and separates the
+            // writable and const variants: a read mapping only exposes a const
+            // range, so pick the variant matching the mapping's writability.
+            if (writable) {
+                wgpuBufferGetMappedRange(nativeHandle, absoluteOffset, range.size)
+            } else {
+                wgpuBufferGetConstMappedRange(nativeHandle, absoluteOffset, range.size)
+            }
+        } ?: throw IllegalStateException(
+            "the mapped range ${range.offset}..${range.offset + range.size} is not accessible",
+        )
+        return borrowedArrayBuffer(address, range.size)
+    }
+
+    override fun unmap() {
+        val nativeHandle = handle
+        mappedRange = null
+        mappedWritable = false
+        wgpuBufferUnmap(nativeHandle)
+    }
+
+    override fun close() {
+        mappedRange = null
+        mappedWritable = false
+        reference.close()
+    }
+}
+
+/** The native completion of one buffer map: the copied status and message. */
+private class BufferMapOutcome(val status: WGPUMapAsyncStatus, val message: String) {
+    fun toResult(): Result<Unit> =
+        if (status == WGPUMapAsyncStatus_Success) Result.success(Unit)
+        else Result.failure(DawnBufferMapException(status, message))
+}
+
+/** The native completion of one queue work-done wait: the copied status and message. */
+private class WorkDoneOutcome(val status: WGPUQueueWorkDoneStatus, val message: String) {
+    fun toResult(): Result<Unit> =
+        if (status == WGPUQueueWorkDoneStatus_Success) Result.success(Unit)
+        else Result.failure(
+            IllegalStateException("the queue work-done callback failed (status=$status): $message"),
+        )
+}
+
+/** A buffer map rejected by the native layer with a validation/aborted status. */
+internal class DawnBufferMapException(
+    val status: WGPUMapAsyncStatus,
+    message: String,
+) : IllegalStateException("the buffer map failed (status=$status): $message")
+
+/**
+ * Creates a caller-owned [DawnBuffer]. Close it before its device session.
+ */
+internal fun DeviceSession.createBuffer(descriptor: GPUBufferDescriptor): DawnBuffer =
+    run {
+        memoryScope { allocator ->
+            val nativeDescriptor = allocator.allocateBufferDescriptor(descriptor)
+            val handle = wgpuDeviceCreateBuffer(this.handle, nativeDescriptor)
+                ?: throw IllegalStateException("wgpuDeviceCreateBuffer returned no buffer")
+            transferOwnership(handle, release = { wgpuBufferRelease(it) }) { DawnBuffer(this, it, descriptor) }
+        }
+    }
+
+/**
+ * Suspends until every work submitted to the session's queue so far is done.
+ * Settled by explicit event progression through a queue work-done callback.
+ */
+internal suspend fun DeviceSession.onSubmittedWorkDone(): Result<Unit> {
+    requireOpen()
+    val operation = runtime.pending<Unit>(this) { }
+    run {
+        var registration: CallbackRegistration<WGPUQueueWorkDoneCallback>? = null
+        runtime.beginSubdeviceOperation(
+            operation = operation,
+            issue = {
+                registration = WGPUQueueWorkDoneCallback.register(policy = CallbackPolicy.ONCE) { status, message, _ ->
+                    val outcome = WorkDoneOutcome(status, message.copyToString())
+                    runtime.postCallback {
+                        runtime.finishSubdeviceOperation(operation, registration!!, outcome.toResult())
+                    }
+                }
+                memoryScope { allocator ->
+                    val callbackInfo = WGPUQueueWorkDoneCallbackInfo.allocate(
+                        allocator = allocator,
+                        mode = WGPUCallbackMode_AllowProcessEvents,
+                        registration = registration,
+                    ).also { it.nextInChain = null }
+                    wgpuQueueOnSubmittedWorkDone(allocator, queueHandle, callbackInfo)
+                }
+            },
+            closeRegistration = { registration?.close() },
+        )
+    }
+    return operation.await().also { operation.acceptOwnership() }
+}

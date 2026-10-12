@@ -1,0 +1,781 @@
+package org.graphiks.dawn4k
+
+import org.graphiks.dawn4k.testing.gpuTestEnvironment
+import org.graphiks.dawn4k.testing.gpuTestConfig
+import org.graphiks.dawn4k.testing.UncapturedErrorCollector
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import org.graphiks.webgpu.ArrayBuffer
+import org.graphiks.webgpu.GPUAdapter
+import org.graphiks.webgpu.GPUUncapturedErrorCallback
+import org.graphiks.webgpu.GPUBufferBindingType
+import org.graphiks.webgpu.GPUBufferMapState
+import org.graphiks.webgpu.GPUBufferUsage
+import org.graphiks.webgpu.GPUCompareFunction
+import org.graphiks.webgpu.GPUFeatureName
+import org.graphiks.webgpu.GPUErrorFilter
+import org.graphiks.webgpu.GPUValidationError
+import org.graphiks.webgpu.GPUIndexFormat
+import org.graphiks.webgpu.GPUMapMode
+import org.graphiks.webgpu.GPUQueryType
+import org.graphiks.webgpu.GPUShaderStage
+import org.graphiks.webgpu.GPUTextureFormat
+import org.graphiks.webgpu.descriptors.BindGroupDescriptor
+import org.graphiks.webgpu.descriptors.BindGroupEntry
+import org.graphiks.webgpu.descriptors.BindGroupLayoutDescriptor
+import org.graphiks.webgpu.descriptors.BindGroupLayoutEntry
+import org.graphiks.webgpu.descriptors.BufferBinding
+import org.graphiks.webgpu.descriptors.BufferBindingLayout
+import org.graphiks.webgpu.descriptors.BufferDescriptor
+import org.graphiks.webgpu.descriptors.ComputePipelineDescriptor
+import org.graphiks.webgpu.descriptors.DepthStencilState
+import org.graphiks.webgpu.descriptors.DeviceDescriptor
+import org.graphiks.webgpu.descriptors.PipelineLayoutDescriptor
+import org.graphiks.webgpu.descriptors.ProgrammableStage
+import org.graphiks.webgpu.descriptors.QuerySetDescriptor
+import org.graphiks.webgpu.descriptors.RenderBundleEncoderDescriptor
+import org.graphiks.webgpu.descriptors.RenderPipelineDescriptor
+import org.graphiks.webgpu.descriptors.ShaderModuleDescriptor
+import org.graphiks.webgpu.descriptors.VertexState
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+/**
+ * Resource-lifecycle stress and out-of-suite witnesses of the public backend:
+ * idempotent closes, a late callback after a cancelled wait, cross-device
+ * native validation without ownership transfer, a hundred-device open/close stress,
+ * foreign-thread interaction routed through the dispatcher, native validation
+ * observed on invalid sources, setImmediates for real under the announced
+ * maxImmediateSize, the nullable depth signatures reaching native validation,
+ * an optional feature that stays checkable when absent, and the render bundle
+ * encoder's close guard with finish-twice left to Dawn.
+ *
+ * Resource closure is checked through guarded handles and callback completion,
+ * never by dereferencing released memory. Standard tasks run these tests; adapter
+ * absence is reported explicitly (or fails in strict mode).
+ */
+class LifecycleStressGpuTest {
+
+    private val errorsByDevice = mutableMapOf<DawnDevice, UncapturedErrorCollector>()
+
+    // --- idempotent close -----------------------------------------------------
+
+    @Test
+    fun repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.repeatedCloseIsIdempotentForRefcountAndDestroyBackedWrappers")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
+        try {
+            context.requestAdapter().getOrThrow().use { adapter ->
+                adapter.requestDevice().getOrThrow().let { publicDevice ->
+                    val device = publicDevice as DawnDevice
+                    try {
+                        device.createSampler().let { sampler ->
+                            sampler.close()
+                            sampler.close()
+                            assertFailsWith<IllegalStateException> { (sampler as DawnSampler).handle }
+                        }
+
+                        device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.Uniform)).let { buffer ->
+                            buffer.close()
+                            buffer.close()
+                            assertFailsWith<IllegalStateException> { (buffer as DawnBuffer).handle }
+                        }
+
+                        device.createTexture(
+                            org.graphiks.webgpu.descriptors.TextureDescriptor(
+                                size = org.graphiks.webgpu.descriptors.Extent3D(width = 4u, height = 4u),
+                                format = GPUTextureFormat.RGBA8Unorm,
+                                usage = org.graphiks.webgpu.GPUTextureUsage.TextureBinding,
+                            ),
+                        ).let { texture ->
+                            texture.close()
+                            texture.close()
+                            assertFailsWith<IllegalStateException> { (texture as DawnTexture).handle }
+                        }
+                    } finally {
+                        device.close()
+                    }
+                    // Session close is idempotent too.
+                    device.close()
+                    assertFailsWith<IllegalStateException> { device.nativeHandle() }
+                }
+            }
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+        // The context close is idempotent: the finally above ran first.
+        context.close()
+    }
+
+    // --- late callback after cancel -------------------------------------------
+
+    @Test
+    fun lateCallbackAfterACancelledMapSettlesWithOneRelease() = runBlocking {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.lateCallbackAfterACancelledMapSettlesWithOneRelease")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
+        var events = context.startTestProgress(this)
+        try {
+            val adapter = context.requestAdapter().getOrThrow()
+            val device = adapter.requestDevice().getOrThrow() as DawnDevice
+            try {
+                val buffer = device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead))
+                try {
+                    // Pause delivery so even a fast map remains outstanding.
+                    // Undispatched start completes issuance before returning.
+                    events.cancelAndJoin()
+                    val pending = async(start = CoroutineStart.UNDISPATCHED) { buffer.mapAsync(GPUMapMode.Read) }
+                    assertEquals(1, device.session.runtime.debugOpenCallbacks())
+                    pending.cancel()
+                    pending.join()
+
+                    // The late delivery settles exactly once: the registration
+                    // count returns to zero, never negative, never stuck.
+                    withTimeout(HANDOFF_TIMEOUT_MS) {
+                        // Native callback completion can precede deferred
+                        // rejected-result cleanup. Drain both before closing.
+                        while (context.hasPendingOperations()) {
+                            device.session.runtime.processEvents()
+                            yield()
+                        }
+                    }
+                    assertEquals(
+                        0,
+                        device.session.runtime.debugOpenCallbacks(),
+                        "the cancelled map's late callback must close its registration exactly once",
+                    )
+                    events = context.startTestProgress(this)
+
+                    // The buffer survived the cancelled wait without corruption:
+                    // it reaches a clean terminal map state in either race outcome.
+                    when (buffer.mapState) {
+                        GPUBufferMapState.Mapped -> buffer.unmap()
+                        else -> {
+                            buffer.mapAsync(GPUMapMode.Read).getOrThrow()
+                            buffer.unmap()
+                        }
+                    }
+                } finally {
+                    buffer.close()
+                }
+            } finally {
+                try { device.close() } finally { adapter.close() }
+            }
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    // --- resources from another device ---------------------------------------
+
+    @Test
+    fun resourcesFromAnotherDeviceReachDawnValidationWithoutOwnershipTransfer() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.resourcesFromAnotherDeviceReachDawnValidationWithoutOwnershipTransfer")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
+        try {
+            val adapterA = context.requestAdapter().getOrThrow()
+            val adapterB = context.requestAdapter().getOrThrow()
+            try {
+                val deviceA = requestObservedDevice(adapterA)
+                val deviceB = adapterB.requestDevice().getOrThrow() as DawnDevice
+                try {
+                    val foreignBuffer = deviceA.createBuffer(
+                        BufferDescriptor(16uL, GPUBufferUsage.CopySrc or GPUBufferUsage.CopyDst),
+                    )
+                    val localBuffer = deviceB.createBuffer(
+                        BufferDescriptor(16uL, GPUBufferUsage.CopySrc or GPUBufferUsage.CopyDst),
+                    )
+                    try {
+                        // Dawn reports cross-device use through a WebGPU error scope,
+                        // not a Kotlin exception. Encoder validation is deferred to finish.
+                        deviceB.pushErrorScope(GPUErrorFilter.Validation)
+                        deviceB.createCommandEncoder().use { encoder ->
+                            encoder.copyBufferToBuffer(foreignBuffer, 0uL, localBuffer, 0uL, 16uL)
+                            encoder.finish().close()
+                        }
+                        assertIs<GPUValidationError>(deviceB.popErrorScope().getOrThrow())
+
+                        // The foreign buffer is still usable through ITS device:
+                        // the refusal never released or corrupted its handle.
+                        val beforeErrors = uncapturedErrorCount(deviceA)
+                        deviceA.queue.writeBuffer(foreignBuffer, 0uL, ArrayBuffer.of(uintArrayOf(1u, 2u)))
+                        assertEquals(
+                            beforeErrors,
+                            uncapturedErrorCount(deviceA),
+                            "the refused buffer must stay valid on its own device",
+                        )
+                    } finally {
+                        foreignBuffer.close()
+                        localBuffer.close()
+                    }
+                } finally {
+                    deviceB.close()
+                    deviceA.close()
+                }
+            } finally {
+                adapterB.close()
+                adapterA.close()
+            }
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    // --- a hundred devices ----------------------------------------------------
+
+    @Test
+    fun aHundredDevicesAndCallerOwnedBuffersCloseCleanly() = runBlocking {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.aHundredDevicesAndCallerOwnedBuffersCloseCleanly")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
+        var runtime: org.graphiks.dawn4k.internal.DawnRuntime? = null
+        try {
+            repeat(100) {
+                val adapter = context.requestAdapter().getOrThrow()
+                val device = adapter.requestDevice().getOrThrow() as DawnDevice
+                runtime = device.session.runtime
+                val buffer = device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.Uniform)) as DawnBuffer
+                buffer.close()
+                buffer.close()
+                assertFailsWith<IllegalStateException> { buffer.handle }
+                device.close()
+                device.close()
+                assertFailsWith<IllegalStateException> { device.nativeHandle() }
+                adapter.close()
+            }
+            assertEquals(
+                0,
+                runtime!!.debugOpenCallbacks(),
+                "the stress must leave no open callback registration",
+            )
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    // --- foreign threads ------------------------------------------------------
+
+    @Test
+    fun foreignThreadInteractionsAreRoutedThroughTheWorker() = runBlocking {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.foreignThreadInteractionsAreRoutedThroughTheWorker")) return@runBlocking
+        val context = DawnContext.create(gpuTestConfig())
+        var events = context.startTestProgress(this)
+        try {
+            val adapter = context.requestAdapter().getOrThrow()
+            val device = requestObservedDevice(adapter)
+            try {
+                val beforeErrors = uncapturedErrorCount(device)
+
+                // Created from a foreign thread, completed on the worker, and
+                // visible from this thread: the interaction is routed, not
+                // confined to the calling thread.
+                val foreignBuffer = async(Dispatchers.Default) {
+                    device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
+                }.await()
+                try {
+                    // A queue write issued from another foreign thread.
+                    async(Dispatchers.Default) {
+                        device.queue.writeBuffer(foreignBuffer, 0uL, ArrayBuffer.of(uintArrayOf(7u, 7u)))
+                    }.await()
+
+                    // A capability snapshot from yet another foreign thread.
+                    val features = async(Dispatchers.Default) { device.features }.await()
+                    assertTrue(features.isNotEmpty(), "a foreign-thread snapshot must read the device features")
+
+                    // Progress can be called on another thread, but two pumps
+                    // must not run simultaneously. Join the background pump first.
+                    events.cancelAndJoin()
+                    async(Dispatchers.Default) { context.processEvents() }.await()
+                    events = context.startTestProgress(this)
+
+                    // Every thread's operation hit the same serialized state: the
+                    // write landed and no validation error was observed anywhere.
+                    device.queue.onSubmittedWorkDone().getOrThrow()
+                    foreignBuffer.mapAsync(GPUMapMode.Read).getOrThrow()
+                    assertContentEquals(uintArrayOf(7u, 7u), foreignBuffer.getMappedRange().toUIntArray().copyOfRange(0, 2))
+                    foreignBuffer.unmap()
+                    assertEquals(beforeErrors, uncapturedErrorCount(device))
+                } finally {
+                    foreignBuffer.close()
+                }
+                assertFailsWith<IllegalStateException> { (foreignBuffer as DawnBuffer).handle }
+            } finally {
+                device.close()
+            }
+            adapter.close()
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    // --- invalid buffer source ------------------------------------------------
+
+    @Test
+    fun invalidBufferSourceSurfacesTheNativeValidationError() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.invalidBufferSourceSurfacesTheNativeValidationError")) return@runTest
+        withDawnDevice { device ->
+            // A buffer without COPY_DST cannot be written: the backend has no
+            // Kotlin-side usage check, so Dawn's own validation must observe it.
+            device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead)).let { buffer ->
+                try {
+                    val before = uncapturedErrorCount(device)
+                    device.queue.writeBuffer(buffer, 0uL, ArrayBuffer.of(uintArrayOf(1u)))
+                    device.queue.onSubmittedWorkDone().getOrThrow()
+                    assertTrue(
+                        uncapturedErrorCount(device) > before,
+                        "writing a buffer without COPY_DST must surface the native validation error",
+                    )
+                } finally {
+                    buffer.close()
+                }
+            }
+        }
+    }
+
+    // --- setImmediates for real ------------------------------------------------
+
+    @Test
+    fun setImmediatesReachTheShaderWhenTheAnnouncedMaxImmediateSizeAllowsIt() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.setImmediatesReachTheShaderWhenTheAnnouncedMaxImmediateSizeAllowsIt")) return@runTest
+        withDawnDevice { device ->
+            val announced = device.limits.maxImmediateSize
+            assertTrue(
+                announced in 0u..UInt.MAX_VALUE,
+                "the announced maxImmediateSize must be a readable limit",
+            )
+            if (announced < 4u) {
+                // This host cannot carry even a scalar immediate: the metadata
+                // witness above stays mandatory and the round-trip degenerates
+                // honestly instead of erroring a mandatory test.
+                return@withDawnDevice
+            }
+
+            device.createShaderModule(ShaderModuleDescriptor(IMMEDIATE_SHADER)).use { shader ->
+                device.createBindGroupLayout(
+                    BindGroupLayoutDescriptor(
+                        listOf(
+                            BindGroupLayoutEntry(
+                                binding = 0u,
+                                visibility = GPUShaderStage.Compute,
+                                buffer = BufferBindingLayout(type = GPUBufferBindingType.Storage),
+                            ),
+                        ),
+                    ),
+                ).use { layout ->
+                    device.createPipelineLayout(
+                        PipelineLayoutDescriptor(listOf(layout), immediateSize = 4u),
+                    ).use { pipelineLayout ->
+                        device.createComputePipeline(
+                            ComputePipelineDescriptor(
+                                layout = pipelineLayout,
+                                compute = ProgrammableStage(shader, entryPoint = "main"),
+                            ),
+                        ).use { pipeline ->
+                            val storage = device.createBuffer(
+                                BufferDescriptor(16uL, GPUBufferUsage.Storage or GPUBufferUsage.CopySrc),
+                            )
+                            val staging = device.createBuffer(
+                                BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst),
+                            )
+                            device.createBindGroup(
+                                BindGroupDescriptor(layout, listOf(BindGroupEntry(0u, BufferBinding(storage)))),
+                            ).use { bindGroup ->
+                                val beforeErrors = uncapturedErrorCount(device)
+
+                                // A real immediate value: the shader reads the
+                                // bytes this downcall wrote.
+                                dispatchImmediates(device, pipeline, bindGroup, storage, staging) { pass ->
+                                    pass.setImmediates(0u, ArrayBuffer.of(uintArrayOf(42u)))
+                                }
+                                staging.mapAsync(GPUMapMode.Read).getOrThrow()
+                                assertContentEquals(
+                                    uintArrayOf(42u, 0u, 0u, 0u),
+                                    staging.getMappedRange().toUIntArray().copyOfRange(0, 4),
+                                    "the immediate value must reach the shader",
+                                )
+                                staging.unmap()
+
+                                // The dataOffset/dataSize slice: the written range
+                                // comes from the middle of a larger view.
+                                dispatchImmediates(device, pipeline, bindGroup, storage, staging) { pass ->
+                                    pass.setImmediates(
+                                        rangeOffset = 0u,
+                                        data = ArrayBuffer.of(uintArrayOf(0u, 13u)),
+                                        dataOffset = 4uL,
+                                        dataSize = 4uL,
+                                    )
+                                }
+                                staging.mapAsync(GPUMapMode.Read).getOrThrow()
+                                assertContentEquals(
+                                    uintArrayOf(13u, 0u, 0u, 0u),
+                                    staging.getMappedRange().toUIntArray().copyOfRange(0, 4),
+                                    "the sliced immediate value must reach the shader",
+                                )
+                                staging.unmap()
+
+                                assertEquals(
+                                    beforeErrors,
+                                    uncapturedErrorCount(device),
+                                    "the immediate round-trip must surface no error",
+                                )
+                            }
+                            storage.close()
+                            staging.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- nullable depth signatures ---------------------------------------------
+
+    @Test
+    fun nullableDepthWriteAndDepthCompareReachNativeValidation() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.nullableDepthWriteAndDepthCompareReachNativeValidation")) return@runTest
+        withDawnDevice { device ->
+            device.createShaderModule(ShaderModuleDescriptor(VERTEX_SHADER)).use { shader ->
+                // Explicit values on both nullable signatures: valid pipelines,
+                // observed by a clean uncaptured-error slate.
+                for ((write, compare) in listOf(false to GPUCompareFunction.Less, true to GPUCompareFunction.Always)) {
+                    val before = uncapturedErrorCount(device)
+                    device.createRenderPipeline(
+                        RenderPipelineDescriptor(
+                            vertex = VertexState(module = shader, entryPoint = "vs_main"),
+                            depthStencil = DepthStencilState(
+                                format = GPUTextureFormat.Depth32Float,
+                                depthWriteEnabled = write,
+                                depthCompare = compare,
+                            ),
+                        ),
+                    ).close()
+                    assertEquals(
+                        before,
+                        uncapturedErrorCount(device),
+                        "the explicit depth signatures ($write, $compare) must create a valid pipeline",
+                    )
+                }
+
+                // The nullable signatures map onto the native Undefined tri-state
+                // and Dawn's validation observes them: a depth-aspect format
+                // refuses an undefined depthWriteEnabled, and a used compare
+                // refuses an undefined depthCompare. The mapping itself is the
+                // witness — the native message names the undefined field.
+                for ((write, compare) in listOf(null to GPUCompareFunction.Less, true to null)) {
+                    val before = uncapturedErrorCount(device)
+                    device.createRenderPipeline(
+                        RenderPipelineDescriptor(
+                            vertex = VertexState(module = shader, entryPoint = "vs_main"),
+                            depthStencil = DepthStencilState(
+                                format = GPUTextureFormat.Depth32Float,
+                                depthWriteEnabled = write,
+                                depthCompare = compare,
+                            ),
+                        ),
+                    ).close()
+                    assertTrue(
+                        uncapturedErrorCount(device) > before,
+                        "the null depth signatures ($write, $compare) must reach the native validation",
+                    )
+                }
+            }
+        }
+    }
+
+    // --- optional feature, present or absent ------------------------------------
+
+    @Test
+    fun optionalTimestampFeatureStaysCheckablePresentOrAbsent() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.optionalTimestampFeatureStaysCheckablePresentOrAbsent")) return@runTest
+        val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(this)
+        try {
+            context.requestAdapter().getOrThrow().use { adapter ->
+                // Metadata/signature witnesses that hold on every host, feature
+                // or not — a mandatory test must never silently error here.
+                assertTrue(GPUFeatureName.TimestampQuery in GPUFeatureName.entries)
+                assertTrue(GPUQueryType.Timestamp in GPUQueryType.entries)
+                assertTrue(
+                    adapter.features.all { it in GPUFeatureName.entries },
+                    "the adapter features must be contract feature names",
+                )
+
+                if (GPUFeatureName.TimestampQuery in adapter.features) {
+                    adapter.requestDevice(
+                        DeviceDescriptor(requiredFeatures = listOf(GPUFeatureName.TimestampQuery)),
+                    ).getOrThrow().let { publicDevice ->
+                        val device = publicDevice as DawnDevice
+                        try {
+                            assertTrue(GPUFeatureName.TimestampQuery in device.features)
+                            device.createQuerySet(
+                                QuerySetDescriptor(type = GPUQueryType.Timestamp, count = 2u),
+                            ).let { querySet ->
+                                assertEquals(GPUQueryType.Timestamp, querySet.type)
+                                assertEquals(2u, querySet.count)
+                                querySet.close()
+                            }
+                        } finally {
+                            device.close()
+                        }
+                    }
+                } else {
+                    // Absent: the signature stays checkable above, and the
+                    // request is refused — an honest refusal, not a skip.
+                    val result = adapter.requestDevice(
+                        DeviceDescriptor(requiredFeatures = listOf(GPUFeatureName.TimestampQuery)),
+                    )
+                    result.getOrNull()?.close()
+                    assertTrue(
+                        result.isFailure,
+                        "an adapter without timestamp-query must refuse the required feature",
+                    )
+                }
+            }
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    // --- render bundle encoder: close guard parity -------------------------------
+
+    @Test
+    fun bundleEncoderCommandsAfterCloseAreRefusedWithoutANativeCall() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.bundleEncoderCommandsAfterCloseAreRefusedWithoutANativeCall")) return@runTest
+        withDawnDevice { device ->
+            device.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
+                device.createRenderPipeline(
+                    RenderPipelineDescriptor(
+                        vertex = VertexState(module = shader, entryPoint = "vs_main"),
+                        fragment = org.graphiks.webgpu.descriptors.FragmentState(
+                            module = shader,
+                            entryPoint = "fs_main",
+                            targets = listOf(
+                                org.graphiks.webgpu.descriptors.ColorTargetState(format = GPUTextureFormat.RGBA8Unorm),
+                            ),
+                        ),
+                    ),
+                ).use { pipeline ->
+                    device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.Index)).use { buffer ->
+                        val encoder = device.createRenderBundleEncoder(
+                            RenderBundleEncoderDescriptor(colorFormats = listOf(GPUTextureFormat.RGBA8Unorm)),
+                        )
+                        val before = uncapturedErrorCount(device)
+                        encoder.close()
+
+                        // Every command — and finish — refuses with the Kotlin
+                        // guard before any downcall can touch the released handle.
+                        assertFailsWith<IllegalStateException> { encoder.finish() }
+                        assertFailsWith<IllegalStateException> { encoder.setPipeline(pipeline) }
+                        assertFailsWith<IllegalStateException> { encoder.setIndexBuffer(buffer, GPUIndexFormat.Uint32) }
+                        assertFailsWith<IllegalStateException> { encoder.setVertexBuffer(0u, buffer) }
+                        assertFailsWith<IllegalStateException> { encoder.draw(3u) }
+                        assertFailsWith<IllegalStateException> { encoder.drawIndexed(3u) }
+                        assertFailsWith<IllegalStateException> { encoder.drawIndirect(buffer, 0uL) }
+                        assertFailsWith<IllegalStateException> { encoder.drawIndexedIndirect(buffer, 0uL) }
+                        assertFailsWith<IllegalStateException> { encoder.setBindGroup(0u, null) }
+                        assertFailsWith<IllegalStateException> { encoder.setImmediates(0u, ArrayBuffer.allocate(4uL)) }
+                        assertFailsWith<IllegalStateException> { encoder.pushDebugGroup("closed") }
+                        assertFailsWith<IllegalStateException> { encoder.popDebugGroup() }
+                        assertFailsWith<IllegalStateException> { encoder.insertDebugMarker("closed") }
+
+                        // No native validation error was observed: the guard fired
+                        // before every downcall, and the repeated close is a no-op.
+                        encoder.close()
+                        assertEquals(
+                            before,
+                            uncapturedErrorCount(device),
+                            "the closed encoder's refused commands must make no native call",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun finishingABundleEncoderTwiceWithoutCloseObservesAValidationError() = runTest {
+        if (!gpuTestEnvironment("LifecycleStressGpuTest.finishingABundleEncoderTwiceWithoutCloseObservesAValidationError")) return@runTest
+        withDawnDevice { device ->
+            device.createShaderModule(ShaderModuleDescriptor(RENDER_SHADER)).use { shader ->
+                device.createRenderPipeline(
+                    RenderPipelineDescriptor(
+                        vertex = VertexState(module = shader, entryPoint = "vs_main"),
+                        fragment = org.graphiks.webgpu.descriptors.FragmentState(
+                            module = shader,
+                            entryPoint = "fs_main",
+                            targets = listOf(
+                                org.graphiks.webgpu.descriptors.ColorTargetState(format = GPUTextureFormat.RGBA8Unorm),
+                            ),
+                        ),
+                    ),
+                ).use { pipeline ->
+                    val encoder = device.createRenderBundleEncoder(
+                        RenderBundleEncoderDescriptor(colorFormats = listOf(GPUTextureFormat.RGBA8Unorm)),
+                    )
+                    try {
+                        encoder.setPipeline(pipeline)
+                        encoder.draw(3u)
+                        (encoder.finish() as DawnRenderBundle).close()
+
+                        // finish does NOT release the encoder handle: a second
+                        // finish without close must reach Dawn and surface its
+                        // validation error — never the Kotlin guard.
+                        val before = uncapturedErrorCount(device)
+                        runCatching { encoder.finish() }.getOrNull()?.let { (it as DawnRenderBundle).close() }
+                        device.queue.onSubmittedWorkDone().getOrThrow()
+                        assertTrue(
+                            uncapturedErrorCount(device) > before,
+                            "finishing a bundle encoder twice must surface Dawn's validation error",
+                        )
+                    } finally {
+                        encoder.close()
+                    }
+                }
+            }
+        }
+    }
+
+    // --- helpers ---------------------------------------------------------------
+
+    /**
+     * Runs [block] on a fresh public device: its own context, fresh adapter and
+     * default device, closed in reverse order.
+     */
+    private suspend fun withDawnDevice(block: suspend (DawnDevice) -> Unit) {
+        val context = DawnContext.create(gpuTestConfig())
+        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
+        try {
+            context.requestAdapter().getOrThrow().use { adapter ->
+                requestObservedDevice(adapter).let { device ->
+                    try {
+                        block(device)
+                    } finally {
+                        device.close()
+                    }
+                }
+            }
+        } finally {
+            events.cancel()
+            context.settleTestEvents()
+            context.close()
+        }
+    }
+
+    private suspend fun requestObservedDevice(adapter: GPUAdapter): DawnDevice {
+        val errors = UncapturedErrorCollector()
+        val device = adapter.requestDevice(
+            DeviceDescriptor(onUncapturedError = GPUUncapturedErrorCallback { errors(it) }),
+        ).getOrThrow() as DawnDevice
+        errorsByDevice[device] = errors
+        return device
+    }
+
+    /** Errors collected by this test, after progressing the device's events. */
+    private suspend fun uncapturedErrorCount(device: DawnDevice): Int {
+        device.session.runtime.processEvents()
+        device.session.runtime.processEvents()
+        return checkNotNull(errorsByDevice[device]).size
+    }
+
+    /** Encodes one immediate dispatch, copies [storage] into [staging], submits. */
+    private suspend fun dispatchImmediates(
+        device: DawnDevice,
+        pipeline: org.graphiks.webgpu.GPUComputePipeline,
+        bindGroup: org.graphiks.webgpu.GPUBindGroup,
+        storage: org.graphiks.webgpu.GPUBuffer,
+        staging: org.graphiks.webgpu.GPUBuffer,
+        encode: (org.graphiks.webgpu.GPUComputePassEncoder) -> Unit,
+    ) {
+        device.createCommandEncoder().use { encoder ->
+            encoder.beginComputePass().let { pass ->
+                pass.setPipeline(pipeline)
+                pass.setBindGroup(0u, bindGroup)
+                encode(pass)
+                pass.dispatchWorkgroups(1u)
+                pass.end()
+            }
+            encoder.copyBufferToBuffer(storage, 0uL, staging, 0uL, storage.size)
+            val commandBuffer = encoder.finish()
+            try {
+                device.queue.submit(listOf(commandBuffer))
+            } finally {
+                commandBuffer.close()
+            }
+        }
+        device.queue.onSubmittedWorkDone().getOrThrow()
+    }
+
+    private companion object {
+        /** Bounded hand-off for an in-flight native callback registration. */
+        const val HANDOFF_TIMEOUT_MS = 20_000L
+
+        /** Reads a scalar immediate into a storage buffer. */
+        val IMMEDIATE_SHADER = """
+            requires immediate_address_space;
+
+            @group(0) @binding(0) var<storage, read_write> value: array<u32>;
+
+            var<immediate> factor: u32;
+
+            @compute @workgroup_size(1)
+            fn main() {
+                value[0] = factor;
+            }
+        """.trimIndent()
+
+        /** A vertex-only pipeline: the depth-signature witness needs no fragment. */
+        val VERTEX_SHADER = """
+            @vertex
+            fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+                var positions = array<vec2f, 3>(
+                    vec2f(-1.0, -1.0),
+                    vec2f( 3.0, -1.0),
+                    vec2f(-1.0,  3.0),
+                );
+                return vec4f(positions[vertexIndex], 0.0, 1.0);
+            }
+        """.trimIndent()
+
+        /** A full-screen triangle: a render pipeline with one RGBA8 color target. */
+        val RENDER_SHADER = """
+            @vertex
+            fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> @builtin(position) vec4f {
+                var positions = array<vec2f, 3>(
+                    vec2f(-1.0, -1.0),
+                    vec2f( 3.0, -1.0),
+                    vec2f(-1.0,  3.0),
+                );
+                return vec4f(positions[vertexIndex], 0.0, 1.0);
+            }
+
+            @fragment
+            fn fs_main() -> @location(0) vec4f {
+                return vec4f(1.0, 0.0, 0.0, 1.0);
+            }
+        """.trimIndent()
+    }
+}

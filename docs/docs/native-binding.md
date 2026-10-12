@@ -13,7 +13,6 @@ depend on the higher-level `webgpu-api` module.
 | Raw C API | `dawn4k-native/generated/src` | kextract output; never edited by hand |
 | JVM bootstrap | generated `KextractNativeBootstrap` | extracts and loads the bundled shared library |
 | Kotlin/Native cinterop | `dawn4k-native/src/nativeInterop/cinterop/dawn.def` | internal `webgpu.native` package linked against the static library |
-| ABI oracle | `tests/abi/dawn_abi.c` | measures the real C layout |
 
 The generated sources are versioned. Ordinary compilation consumes them and never
 runs kextract.
@@ -49,6 +48,12 @@ inconsistency.
   `darwin-aarch64/libwebgpu_dawn.dylib` and `linux-x86-64/libwebgpu_dawn.so`. The
   generated bootstrap verifies their SHA-256 and extracts them to a cache directory.
   Run with `--enable-native-access=ALL-UNNAMED`.
+- **Windows/JVM** uses the pinned `mingwX64/shared/bin/webgpu_dawn.dll` and
+  its bundled MSVC runtime DLLs as external libraries. Gradle JVM tests and
+  demo execution set `java.library.path` and `PATH` to the verified directory.
+  The demo distribution ships them under `lib/native/windows`; its Windows
+  launcher configures both paths. The generated raw sources remain unchanged.
+  Dawn contexts preload the system shader compiler from Windows `System32`.
 - **Kotlin/Native** links the static library (`libwebgpu_dawn.a`) plus the platform
   system libraries: the Apple frameworks (`Metal`, `Foundation`, `CoreGraphics`,
   `QuartzCore`, `IOKit`, `IOSurface`) for macOS, iOS and tvOS (device + simulator),
@@ -65,13 +70,12 @@ Not yet available, pending upstream work:
   with a newer libc++ than Kotlin/Native links, so the K/N Android targets do not
   link (see dawn-packer's `docs/spikes/android.md`).
 
-## ABI verification
+## Generated layout report
 
 ```bash
-./gradlew :dawn4k-native:verifyDawnAbi
+./gradlew :dawn4k-native:dumpGeneratedAbi
 ```
 
-compiles `tests/abi/dawn_abi.c` against the original header, runs it, and compares
-sizes, alignments and field offsets with the layout baked into the generated JVM
-bindings. `dumpGeneratedAbi` writes the same schema from the generated sources.
-Reports land in `dawn4k-native/build/reports/abi/`.
+writes sizes, alignments and field offsets from the generated JVM sources to
+`dawn4k-native/build/reports/abi/generated.json`. This report does not independently
+verify the layouts against the native C header.

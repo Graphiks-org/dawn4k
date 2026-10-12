@@ -32,11 +32,6 @@ Voir [Native Dawn binding](native-binding.md) pour la génération et la liaison
 ./gradlew allTests
 ```
 
-### Vérifier l'oracle ABI C
-```bash
-./gradlew :dawn4k-native:verifyDawnAbi
-```
-
 ### Compiler localement le site MkDocs
 ```bash
 mkdocs build -f docs/mkdocs.yml

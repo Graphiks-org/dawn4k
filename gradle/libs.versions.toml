@@ -5,22 +5,34 @@ agp = "9.0.0"
 compose-multiplatform = "1.11.1"
 dokka = "2.2.0"
 maven-publish = "0.36.0"
+dokka-mkdocs = "0.6.3"
 
 # Libraries
-coroutines = "1.10.1"
+coroutines = "1.11.0"
+atomicfu = "0.33.0"
 koin = "4.0.0"
 ktor = "3.0.3"
 kotlinx-serialization = "1.8.0"
 androidx-activity-compose = "1.10.1"
+androidx-lifecycle = "2.10.0"
+androidx-test-runner = "1.7.0"
 
 # Build tooling (buildSrc only)
 commons-compress = "1.28.0"
 serialization-json = "1.11.0"
 
+# Graphiks snapshots (démos + pont ObjC)
+webgpu = "0.1.0-SNAPSHOT"
+kffi = "1.0.0-SNAPSHOT"
+
+# Skiko native runtime (managed by the Compose plugin version)
+skiko = "0.144.6"
+
 [libraries]
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 
 # Koin (Dependency Injection)
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
@@ -36,10 +48,40 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 
 # AndroidX
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity-compose" }
+androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 
 # Build tooling (buildSrc only)
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+dokka-gradle-plugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
+maven-publish-gradle-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization-json" }
+
+# Graphiks snapshots (démos + pont ObjC)
+webgpu-descriptors = { module = "org.graphiks:webgpu-descriptors", version.ref = "webgpu" }
+webgpu-api = { module = "org.graphiks:webgpu-api", version.ref = "webgpu" }
+suite-acid-tests = { module = "org.graphiks:suite-acid-tests", version.ref = "webgpu" }
+kffi = { module = "org.graphiks:kffi", version.ref = "kffi" }
+suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
+suite-demos = { module = "org.graphiks:suite-demos", version.ref = "webgpu" }
+kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
+kffi-win32-jvm = { module = "org.graphiks:kffi-win32-jvm", version.ref = "kffi" }
+kffi-x11-jvm = { module = "org.graphiks:kffi-x11-jvm", version.ref = "kffi" }
+
+# Compose Desktop (application)
+compose-desktop-currentOs = { module = "org.jetbrains.compose.desktop:desktop", version.ref = "compose-multiplatform" }
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-multiplatform" }
+
+# Skiko native runtimes (required at runtime for Compose Desktop rendering;
+# compose.desktop.currentOs brings the JVM classes but not the native runtime
+# in a kotlin("jvm") module — add them explicitly for the host OS)
+skiko-awt-runtime-macos-arm64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-macos-arm64", version.ref = "skiko" }
+skiko-awt-runtime-macos-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-macos-x64", version.ref = "skiko" }
+skiko-awt-runtime-linux-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-linux-x64", version.ref = "skiko" }
+skiko-awt-runtime-linux-arm64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-linux-arm64", version.ref = "skiko" }
+skiko-awt-runtime-windows-x64 = { module = "org.jetbrains.skiko:skiko-awt-runtime-windows-x64", version.ref = "skiko" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
@@ -51,3 +93,4 @@ compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-m
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
+dokka-mkdocs = { id = "dev.opensavvy.dokka-mkdocs", version.ref = "dokka-mkdocs" }

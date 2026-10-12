@@ -38,7 +38,7 @@ These are the checks that must pass before merge. They are enforced by the PR po
 - Keep history linear: rebase on the latest `master`, do not introduce merge commits, and keep the branch ancestry aligned with `master`.
 - Use Conventional Commits for the PR title and every commit subject: `<type>(<scope>): <description>`.
 - Allowed PR and commit types are `feat`, `fix`, `build`, `chore`, `ci`, `docs`, `perf`, `refactor`, `test`, and `style`.
-- Allowed scopes are `dawn4k-native`, `buildSrc`, `docs`, and `release`.
+- Allowed scopes are `dawn4k`, `dawn4k-native`, `buildSrc`, `docs`, and `release`.
 - Use the exact [PR template](.github/PULL_REQUEST_TEMPLATE.md) headings: `Description`, `Type of Change`, `Checklist`, `Screenshots (if applicable)`, and `Additional Notes`.
 - Select exactly one change type checkbox in the PR body.
 - Record the changelog decision explicitly in the PR checklist:
@@ -118,7 +118,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 | `test`    | Adding or fixing tests                             |
 | `style`   | Code style (formatting, imports ordering)          |
 
-**Scopes:** `dawn4k-native`, `buildSrc`, `docs`, `release`
+**Scopes:** `dawn4k`, `dawn4k-native`, `demo`, `buildSrc`, `docs`, `release`
 
 **Examples:**
 ```

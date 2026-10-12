@@ -18,3 +18,15 @@ docs/docs/api/
 # Planning artifacts (superpowers plans/specs, cadrage) stay out of the repository
 docs/superpowers/
 docs/planning/
+# Local qualification tools and agent working documents are not PR content.
+/.superpowers/
+/dawn4k-demo/docker/
+/dawn4k-demo/qualification/
+/dawn4k-demo/scripts/
+/.openchamber/
+/dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/project.xcworkspace/xcuserdata/
+/dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/xcuserdata/
+# Generated demo JNI libraries, Python caches and local qualification runner.
+/dawn4k-demo/src/androidMain/jniLibs/
+__pycache__/
+/scripts/test-demo-mobile.py
