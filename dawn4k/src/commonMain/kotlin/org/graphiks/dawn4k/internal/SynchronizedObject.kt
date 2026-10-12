@@ -1,5 +1,8 @@
 package org.graphiks.dawn4k.internal
 
+import kotlinx.atomicfu.locks.SynchronizedObject as AtomicfuSynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+
 /**
  * A portable monitor: one exclusive critical section per object, callable from
  * common code. [PendingOperation] serializes its wait state machine with it —
@@ -12,11 +15,13 @@ package org.graphiks.dawn4k.internal
  * resumption — and must never re-enter itself. Callers decide under the lock
  * and perform any user-visible action after releasing it.
  */
-internal expect class SynchronizedObject() {
+internal class SynchronizedObject {
+
+    private val monitor = AtomicfuSynchronizedObject()
 
     /**
      * Runs [block] while holding this monitor. The monitor is released when
      * [block] returns or throws; [block] runs exactly once per invocation.
      */
-    fun <R> withLock(block: () -> R): R
+    fun <R> withLock(block: () -> R): R = synchronized(monitor, block)
 }

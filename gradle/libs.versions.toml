@@ -9,6 +9,7 @@ dokka-mkdocs = "0.6.3"
 
 # Libraries
 coroutines = "1.11.0"
+atomicfu = "0.33.0"
 koin = "4.0.0"
 ktor = "3.0.3"
 kotlinx-serialization = "1.8.0"
@@ -31,6 +32,7 @@ skiko = "0.144.6"
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 
 # Koin (Dependency Injection)
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }

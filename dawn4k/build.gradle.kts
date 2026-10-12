@@ -38,24 +38,18 @@ val abiHost: String = run {
 val dawnNativeProject = project(":dawn4k-native")
 
 kotlin {
-    // JVM and Android share their platform monitor actuals.
+    // JVM and Android share their platform actuals.
     val jvmSharedMain = sourceSets.create("jvmSharedMain") {
         dependsOn(sourceSets.getByName("commonMain"))
     }
     sourceSets.getByName("jvmMain").dependsOn(jvmSharedMain)
     sourceSets.getByName("androidMain").dependsOn(jvmSharedMain)
 
-    // expect/actual classes (the portable SynchronizedObject of the internal
-    // package) opt into the promoted model: the beta warning is not a warning
-    // we want in the build output, and this flag becomes the default anyway.
-    compilerOptions {
-        freeCompilerArgs.add("-Xexpect-actual-classes")
-    }
-
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k-native"))
         api(libs.webgpu.api)
         implementation(libs.kotlinx.coroutines.core)
+        implementation(libs.kotlinx.atomicfu)
     }
     sourceSets.getByName("commonTest").dependencies {
         implementation(libs.webgpu.descriptors)
