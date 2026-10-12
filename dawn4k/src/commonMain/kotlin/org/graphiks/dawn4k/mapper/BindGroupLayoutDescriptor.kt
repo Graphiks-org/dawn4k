@@ -2,11 +2,7 @@ package org.graphiks.dawn4k.mapper
 
 import org.graphiks.dawn4k.native.WGPUBindGroupLayoutDescriptor
 import org.graphiks.dawn4k.native.WGPUBindGroupLayoutEntry
-import org.graphiks.dawn4k.native.WGPUBufferBindingType
 import org.graphiks.dawn4k.native.WGPUBufferBindingType_BindingNotUsed
-import org.graphiks.dawn4k.native.WGPUBufferBindingType_ReadOnlyStorage
-import org.graphiks.dawn4k.native.WGPUBufferBindingType_Storage
-import org.graphiks.dawn4k.native.WGPUBufferBindingType_Uniform
 import org.graphiks.dawn4k.native.WGPUSamplerBindingType_BindingNotUsed
 import org.graphiks.dawn4k.native.WGPUShaderStage
 import org.graphiks.dawn4k.native.WGPUShaderStage_Compute
@@ -20,7 +16,6 @@ import org.graphiks.dawn4k.native.WGPUTextureViewDimension_Undefined
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPUBindGroupLayoutDescriptor
 import org.graphiks.webgpu.GPUBindGroupLayoutEntry
-import org.graphiks.webgpu.GPUBufferBindingType
 import org.graphiks.webgpu.GPUShaderStage
 
 /**
@@ -35,17 +30,6 @@ internal fun GPUShaderStage.toNativeShaderStage(): WGPUShaderStage {
     if (value and GPUShaderStage.Fragment.value != 0uL) stage = stage or WGPUShaderStage_Fragment
     if (value and GPUShaderStage.Compute.value != 0uL) stage = stage or WGPUShaderStage_Compute
     return stage
-}
-
-/**
- * Explicit conversion table Kotlin `GPUBufferBindingType` -> native
- * `WGPUBufferBindingType`.
- */
-internal fun GPUBufferBindingType.toNativeBufferBindingType(): WGPUBufferBindingType = when (this) {
-    GPUBufferBindingType.BindingNotUsed -> WGPUBufferBindingType_BindingNotUsed
-    GPUBufferBindingType.Uniform -> WGPUBufferBindingType_Uniform
-    GPUBufferBindingType.Storage -> WGPUBufferBindingType_Storage
-    GPUBufferBindingType.ReadOnlyStorage -> WGPUBufferBindingType_ReadOnlyStorage
 }
 
 /**
@@ -83,7 +67,7 @@ private fun initBindGroupLayoutEntry(entry: WGPUBindGroupLayoutEntry, layout: GP
     entry.bindingArraySize = 0u
 
     entry.buffer.nextInChain = null
-    entry.buffer.type = layout.buffer?.type?.toNativeBufferBindingType() ?: WGPUBufferBindingType_BindingNotUsed
+    entry.buffer.type = layout.buffer?.type?.value ?: WGPUBufferBindingType_BindingNotUsed
     entry.buffer.hasDynamicOffset = if (layout.buffer?.hasDynamicOffset == true) 1u else 0u
     entry.buffer.minBindingSize = layout.buffer?.minBindingSize ?: 0uL
 

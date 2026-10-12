@@ -1,9 +1,6 @@
 package org.graphiks.dawn4k.internal
 
 import org.graphiks.dawn4k.native.WGPUDeviceLostReason
-import org.graphiks.dawn4k.native.WGPUDeviceLostReason_CallbackCancelled
-import org.graphiks.dawn4k.native.WGPUDeviceLostReason_Destroyed
-import org.graphiks.dawn4k.native.WGPUDeviceLostReason_FailedCreation
 import org.graphiks.dawn4k.native.WGPUErrorType
 import org.graphiks.dawn4k.native.WGPUErrorType_Internal
 import org.graphiks.dawn4k.native.WGPUErrorType_OutOfMemory
@@ -88,12 +85,8 @@ internal class DawnDeviceLost(
 ) : GPUDeviceLostInfo
 
 /** Maps the native device-lost reason onto its WebGPU enumeration. */
-internal fun deviceLostReason(reason: WGPUDeviceLostReason): GPUDeviceLostReason = when (reason) {
-    WGPUDeviceLostReason_Destroyed -> GPUDeviceLostReason.Destroyed
-    WGPUDeviceLostReason_CallbackCancelled -> GPUDeviceLostReason.CallbackCancelled
-    WGPUDeviceLostReason_FailedCreation -> GPUDeviceLostReason.FailedCreation
-    else -> GPUDeviceLostReason.Unknown
-}
+internal fun deviceLostReason(reason: WGPUDeviceLostReason): GPUDeviceLostReason =
+    GPUDeviceLostReason.of(reason) ?: GPUDeviceLostReason.Unknown
 
 /** Abandonment diagnostic: a device loss interrupted a wait. */
 internal class DawnDeviceLostException(val info: DawnDeviceLost) :

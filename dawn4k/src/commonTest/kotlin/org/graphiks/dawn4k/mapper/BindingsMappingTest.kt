@@ -48,11 +48,11 @@ class BindingsMappingTest {
     }
 
     @Test
-    fun bufferBindingTypeTableIsExhaustive() {
-        assertEquals(WGPUBufferBindingType_BindingNotUsed, GPUBufferBindingType.BindingNotUsed.toNativeBufferBindingType())
-        assertEquals(WGPUBufferBindingType_Uniform, GPUBufferBindingType.Uniform.toNativeBufferBindingType())
-        assertEquals(WGPUBufferBindingType_Storage, GPUBufferBindingType.Storage.toNativeBufferBindingType())
-        assertEquals(WGPUBufferBindingType_ReadOnlyStorage, GPUBufferBindingType.ReadOnlyStorage.toNativeBufferBindingType())
+    fun bufferBindingTypeValuesMatchDawnConstants() {
+        assertEquals(WGPUBufferBindingType_BindingNotUsed, GPUBufferBindingType.BindingNotUsed.value)
+        assertEquals(WGPUBufferBindingType_Uniform, GPUBufferBindingType.Uniform.value)
+        assertEquals(WGPUBufferBindingType_Storage, GPUBufferBindingType.Storage.value)
+        assertEquals(WGPUBufferBindingType_ReadOnlyStorage, GPUBufferBindingType.ReadOnlyStorage.value)
     }
 
     @Test

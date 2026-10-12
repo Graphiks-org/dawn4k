@@ -4,24 +4,15 @@ import org.graphiks.dawn4k.internal.copyToString
 import org.graphiks.dawn4k.native.WGPUCompilationInfo
 import org.graphiks.dawn4k.native.WGPUCompilationMessage
 import org.graphiks.dawn4k.native.WGPUCompilationMessageType
-import org.graphiks.dawn4k.native.WGPUCompilationMessageType_Error
-import org.graphiks.dawn4k.native.WGPUCompilationMessageType_Info
-import org.graphiks.dawn4k.native.WGPUCompilationMessageType_Warning
 import org.graphiks.kffi.NativeAddress
 import org.graphiks.webgpu.GPUCompilationInfo
 import org.graphiks.webgpu.GPUCompilationMessage
 import org.graphiks.webgpu.GPUCompilationMessageType
 
-/**
- * Explicit conversion table native `WGPUCompilationMessageType` -> Kotlin
- * `GPUCompilationMessageType`.
- */
-internal fun WGPUCompilationMessageType.toCompilationMessageType(): GPUCompilationMessageType = when (this) {
-    WGPUCompilationMessageType_Error -> GPUCompilationMessageType.Error
-    WGPUCompilationMessageType_Warning -> GPUCompilationMessageType.Warning
-    WGPUCompilationMessageType_Info -> GPUCompilationMessageType.Info
-    else -> throw IllegalStateException("unknown native compilation message type $this")
-}
+/** Converts a native message type, rejecting values outside the public enumeration. */
+internal fun WGPUCompilationMessageType.toCompilationMessageType(): GPUCompilationMessageType =
+    GPUCompilationMessageType.of(this)
+        ?: throw IllegalStateException("unknown native compilation message type $this")
 
 /** The Kotlin view of one native compilation message; every field is a copied value. */
 private class DawnCompilationMessage(

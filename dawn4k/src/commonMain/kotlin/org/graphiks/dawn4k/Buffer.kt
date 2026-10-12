@@ -14,9 +14,6 @@ import org.graphiks.dawn4k.mapper.toNativeMode
 import org.graphiks.dawn4k.native.WGPUBuffer
 import org.graphiks.dawn4k.native.WGPUBufferMapCallback
 import org.graphiks.dawn4k.native.WGPUBufferMapCallbackInfo
-import org.graphiks.dawn4k.native.WGPUBufferMapState
-import org.graphiks.dawn4k.native.WGPUBufferMapState_Mapped
-import org.graphiks.dawn4k.native.WGPUBufferMapState_Pending
 import org.graphiks.dawn4k.native.WGPUCallbackMode_AllowProcessEvents
 import org.graphiks.dawn4k.native.WGPUMapAsyncStatus
 import org.graphiks.dawn4k.native.WGPUMapAsyncStatus_Success
@@ -91,7 +88,7 @@ class DawnBuffer internal constructor(
     }
 
     override val mapState: GPUBufferMapState
-        get() = mapStateOf(wgpuBufferGetMapState(handle))
+        get() = GPUBufferMapState.of(wgpuBufferGetMapState(handle)) ?: GPUBufferMapState.Unmapped
 
     override suspend fun mapAsync(
         mode: GPUMapMode,
@@ -206,13 +203,6 @@ internal class DawnBufferMapException(
     val status: WGPUMapAsyncStatus,
     message: String,
 ) : IllegalStateException("the buffer map failed (status=$status): $message")
-
-/** `WGPUBufferMapState` (C) -> `GPUBufferMapState` (WebGPU). */
-private fun mapStateOf(state: WGPUBufferMapState): GPUBufferMapState = when (state) {
-    WGPUBufferMapState_Pending -> GPUBufferMapState.Pending
-    WGPUBufferMapState_Mapped -> GPUBufferMapState.Mapped
-    else -> GPUBufferMapState.Unmapped
-}
 
 /**
  * Creates a caller-owned [DawnBuffer]. Close it before its device session.

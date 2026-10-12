@@ -34,9 +34,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pure capability-mapping tests: the feature table maps every contract name
- * through its named Dawn constant (never assuming the numeric values
- * coincide), native names outside the contract project to no capability, the
+ * Pure capability-mapping tests: feature values match Dawn constants,
+ * native names outside the contract project to no capability, the
  * limits chain links `WGPUCompatibilityModeLimits` for both the required-limits
  * write and the snapshot read, and a field C leaves `WGPU_LIMIT_*_UNDEFINED`
  * is refused with a diagnostic instead of being invented into a capability.
@@ -46,24 +45,24 @@ class CapabilitiesTest {
     // --- Features -----------------------------------------------------------
 
     @Test
-    fun featureTableIsExhaustiveInBothDirections() {
+    fun featureValuesMatchDawnInBothDirections() {
         assertEquals(22, GPUFeatureName.entries.size, "The published contract feature list changed")
         for ((index, feature) in GPUFeatureName.entries.withIndex()) {
-            assertEquals((index + 1).toUInt(), feature.toNativeFeatureName())
-            assertEquals(feature, feature.toNativeFeatureName().toPublicFeatureName())
+            assertEquals((index + 1).toUInt(), feature.value)
+            assertEquals(feature, GPUFeatureName.of((index + 1).toUInt()))
         }
-        assertEquals(WGPUFeatureName_CoreFeaturesAndLimits, GPUFeatureName.CoreFeaturesAndLimits.toNativeFeatureName())
-        assertEquals(WGPUFeatureName_DepthClipControl, GPUFeatureName.DepthClipControl.toNativeFeatureName())
-        assertEquals(WGPUFeatureName_TimestampQuery, GPUFeatureName.TimestampQuery.toNativeFeatureName())
-        assertEquals(WGPUFeatureName_ShaderF16, GPUFeatureName.ShaderF16.toNativeFeatureName())
-        assertEquals(WGPUFeatureName_Subgroups, GPUFeatureName.Subgroups.toNativeFeatureName())
-        assertEquals(WGPUFeatureName_BGRA8UnormStorage, GPUFeatureName.BGRA8UnormStorage.toNativeFeatureName())
+        assertEquals(WGPUFeatureName_CoreFeaturesAndLimits, GPUFeatureName.CoreFeaturesAndLimits.value)
+        assertEquals(WGPUFeatureName_DepthClipControl, GPUFeatureName.DepthClipControl.value)
+        assertEquals(WGPUFeatureName_TimestampQuery, GPUFeatureName.TimestampQuery.value)
+        assertEquals(WGPUFeatureName_ShaderF16, GPUFeatureName.ShaderF16.value)
+        assertEquals(WGPUFeatureName_Subgroups, GPUFeatureName.Subgroups.value)
+        assertEquals(WGPUFeatureName_BGRA8UnormStorage, GPUFeatureName.BGRA8UnormStorage.value)
     }
 
     @Test
     fun outOfContractNativeFeaturesProjectToNoCapability() {
-        assertNull(WGPUFeatureName_DawnInternalUsages.toPublicFeatureName())
-        assertEquals(GPUFeatureName.TimestampQuery, WGPUFeatureName_TimestampQuery.toPublicFeatureName())
+        assertNull(GPUFeatureName.of(WGPUFeatureName_DawnInternalUsages))
+        assertEquals(GPUFeatureName.TimestampQuery, GPUFeatureName.of(WGPUFeatureName_TimestampQuery))
     }
 
     @Test
