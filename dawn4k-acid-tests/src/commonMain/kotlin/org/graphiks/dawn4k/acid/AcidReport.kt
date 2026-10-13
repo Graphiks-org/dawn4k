@@ -9,6 +9,7 @@ internal data class CaseResult(
     val diagnostic: String? = null,
     val missingFeatures: List<String> = emptyList(),
     val adapterDescription: String? = null,
+    val recoverable: Boolean = true,
 )
 
 @Serializable

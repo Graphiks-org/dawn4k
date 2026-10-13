@@ -2,6 +2,8 @@ package org.graphiks.dawn4k.acid
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import org.graphiks.webgpu.GPUFeatureName
 import org.graphiks.webgpu.suite.AcidCaseId
@@ -80,5 +82,36 @@ class CaseExecutionTest {
             throw CompatibilityModeUnavailable().also { it.addSuppressed(IllegalStateException("cleanup")) }
         }
         assertEquals("failed", result.status)
+    }
+
+    @Test
+    fun timeoutRetainsCleanupDiagnostics() = runBlocking {
+        val result = executeCase("slow-cleanup", 20.milliseconds) {
+            var original: Throwable? = null
+            try { awaitCancellation() }
+            catch (failure: Throwable) { original = failure; throw failure }
+            finally {
+                withContext(NonCancellable) { preserveFailure(original, IllegalStateException("CLEANUP_SENTINEL")) }
+            }
+        }
+        assertEquals("failed", result.status)
+        assertTrue(result.diagnostic!!.contains("CLEANUP_SENTINEL"), result.diagnostic)
+    }
+
+    @Test
+    fun timeoutWithUnclosedContextCannotContinue() = runBlocking {
+        val result = executeCase("slow-unclosed", 20.milliseconds) {
+            var original: Throwable? = null
+            try { awaitCancellation() }
+            catch (failure: Throwable) { original = failure; throw failure }
+            finally {
+                withContext(NonCancellable) {
+                    cleanupDawnContext(original, {}, {}, { error("OPEN_CONTEXT_SENTINEL") })
+                }
+            }
+        }
+        assertEquals("failed", result.status)
+        assertEquals(false, result.recoverable)
+        assertTrue(result.diagnostic!!.contains("OPEN_CONTEXT_SENTINEL"))
     }
 }

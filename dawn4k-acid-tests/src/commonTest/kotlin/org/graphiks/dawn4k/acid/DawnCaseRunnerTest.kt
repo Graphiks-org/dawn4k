@@ -26,7 +26,7 @@ class DawnCaseRunnerTest {
                 }
             }
         }
-        assertEquals("passed", runDawnCase(case, AcidSettings(null, true)).status)
+        assertEquals("passed", runDawnCase(case, settings()).status)
     }
 
     @Test
@@ -34,7 +34,7 @@ class DawnCaseRunnerTest {
         val case = fixture { context ->
             context.device.createBuffer(BufferDescriptor(4uL, GPUBufferUsage.None)).close()
         }
-        val result = runDawnCase(case, AcidSettings(null, true))
+        val result = runDawnCase(case, settings())
         assertEquals("failed", result.status)
         assertTrue(result.diagnostic!!.contains("uncaptured", ignoreCase = true))
     }
@@ -47,7 +47,7 @@ class DawnCaseRunnerTest {
                 delay(1)
                 assertNull(context.device.popErrorScope().getOrThrow())
             }
-        }, AcidSettings(null, true))
+        }, settings())
         assertEquals("passed", result.status, result.diagnostic)
     }
 
@@ -57,4 +57,6 @@ class DawnCaseRunnerTest {
         emptyList(),
         run = body,
     )
+
+    private fun settings() = AcidSettings.parse(environment("DAWN_TEST_BACKEND"), environment("DAWN_REQUIRE_ADAPTER"))
 }

@@ -52,9 +52,26 @@ modifying the binding.
   optional-feature validation, adapter freshness and uncaptured errors.
 - Full root JVM run (`DAWN_REQUIRE_ADAPTER=1 ./gradlew jvmTest
   :dawn4k:verifyNoAcidSuiteDependency --continue`): binding 223/223, native binding
-  3/3 and demo 99/99 passed. The acid module has 23 passing runner/policy tests
+  3/3 and demo 99/99 passed. After review fixes, the acid module has 30 passing JVM runner/policy tests
   plus its complete-registry test, which fails on the five cases listed above.
+  macOS Native has 29 passing runner/policy tests plus the same failing registry
+  test (the separate JVM file-IO test has no Native equivalent).
 - Root `jvmTest` and `allTests` task discovery was checked with `--dry-run`.
+
+## Review follow-up
+
+An independent whole-branch review identified two runner correctness issues.
+Both received failing regression tests before correction: timeout reports now
+retain suppressed cleanup diagnostics; cleanup now attempts guarded context
+closure even after drain failure, and unsuccessful closure stops the catalogue
+with a failed case and an incomplete report. The final full JVM/macOS execution
+retains exactly the five published contract failures above; Linux compilation
+also passed after these corrections.
+
+Remaining minor limitation: incremental report writes are not atomic. A process
+or write failure during replacement can lose the previous valid checkpoint;
+it cannot turn an incomplete run into successful execution evidence. Coroutine
+timeouts are cooperative and cannot interrupt a permanently blocked native call.
 
 ## Reproduce
 

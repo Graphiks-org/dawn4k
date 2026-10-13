@@ -52,27 +52,34 @@ private suspend fun <T> withDawnContext(settings: AcidSettings, body: suspend (D
     // Dawn's error-scope stacks are thread-local. Sequential execution on a
     // thread pool is not enough: suspension must resume on this same thread.
     val outcome = newSingleThreadContext("dawn-acid-case").use { dispatcher ->
-        withContext(dispatcher) {
-            coroutineScope {
-                val context = DawnContext.create(DawnConfig(settings.backend, implicitDeviceSynchronization = true))
-                val events = launch { while (isActive) { context.processEvents(); delay(1) } }
-                var result = runCatching { body(context) }
-                try {
-                    withContext(NonCancellable) { events.cancelAndJoin() }
-                    val started = TimeSource.Monotonic.markNow()
-                    // Also settle callbacks posted by resource teardown before checking errors.
-                    context.processEvents()
-                    while (context.hasPendingOperations()) {
-                        check(started.elapsedNow() < 10.seconds) { "Dawn teardown did not settle within 10 seconds" }
-                        context.processEvents()
-                    }
-                    context.close()
-                } catch (cleanup: Throwable) {
-                    val original = result.exceptionOrNull()
-                    if (original != null) preserveFailure(original, cleanup) else result = Result.failure(cleanup)
+        var observedFailure: Throwable? = null
+        try {
+            withContext(dispatcher) {
+                coroutineScope {
+                    val context = DawnContext.create(DawnConfig(settings.backend, implicitDeviceSynchronization = true))
+                    val events = launch { while (isActive) { context.processEvents(); delay(1) } }
+                    val result = runCatching { body(context) }
+                    val failure = cleanupDawnContext(result.exceptionOrNull(),
+                        stopEvents = { withContext(NonCancellable) { events.cancelAndJoin() } },
+                        drain = {
+                            val started = TimeSource.Monotonic.markNow()
+                            context.processEvents()
+                            while (context.hasPendingOperations()) {
+                                check(started.elapsedNow() < 10.seconds) { "Dawn teardown did not settle within 10 seconds" }
+                                context.processEvents()
+                            }
+                        },
+                        close = { context.close() },
+                    )
+                    observedFailure = failure
+                    if (failure == null) result else Result.failure(failure)
                 }
-                result
             }
+        } catch (failure: Throwable) {
+            // Cancellation may prevent withContext from returning the Result
+            // value. Retain the teardown outcome even on that prompt-cancel path.
+            observedFailure?.takeIf { it !== failure }?.let { failure.addSuppressed(it) }
+            throw failure
         }
     }
     return outcome.getOrThrow()

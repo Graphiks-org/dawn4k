@@ -14,15 +14,21 @@ internal suspend fun executeCase(id: String, timeout: Duration, body: suspend ()
     withContext(Dispatchers.Default) {
         // Transport failures as values: coroutine stack-trace recovery can copy
         // exceptions and lose suppressed teardown errors across scope boundaries.
-        val outcome = withTimeoutOrNull(timeout) { runCatching { body() } }
-            ?: return@withContext CaseResult(id, "failed", "Timed out after $timeout")
+        var observedFailure: Throwable? = null
+        val outcome = withTimeoutOrNull(timeout) {
+            runCatching { body() }.also { observedFailure = it.exceptionOrNull() }
+        } ?: return@withContext CaseResult(id, "failed",
+            "Timed out after $timeout${observedFailure?.let { "\n${it.stackTraceToString()}" } ?: ""}",
+            recoverable = observedFailure?.hasUnclosedDawnContext() != true)
         val failure = outcome.exceptionOrNull() ?: return@withContext outcome.getOrThrow()
         when {
-            failure is TimeoutCancellationException -> CaseResult(id, "failed", failure.stackTraceToString())
+            failure is TimeoutCancellationException -> CaseResult(id, "failed", failure.stackTraceToString(),
+                recoverable = !failure.hasUnclosedDawnContext())
             failure is CancellationException -> throw failure
             failure is CompatibilityModeUnavailable && id == AcidCaseId.AdapterCompatibilityFeatureLevel.id &&
                 failure.suppressedExceptions.isEmpty() -> CaseResult(id, "unsupported", failure.message)
-            else -> CaseResult(id, "failed", failure.stackTraceToString())
+            else -> CaseResult(id, "failed", failure.stackTraceToString(),
+                recoverable = !failure.hasUnclosedDawnContext())
         }
     }
 

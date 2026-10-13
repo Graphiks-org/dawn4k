@@ -149,6 +149,10 @@ Compatibility case observes the permitted Core fallback), and **not-run**
 counted as passes. `complete=true` means every registry entry has a result, not
 that every case passed. Incremental `complete=false` reports are not successful
 execution evidence; old reports are removed before each test task.
+If guarded context closure fails, the runner records a non-recoverable failure,
+stops the catalogue and leaves the report incomplete instead of reusing an
+unsettled execution environment. Coroutine deadlines are cooperative: a native
+call that never returns cannot be forcibly interrupted by the runner.
 
 Unlike the binding's private adapter skip helper, this external runner cannot
 inspect Dawn's internal adapter exception type. The current public API does not

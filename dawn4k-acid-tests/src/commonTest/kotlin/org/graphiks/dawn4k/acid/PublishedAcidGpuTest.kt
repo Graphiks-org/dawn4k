@@ -13,24 +13,23 @@ class PublishedAcidGpuTest {
         val cases = foundationCases()
         validateIds(cases.map { it.id.id })
         val settings = AcidSettings.parse(environment("DAWN_TEST_BACKEND"), environment("DAWN_REQUIRE_ADAPTER"))
-        val results = mutableListOf<CaseResult>()
         val json = Json { prettyPrint = true; encodeDefaults = true }
-        fun report(complete: Boolean) = AcidReport(
+        fun report(results: List<CaseResult>, complete: Boolean) = AcidReport(
             targetName(), settings.backend?.name ?: "default", SuiteBuildIdentity.VERSION,
             SuiteBuildIdentity.COMMIT, results.toList(), complete,
         )
-        writeReport(json.encodeToString(report(false)))
-        for (case in cases) {
-            println("ACID_CASE ${results.size + 1}/${cases.size}: ${case.id.id}")
-            val result = runDawnCase(case, settings)
-            check(result.id == case.id.id) { "Runner returned the wrong case ID" }
-            results += result
-            writeReport(json.encodeToString(report(false)))
-            println("ACID_RESULT ${result.id}: ${result.status}${result.diagnostic?.let { ": $it" } ?: ""}")
-        }
-        check(results.map { it.id } == cases.map { it.id.id }) { "Incomplete registry accounting" }
-        val finalReport = report(true)
-        writeReport(json.encodeToString(finalReport))
+        val byId = cases.associateBy { it.id.id }
+        var index = 0
+        val results = collectCases(cases.map { it.id.id },
+            run = { id ->
+                println("ACID_CASE ${++index}/${cases.size}: $id")
+                runDawnCase(byId.getValue(id), settings).also { result ->
+                    println("ACID_RESULT ${result.id}: ${result.status}${result.diagnostic?.let { ": $it" } ?: ""}")
+                }
+            },
+            publish = { results, complete -> writeReport(json.encodeToString(report(results, complete))) },
+        )
+        val finalReport = report(results, true)
         println("ACID_SUMMARY ${finalReport.summary}")
         finalReport.requireSuccessful(settings.requireAdapter)
     }
