@@ -28,15 +28,6 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Check publication credentials
-        shell: bash
-        run: |
-          for name in ORG_GRADLE_PROJECT_mavenCentralUsername ORG_GRADLE_PROJECT_mavenCentralPassword ORG_GRADLE_PROJECT_signingInMemoryKey ORG_GRADLE_PROJECT_signingInMemoryKeyPassword; do
-            if [[ -z "${!name}" ]]; then
-              printf 'Missing required publication credential: %s\n' "$name" >&2
-              exit 1
-            fi
-          done
       - name: Set up Android SDK for Gradle project import
         uses: android-actions/setup-android@v3
         with:
@@ -72,15 +63,6 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Check publication credentials
-        shell: bash
-        run: |
-          for name in ORG_GRADLE_PROJECT_mavenCentralUsername ORG_GRADLE_PROJECT_mavenCentralPassword ORG_GRADLE_PROJECT_signingInMemoryKey ORG_GRADLE_PROJECT_signingInMemoryKeyPassword; do
-            if [[ -z "${!name}" ]]; then
-              printf 'Missing required publication credential: %s\n' "$name" >&2
-              exit 1
-            fi
-          done
       - name: Set up Android SDK for Gradle project import
         uses: android-actions/setup-android@v3
         with:

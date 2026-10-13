@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Blank Compose/Metal demo window, fixed-size surface rendering and animation stalls during mouse dragging; native UI work now runs on AppKit in common run-loop modes with explicit resource cleanup.
 - Default snapshot publication version when no workflow version is provided.
-- Maven Central publication: `:dawn4k` and `:dawn4k-native` now apply the publication convention with `org.graphiks` coordinates and Graphiks POM metadata, the workflow publishes from a macOS runner so Apple variants are built (they cannot be cross-compiled on Linux), the Gradle task selector matches the publishing subprojects, and missing publication credentials fail fast with an explicit message instead of a task-selection error.
+- Maven Central publication: `:dawn4k` and `:dawn4k-native` now apply the publication convention with `org.graphiks` coordinates and Graphiks POM metadata, the workflow publishes from a macOS runner so Apple variants are built (they cannot be cross-compiled on Linux), and the Gradle task selector matches the publishing subprojects instead of the root project.
 
 ### Built with
 - Kotlin 2.4.10, Gradle 9.8.0, AGP 9.0.0
