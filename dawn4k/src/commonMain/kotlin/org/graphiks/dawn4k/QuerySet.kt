@@ -6,12 +6,14 @@ import org.graphiks.dawn4k.internal.transferOwnership
 import org.graphiks.dawn4k.mapper.allocateQuerySetDescriptor
 import org.graphiks.dawn4k.native.WGPUQuerySet
 import org.graphiks.dawn4k.native.wgpuDeviceCreateQuerySet
+import org.graphiks.dawn4k.native.wgpuDeviceHasFeature
 import org.graphiks.dawn4k.native.wgpuQuerySetDestroy
 import org.graphiks.dawn4k.native.wgpuQuerySetRelease
 import org.graphiks.kffi.memoryScope
 import org.graphiks.webgpu.GPUQuerySet
 import org.graphiks.webgpu.GPUQuerySetDescriptor
 import org.graphiks.webgpu.GPUQueryType
+import org.graphiks.webgpu.GPUFeatureName
 import org.graphiks.webgpu.GPUSize32Out
 
 /**
@@ -40,9 +42,18 @@ class DawnQuerySet internal constructor(
     }
 }
 
-/** Creates a caller-owned [DawnQuerySet] on [this] session. */
+/**
+ * Creates a caller-owned [DawnQuerySet] on [this] session. Timestamp queries
+ * require the device feature; refusal is synchronous and not a scope error.
+ */
 internal fun DeviceSession.createQuerySet(descriptor: GPUQuerySetDescriptor): DawnQuerySet =
     run {
+        // WebGPU rejects this on the content timeline, without a scope error.
+        if (descriptor.type == GPUQueryType.Timestamp) {
+            require(wgpuDeviceHasFeature(handle, GPUFeatureName.TimestampQuery.value) != 0u) {
+                "TimestampQuery must be enabled on the device to create a timestamp query set"
+            }
+        }
         memoryScope { allocator ->
             val native = allocator.allocateQuerySetDescriptor(descriptor)
             val handle = wgpuDeviceCreateQuerySet(this.handle, native)
