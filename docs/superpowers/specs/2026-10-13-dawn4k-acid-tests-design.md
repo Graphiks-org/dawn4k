@@ -52,7 +52,7 @@ The root JVM/all-tests invocations should discover the new module normally. Exte
 - [x] Inspect repository and upstream consumption contract.
 - [x] Confirm module location and design with the user.
 - [x] Write specification and self-review scope, consistency, and ambiguity.
-- [ ] User reviews this written specification.
-- [ ] Write implementation plan after specification approval.
+- [x] User reviews this written specification.
+- [x] Write implementation plan after specification approval.
 - [ ] User selects execution method for the implementation plan.
 - [ ] Implement and verify.
