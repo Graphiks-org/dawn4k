@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
 
 ### Added
-- Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CPU Vulkan CI integration. Initial JVM/macOS runs retain five contract failures, documented in `docs/acid-tests-verification.md`.
+- Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CI integration. Usage and result interpretation are documented in `docs/docs/acid-tests-verification.md` and its French translation.
 - Android Vulkan and iOS Metal demo applications sharing the adaptive Compose UI, native surface ownership, lifecycle controls and mobile tests.
 - Compose controls above the Metal particle demo: pause/resume, reset and GPU-limited particle counts, with a draggable title strip and close button for the transparent undecorated window.
 - `:dawn4k-demo`: macOS desktop demo (Compose Desktop) rendering the `suite-demos` `ParticleScene` through the `:dawn4k` backend — a real window over a Dawn Metal surface, with the surface living inside the demo module and `:dawn4k` exposing only minimal platform-integrator accessors (`DawnContext.nativeBridge()`, `DawnDevice.nativeHandle()`, `DawnAdapter.nativeHandle()`).

@@ -95,75 +95,16 @@ set +a
 
 ### Adapter-dependent tests
 
-GPU tests run through the standard test tasks, without Gradle class filters.
-They probe adapter availability before executing. Only Dawn's adapter-request
-`Unavailable` status permits non-execution, with a named
-`WARNING: GPU_TEST_NOT_EXECUTED` diagnostic. JVM reports an ignored test via a
-JUnit assumption. Kotlin/Native has no dynamic assumption API: it returns before
-the test body, but its standard report may count that invocation as passed.
-These warnings mean **no GPU coverage**, not a successful GPU assertion.
-Adapter errors, device failures, assertion failures and native crashes remain failures.
-
-Set `DAWN_REQUIRE_ADAPTER=1` to fail instead of allowing missing adapters.
-`DAWN_TEST_BACKEND` optionally selects `Metal`, `Vulkan` or `D3D12`; unset uses
-Dawn's default selection. A CPU Vulkan adapter can exercise buffer, compute and
-offscreen rendering tests, but does not replace Apple Metal or window-system coverage.
-
-```bash
-DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test
-```
-
-On Linux, install `libvulkan1`, `mesa-vulkan-drivers` and `vulkan-tools`, then
-point `VK_DRIVER_FILES` to the installed `lvp_icd*.json` to select Mesa lavapipe.
-Verify it with `vulkaninfo --summary` and a real Dawn buffer readback test.
+GPU tests use the standard Gradle test tasks. See
+[adapter configuration and non-execution policy](docs/docs/acid-tests-verification.md#adapter-configuration)
+for backend selection, driver prerequisites and strict adapter requirements.
 
 ### Published acid suite
 
-The dedicated module runs `foundationCases()` unchanged on JVM, macOS ARM64
-and Linux x64. Each case gets a fresh context, adapter and device; a dedicated
-consumer-owned thread preserves Dawn's thread-local error scopes across coroutine
-suspensions. Declared optional features are requested explicitly. The cases have
-30-second execution deadlines and teardown draining is bounded to 10 seconds.
-
-```bash
-# macOS ARM64 host
-DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test
-
-# Linux x64 host, with Vulkan/lavapipe configured as above
-DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test
-```
-
-Root `jvmTest`, `allTests` and `check` also include the module. It adds no iOS, tvOS,
-Android or browser suite targets and publishes no library artifact.
-
-Per-case JSON reports live at
-`dawn4k-acid-tests/build/reports/acid/<task-name>.json`, alongside standard Gradle
-reports. They include the suite version/commit, target, selected backend, available
-adapter descriptions and status counts. Statuses are **passed**, **failed**,
-**unsupported** (a declared optional feature is missing, or the suite's specific
-Compatibility case observes the permitted Core fallback), and **not-run**
-(safely identified adapter unavailability only). Unsupported and not-run are never
-counted as passes. `complete=true` means every registry entry has a result, not
-that every case passed. Incremental `complete=false` reports are not successful
-execution evidence; old reports are removed before each test task.
-If guarded context closure fails, the runner records a non-recoverable failure,
-stops the catalogue and leaves the report incomplete instead of reusing an
-unsettled execution environment. Coroutine deadlines are cooperative: a native
-call that never returns cannot be forcibly interrupted by the runner.
-
-Unlike the binding's private adapter skip helper, this external runner cannot
-inspect Dawn's internal adapter exception type. The current public API does not
-distinguish adapter unavailability safely, so **all adapter-request failures fail**,
-even without `DAWN_REQUIRE_ADAPTER=1`; it never infers unavailability from error text.
-Strict mode also rejects any `not-run` result if typed classification becomes
-available. GPU execution is never cached. Any failed case fails the Gradle task,
-after collecting the remaining independent cases.
-
-The initial strict Metal runs detected five contract failures on both JVM and
-macOS Native; they are retained, not excluded or turned into expected successes.
-See [acid-suite verification](docs/acid-tests-verification.md). The Linux CI matrix
-runner uses CPU Vulkan for JVM tests and, in deep validation, Linux Native tests.
-All three runners upload reports even on failure.
+`:dawn4k-acid-tests` runs the published Graphiks registry unchanged, independently
+of the binding. See [Acid-suite validation](docs/docs/acid-tests-verification.md)
+([Français](docs/docs/acid-tests-verification.fr.md)) for commands, coverage,
+reports and limitations.
 
 ### Generate Gradle Wrapper
 ```bash
