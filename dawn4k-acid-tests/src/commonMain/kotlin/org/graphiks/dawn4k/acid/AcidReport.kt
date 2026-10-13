@@ -18,7 +18,11 @@ internal data class AcidReport(
     val suiteVersion: String,
     val suiteCommit: String,
     val cases: List<CaseResult>,
-)
+    val complete: Boolean = true,
+) {
+    val summary: Map<String, Int> = listOf("passed", "failed", "unsupported", "not-run")
+        .associateWith { status -> cases.count { it.status == status } }
+}
 
 internal fun validateIds(ids: List<String>) {
     require(ids.isNotEmpty()) { "Acid catalogue is empty" }
@@ -27,6 +31,7 @@ internal fun validateIds(ids: List<String>) {
 }
 
 internal fun AcidReport.requireSuccessful(requireAdapter: Boolean) {
+    check(complete) { "Incomplete acid report is not successful execution evidence" }
     validateIds(cases.map { it.id })
     check(cases.all { it.status in setOf("passed", "failed", "unsupported", "not-run") }) {
         "Unknown acid case status"

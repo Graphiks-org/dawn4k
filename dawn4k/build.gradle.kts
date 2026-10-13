@@ -56,19 +56,6 @@ kotlin {
         implementation(libs.kotlinx.coroutines.test)
     }
 
-    // The published acid suite ships no iOS variants, so it cannot stay in
-    // commonTest now that the backend declares the iOS targets: it moves to a
-    // desktop-only intermediate test source set shared by the host test
-    // targets. webgpu-descriptors publishes iOS variants and stays common.
-    val desktopTest = sourceSets.create("desktopTest")
-    desktopTest.dependsOn(sourceSets.getByName("commonTest"))
-    desktopTest.dependencies {
-        implementation(libs.suite.acid.tests)
-    }
-    listOf("jvmTest", "macosArm64Test", "linuxX64Test").forEach { testSetName ->
-        sourceSets.getByName(testSetName).dependsOn(desktopTest)
-    }
-
     // The :dawn4k-native klib references `webgpu.native` types, so every native
     // compilation and binary of this module must resolve the same platform
     // library and link the same library, mirroring its build exactly. The
@@ -129,6 +116,19 @@ tasks.matching { it.name == "linkDebugTestMacosArm64" || it.name == "linkDebugTe
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
+
+tasks.register("verifyNoAcidSuiteDependency") {
+    group = "verification"
+    description = "Ensures the binding's tests do not consume the external acid suite."
+    doLast {
+        val forbidden = configurations.getByName("jvmTestRuntimeClasspath")
+            .incoming.resolutionResult.allComponents.mapNotNull {
+                it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
+            }.filter { it.group == "org.graphiks" && it.module.startsWith("suite-acid-tests") }
+        check(forbidden.isEmpty()) { "Binding depends on acid suite: $forbidden" }
+    }
+}
+tasks.named("check") { dependsOn("verifyNoAcidSuiteDependency") }
 
 tasks.withType<AbstractTestTask>().configureEach {
     testLogging.showStandardStreams = true

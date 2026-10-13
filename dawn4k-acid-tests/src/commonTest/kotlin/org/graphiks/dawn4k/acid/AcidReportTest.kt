@@ -43,5 +43,22 @@ class AcidReportTest {
         assertFailsWith<IllegalStateException> { report("unknown").requireSuccessful(false) }
     }
 
+    @Test
+    fun incompleteReportCannotPass() {
+        assertFailsWith<IllegalStateException> { report("passed").copy(complete = false).requireSuccessful(false) }
+    }
+
+    @Test
+    fun summaryDoesNotCountUnsupportedAsPassed() {
+        val report = AcidReport("jvm", "default", "v", "c", listOf(
+            CaseResult("a", "passed"), CaseResult("b", "unsupported"),
+            CaseResult("c", "failed"), CaseResult("d", "not-run"),
+        ))
+        assertEquals(mapOf("passed" to 1, "failed" to 1, "unsupported" to 1, "not-run" to 1), report.summary)
+        assertEquals(4, report.summary.values.sum())
+        val decoded = Json.decodeFromString<AcidReport>(Json.encodeToString(report))
+        assertEquals(report.summary, decoded.summary)
+    }
+
     private fun report(status: String) = AcidReport("jvm", "default", "v", "c", listOf(CaseResult("a", status)))
 }

@@ -1,5 +1,7 @@
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.AbstractTestTask
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
     kotlin("multiplatform")
@@ -51,6 +53,31 @@ tasks.matching { it.name.startsWith("cinteropDawn") || it.name.startsWith("linkD
     dependsOn(":dawn4k-native:prepareDawn")
 }
 tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
+
+tasks.withType<AbstractTestTask>().configureEach {
+    testLogging.showStandardStreams = true
+    listOf("DAWN_TEST_BACKEND", "DAWN_REQUIRE_ADAPTER", "VK_DRIVER_FILES", "VK_ICD_FILENAMES").forEach {
+        inputs.property(it, providers.environmentVariable(it).orElse(""))
+    }
+    outputs.upToDateWhen { false }
+    outputs.doNotCacheIf("GPU availability must be checked at execution time") { true }
+    val report = layout.buildDirectory.file("reports/acid/$name.json")
+    val ioTest = layout.buildDirectory.file("reports/acid-io/$name.json")
+    when (this) {
+        is Test -> {
+            environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
+            environment("DAWN_ACID_IO_TEST_PATH", ioTest.get().asFile.absolutePath)
+        }
+        is KotlinNativeTest -> environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
+    }
+    doFirst {
+        report.get().asFile.apply {
+            parentFile.mkdirs()
+            check(!exists() || delete()) { "Cannot remove stale acid report: $this" }
+        }
+        ioTest.get().asFile.parentFile.mkdirs()
+    }
+}
 
 if (!System.getProperty("os.name").lowercase().contains("linux")) {
     tasks.matching { it.name == "linkDebugTestLinuxX64" || it.name == "linuxX64Test" }.configureEach {
