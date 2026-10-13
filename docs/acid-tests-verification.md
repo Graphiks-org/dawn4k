@@ -44,22 +44,17 @@ modifying the binding.
   to `commonTest` and removal of its two published buffer-case calls.
 - `:dawn4k:compileTestKotlinIosSimulatorArm64`: passed, confirming the relocated
   binding tests compile for an existing mobile target; this is not iOS GPU evidence.
-- Runner CPU policies and local GPU fixture tests pass independently of the five
-  published contract failures. They exercise registry validation, JSON/UTF-8 IO,
-  aggregate failure policy, real-time timeouts, cancellation, cleanup errors,
-  optional-feature validation, adapter freshness and uncaptured errors.
 - Full root JVM run (`DAWN_REQUIRE_ADAPTER=1 ./gradlew jvmTest
   --continue`): binding 223/223, native binding
-  3/3 and demo 99/99 passed. After review fixes, the acid module has 30 passing JVM runner/policy tests
-  plus its complete-registry test, which fails on the five cases listed above.
-  macOS Native has 29 passing runner/policy tests plus the same failing registry
-  test (the separate JVM file-IO test has no Native equivalent).
+  3/3 and demo 99/99 passed. The acid module retains only its complete published
+  registry test, which fails on the five cases listed above. Infrastructure tests
+  and synthetic GPU fixtures were removed; they are not published acid cases.
 - Root `jvmTest` and `allTests` task discovery was checked with `--dry-run`.
 
 ## Review follow-up
 
 An independent whole-branch review identified two runner correctness issues.
-Both received failing regression tests before correction: timeout reports now
+Both were corrected before the infrastructure tests were removed: timeout reports now
 retain suppressed cleanup diagnostics; cleanup now attempts guarded context
 closure even after drain failure, and unsuccessful closure stops the catalogue
 with a failed case and an incomplete report. The final full JVM/macOS execution

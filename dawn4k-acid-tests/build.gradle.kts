@@ -25,7 +25,6 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
-            implementation(libs.kotlinx.coroutines.test)
         }
         jvmTest.dependencies { implementation(kotlin("test-junit")) }
     }
@@ -62,11 +61,9 @@ tasks.withType<AbstractTestTask>().configureEach {
     outputs.upToDateWhen { false }
     outputs.doNotCacheIf("GPU availability must be checked at execution time") { true }
     val report = layout.buildDirectory.file("reports/acid/$name.json")
-    val ioTest = layout.buildDirectory.file("reports/acid-io/$name.json")
     when (this) {
         is Test -> {
             environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
-            environment("DAWN_ACID_IO_TEST_PATH", ioTest.get().asFile.absolutePath)
         }
         is KotlinNativeTest -> environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
     }
@@ -75,7 +72,6 @@ tasks.withType<AbstractTestTask>().configureEach {
             parentFile.mkdirs()
             check(!exists() || delete()) { "Cannot remove stale acid report: $this" }
         }
-        ioTest.get().asFile.parentFile.mkdirs()
     }
 }
 
