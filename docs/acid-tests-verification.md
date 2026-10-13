@@ -42,8 +42,6 @@ modifying the binding.
 
 - Binding-specific `PublicContractGpuTest`: 11 JVM tests passed after relocation
   to `commonTest` and removal of its two published buffer-case calls.
-- `:dawn4k:verifyNoAcidSuiteDependency`: passed; it checks resolved JVM test-runtime
-  components rather than source text alone.
 - `:dawn4k:compileTestKotlinIosSimulatorArm64`: passed, confirming the relocated
   binding tests compile for an existing mobile target; this is not iOS GPU evidence.
 - Runner CPU policies and local GPU fixture tests pass independently of the five
@@ -51,7 +49,7 @@ modifying the binding.
   aggregate failure policy, real-time timeouts, cancellation, cleanup errors,
   optional-feature validation, adapter freshness and uncaptured errors.
 - Full root JVM run (`DAWN_REQUIRE_ADAPTER=1 ./gradlew jvmTest
-  :dawn4k:verifyNoAcidSuiteDependency --continue`): binding 223/223, native binding
+  --continue`): binding 223/223, native binding
   3/3 and demo 99/99 passed. After review fixes, the acid module has 30 passing JVM runner/policy tests
   plus its complete-registry test, which fails on the five cases listed above.
   macOS Native has 29 passing runner/policy tests plus the same failing registry
@@ -77,7 +75,6 @@ timeouts are cooperative and cannot interrupt a permanently blocked native call.
 
 ```bash
 DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test --continue
-./gradlew :dawn4k:verifyNoAcidSuiteDependency
 ```
 
 Inspect `dawn4k-acid-tests/build/reports/acid/jvmTest.json` and

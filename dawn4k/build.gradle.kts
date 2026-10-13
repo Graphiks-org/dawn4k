@@ -117,19 +117,6 @@ tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
-tasks.register("verifyNoAcidSuiteDependency") {
-    group = "verification"
-    description = "Ensures the binding's tests do not consume the external acid suite."
-    doLast {
-        val forbidden = configurations.getByName("jvmTestRuntimeClasspath")
-            .incoming.resolutionResult.allComponents.mapNotNull {
-                it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
-            }.filter { it.group == "org.graphiks" && it.module.startsWith("suite-acid-tests") }
-        check(forbidden.isEmpty()) { "Binding depends on acid suite: $forbidden" }
-    }
-}
-tasks.named("check") { dependsOn("verifyNoAcidSuiteDependency") }
-
 tasks.withType<AbstractTestTask>().configureEach {
     testLogging.showStandardStreams = true
     listOf("DAWN_TEST_BACKEND", "DAWN_REQUIRE_ADAPTER", "VK_DRIVER_FILES", "VK_ICD_FILENAMES").forEach { variable ->

@@ -311,24 +311,9 @@ Add `summary: Map<String, Int>` to the serialized report, defaulting to `listOf(
 - [ ] Configure test execution tasks: native-access JVM flag, stdout, backend/strict/driver variables as inputs, `outputs.upToDateWhen { false }`, `outputs.doNotCacheIf(...) { true }`. Set `DAWN_ACID_REPORT_PATH` to an absolute per-task `build/reports/acid/<task-name>.json`; create its parent and remove its previous file in `doFirst`. For native executable tasks use their environment API as in existing Native test configuration. One report path per task prevents JVM/Native races.
 - [ ] Run `DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest --tests '*PublishedAcidGpuTest'`. Require exact registry accounting and investigate any case failure as a real defect or integration issue, not by excluding the case. If unavailable locally, report the failure without claiming GPU coverage.
 - [ ] Remove the acid dependency, `desktopTest` creation and its dependent source-set wiring from `dawn4k/build.gradle.kts`. Delete only `publicBuffersMatchTheSharedContract()` from `PublicContractGpuTest.kt`; revise its KDoc to describe binding-specific companion tests. Move the remaining file from `desktopTest` to `commonTest` with its package unchanged. Its imports use the same common helper/API as existing common GPU tests.
-- [ ] Add a Gradle regression task `verifyNoAcidSuiteDependency` to `dawn4k/build.gradle.kts`, wire it to `check`, and inspect resolved `jvmTestRuntimeClasspath` components:
+- [ ] Keep suite-specific verification out of the binding build; the dedicated external module alone owns integration of the published cases.
 
-```kotlin
-tasks.register("verifyNoAcidSuiteDependency") {
-    doLast {
-        val forbidden = configurations.getByName("jvmTestRuntimeClasspath")
-            .incoming.resolutionResult.allComponents.mapNotNull {
-                it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
-            }.filter { it.group == "org.graphiks" && it.module.startsWith("suite-acid-tests") }
-        check(forbidden.isEmpty()) { "Binding depends on acid suite: $forbidden" }
-    }
-}
-tasks.named("check") { dependsOn("verifyNoAcidSuiteDependency") }
-```
-
-Observe the task failing with the old dependency first, then passing after removal. Also grep `dawn4k/src` for `org.graphiks.webgpu.suite.acid` and require no matches.
-
-- [ ] Run `DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest --tests '*PublicContractGpuTest' :dawn4k:verifyNoAcidSuiteDependency :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test` on the macOS host; compile affected mobile common tests with `:dawn4k:compileTestKotlinIosSimulatorArm64` to detect portability regressions. Record actual results, including skipped/unsupported cases, before committing.
+- [ ] Run `DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest --tests '*PublicContractGpuTest' :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test` on the macOS host; compile affected mobile common tests with `:dawn4k:compileTestKotlinIosSimulatorArm64` to detect portability regressions. Record actual results, including skipped/unsupported cases, before committing.
 
 ## Task 4: Integrate CI, document commands and verify end to end
 
@@ -337,7 +322,7 @@ Observe the task failing with the old dependency first, then passing after remov
 - [ ] Update `.github/workflows/ci.yml` CPU Vulkan step and upload paths:
 
 ```yaml
-          ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test :dawn4k:verifyNoAcidSuiteDependency :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test --no-daemon --continue --stacktrace
+          ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test --no-daemon --continue --stacktrace
 ```
 
 Add `dawn4k-acid-tests/build/reports/` and `dawn4k-acid-tests/build/test-results/` to the existing always-upload artifact. Preserve `DAWN_TEST_BACKEND=Vulkan` and `DAWN_REQUIRE_ADAPTER=1`. Root JVM/allTests selectors already include the new module; confirm with dry-run rather than duplicating execution in the macOS workflow.
@@ -347,7 +332,6 @@ Add `dawn4k-acid-tests/build/reports/` and `dawn4k-acid-tests/build/test-results
 ```bash
 DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test
 DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test
-./gradlew :dawn4k:verifyNoAcidSuiteDependency
 ```
 
 Explain unpublished module boundaries, supported targets, `build/reports/acid/<task-name>.json`, all four statuses, `complete=false`, declared optional-feature handling, and conservative failure when adapter unavailability cannot be typed through the public API. Explicitly separate these semantics from the binding's private skip helper.

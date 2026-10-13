@@ -131,9 +131,6 @@ DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:m
 
 # Linux x64 host, with Vulkan/lavapipe configured as above
 DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test
-
-# Check that the binding's test runtime no longer consumes the acid suite
-./gradlew :dawn4k:verifyNoAcidSuiteDependency
 ```
 
 Root `jvmTest` and `allTests` also include the module. It adds no iOS, tvOS,

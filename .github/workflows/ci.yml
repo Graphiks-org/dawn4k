@@ -98,7 +98,7 @@ jobs:
       - name: Run JVM and Linux Native tests with required CPU adapter
         run: |
           chmod +x gradlew
-          ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test :dawn4k:verifyNoAcidSuiteDependency :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test --no-daemon --continue --stacktrace
+          ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test --no-daemon --continue --stacktrace
 
       - name: Upload CPU test reports
         if: always()

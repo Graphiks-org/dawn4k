@@ -41,7 +41,7 @@ The root JVM/all-tests invocations should discover the new module normally. Exte
 ## Verification and acceptance
 
 - CPU tests cover registry uniqueness, aggregation, feature selection, timeout/failure classification, and report serialization without needing a GPU.
-- A regression check ensures the binding no longer depends on the acid-suite artifact.
+- The binding has no acid-suite dependency or suite-specific verification task; the external validation module alone owns the suite integration.
 - Compile the new JVM and host Native targets and execute the entire published registry against an available local adapter in strict mode.
 - Run affected binding contract tests to verify their preservation after removing the suite dependency.
 - CI executes JVM and Linux Native with CPU Vulkan; report local and remote evidence separately and do not claim unexecuted target coverage.
