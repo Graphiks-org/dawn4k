@@ -68,8 +68,8 @@ The generated sources live in `dawn4k-native/generated/src` and are produced by 
 The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) implements a dual-speed system optimized for bandwidth and compute time:
 
 - **Fast-Track (Feature branches)**: Compiles and tests the JVM targets (`./gradlew jvmTest`), including adapter-dependent tests.
-- **Deep-Testing (Branches / Pull Requests to `master`)**: Runs root project checks (`./gradlew check`), including host-supported tests and Android/lint checks, after booting Apple simulators.
-- **CPU Vulkan (all branches and pull requests)**: Runs `:dawn4k:jvmTest` and `:dawn4k:linuxX64Test` on Ubuntu with Mesa lavapipe. Adapter availability is mandatory; a missing driver/adapter fails the job.
+- **Deep-Testing (Branches / Pull Requests to `master`)**: Runs root project checks (`./gradlew check`), including host-supported tests and Android/lint checks. Apple simulators are booted on macOS only.
+- **Platform matrix**: Both strategies run on macOS 26 (Metal), Ubuntu 24.04 (Vulkan via Mesa lavapipe) and Windows 2025 (D3D12, JVM tests only). Adapter availability is mandatory on every runner; a missing driver/adapter fails the tests. Reports are uploaded even on failure, and the required `build-and-test` check succeeds only when the entire matrix passes.
 
 ---
 
@@ -161,8 +161,9 @@ after collecting the remaining independent cases.
 
 The initial strict Metal runs detected five contract failures on both JVM and
 macOS Native; they are retained, not excluded or turned into expected successes.
-See [acid-suite verification](docs/acid-tests-verification.md). CPU Vulkan CI runs
-both JVM and Linux Native and uploads reports even on failure.
+See [acid-suite verification](docs/acid-tests-verification.md). The Linux CI matrix
+runner uses CPU Vulkan for JVM tests and, in deep validation, Linux Native tests.
+All three runners upload reports even on failure.
 
 ### Generate Gradle Wrapper
 ```bash
