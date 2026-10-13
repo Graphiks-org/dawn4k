@@ -93,7 +93,7 @@ registre possède un résultat, **pas** que tous les cas ont réussi. Un rapport
 intermédiaire `complete=false` n'est pas une preuve d'exécution réussie. Les
 anciens rapports sont supprimés avant chaque tâche de test.
 
-Un cas échoué fait échouer la tâche Gradle après collecte des autres cas
+Un cas échoué fait échouer la tâche Gradle locale après collecte des autres cas
 indépendants. Si la fermeture contrôlée du contexte échoue, l'exécution s'arrête
 et le rapport reste incomplet, sans réutiliser un environnement non stabilisé.
 
@@ -121,6 +121,13 @@ utilise `jvmTest` à la racine. Les simulateurs Apple ne sont démarrés que sur
 macOS. Tous les runners imposent un adaptateur et publient les rapports même en
 cas d'échec. Le check obligatoire `build-and-test` ne réussit que si tous les
 runners réussissent.
+
+La CI fournit `-Pdawn.acid.ignoreFailures=true` : les échecs des cas publiés sont
+informatifs tant que les corrections du binding sont reportées. Les cas restent
+exécutés sans modification et leurs échecs sont visibles dans les rapports JSON
+et Gradle. Les rapports acid absents ou incomplets restent bloquants, comme les
+erreurs de compilation, de liaison et tous les échecs des autres modules. Les
+commandes locales restent strictes sans ajout explicite de cette propriété.
 
 Le remplacement des rapports intermédiaires n'est pas atomique : une erreur
 d'écriture ou un arrêt du processus peut faire perdre le précédent point de

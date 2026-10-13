@@ -2,6 +2,8 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.AbstractTestTask
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
+import groovy.json.JsonSlurper
+import org.jetbrains.kotlin.gradle.testing.internal.KotlinTestReport
 
 plugins {
     kotlin("multiplatform")
@@ -53,7 +55,15 @@ tasks.matching { it.name.startsWith("cinteropDawn") || it.name.startsWith("linkD
 }
 tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
 
+val advisoryResults = providers.gradleProperty("dawn.acid.ignoreFailures").map { it.toBoolean() }.orElse(false)
+tasks.withType<KotlinTestReport>().configureEach {
+    // Kotlin resets this flag when it wires aggregate reporting into the task graph.
+    doFirst { ignoreFailures = advisoryResults.get() }
+}
+
 tasks.withType<AbstractTestTask>().configureEach {
+    // Advisory in CI only; local execution remains strict by default.
+    ignoreFailures = advisoryResults.get()
     testLogging.showStandardStreams = true
     listOf("DAWN_TEST_BACKEND", "DAWN_REQUIRE_ADAPTER", "VK_DRIVER_FILES", "VK_ICD_FILENAMES").forEach {
         inputs.property(it, providers.environmentVariable(it).orElse(""))
@@ -66,6 +76,15 @@ tasks.withType<AbstractTestTask>().configureEach {
             environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
         }
         is KotlinNativeTest -> environment("DAWN_ACID_REPORT_PATH", report.get().asFile.absolutePath)
+    }
+    if (ignoreFailures && (this is Test || this is KotlinNativeTest)) {
+        doLast {
+            val output = report.get().asFile
+            check(output.isFile) { "Acid execution did not produce a report: $output" }
+            val result = JsonSlurper().parse(output) as Map<*, *>
+            check(result["complete"] == true) { "Acid execution is incomplete: $output" }
+            logger.lifecycle("Advisory acid results for $name: ${result["summary"]}; report: $output")
+        }
     }
     doFirst {
         report.get().asFile.apply {

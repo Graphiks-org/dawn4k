@@ -192,7 +192,10 @@ kotlin {
             includeDirs(includeDir("linuxX64"))
         }
         binaries.all {
-            linkerOpts("-L${libDir("linuxX64").get().asFile.absolutePath}", "-lwebgpu_dawn")
+            // The static archive requires newer C/C++ symbols than Kotlin/Native's
+            // sysroot provides. Use the shared library, as the public binding does.
+            val sharedLibDir = layout.buildDirectory.dir("native/linuxX64/shared/lib").get().asFile.absolutePath
+            linkerOpts("-L$sharedLibDir", "-lwebgpu_dawn", "-rpath", sharedLibDir)
             linkerOpts("-lpthread", "-ldl", "-lm")
         }
     }
