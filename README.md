@@ -57,6 +57,7 @@ Contributions are welcome! See:
 
 - **`:dawn4k-native`** — generated low-level Dawn (WebGPU) bindings for JVM, Android, iOS/tvOS (device + simulator), macOS ARM64 and Linux x64, the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
 - **`:dawn4k`** — WebGPU wrappers with caller-owned threading and resource lifetimes. Close each acquired resource before its device; device teardown does not release forgotten resource references. No worker or implicit event pump: call `DawnContext.processEvents()`, drain teardown before context close, and opt into `DawnConfig(implicitDeviceSynchronization = true)` for concurrent shared-device calls. See the [usage guide](docs/docs/getting-started.md) ([FR](docs/docs/getting-started.fr.md)).
+- **`:dawn4k-acid-tests`** — unpublished desktop validation module consuming the complete published Graphiks acid registry. The suite dependency, runner, event progression and reports stay outside the binding.
 
 The generated sources live in `dawn4k-native/generated/src` and are produced by the pinned kextract; ordinary compilation never runs the generator. See [Native Dawn binding](docs/docs/native-binding.md).
 
@@ -115,6 +116,52 @@ DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest :dawn4
 On Linux, install `libvulkan1`, `mesa-vulkan-drivers` and `vulkan-tools`, then
 point `VK_DRIVER_FILES` to the installed `lvp_icd*.json` to select Mesa lavapipe.
 Verify it with `vulkaninfo --summary` and a real Dawn buffer readback test.
+
+### Published acid suite
+
+The dedicated module runs `foundationCases()` unchanged on JVM, macOS ARM64
+and Linux x64. Each case gets a fresh context, adapter and device; a dedicated
+consumer-owned thread preserves Dawn's thread-local error scopes across coroutine
+suspensions. Declared optional features are requested explicitly. The cases have
+30-second execution deadlines and teardown draining is bounded to 10 seconds.
+
+```bash
+# macOS ARM64 host
+DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:macosArm64Test
+
+# Linux x64 host, with Vulkan/lavapipe configured as above
+DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test
+
+# Check that the binding's test runtime no longer consumes the acid suite
+./gradlew :dawn4k:verifyNoAcidSuiteDependency
+```
+
+Root `jvmTest` and `allTests` also include the module. It adds no iOS, tvOS,
+Android or browser suite targets and publishes no library artifact.
+
+Per-case JSON reports live at
+`dawn4k-acid-tests/build/reports/acid/<task-name>.json`, alongside standard Gradle
+reports. They include the suite version/commit, target, selected backend, available
+adapter descriptions and status counts. Statuses are **passed**, **failed**,
+**unsupported** (a declared optional feature is missing, or the suite's specific
+Compatibility case observes the permitted Core fallback), and **not-run**
+(safely identified adapter unavailability only). Unsupported and not-run are never
+counted as passes. `complete=true` means every registry entry has a result, not
+that every case passed. Incremental `complete=false` reports are not successful
+execution evidence; old reports are removed before each test task.
+
+Unlike the binding's private adapter skip helper, this external runner cannot
+inspect Dawn's internal adapter exception type. The current public API does not
+distinguish adapter unavailability safely, so **all adapter-request failures fail**,
+even without `DAWN_REQUIRE_ADAPTER=1`; it never infers unavailability from error text.
+Strict mode also rejects any `not-run` result if typed classification becomes
+available. GPU execution is never cached. Any failed case fails the Gradle task,
+after collecting the remaining independent cases.
+
+The initial strict Metal runs detected five contract failures on both JVM and
+macOS Native; they are retained, not excluded or turned into expected successes.
+See [acid-suite verification](docs/acid-tests-verification.md). CPU Vulkan CI runs
+both JVM and Linux Native and uploads reports even on failure.
 
 ### Generate Gradle Wrapper
 ```bash

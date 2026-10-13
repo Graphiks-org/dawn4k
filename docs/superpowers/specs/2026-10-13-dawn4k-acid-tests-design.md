@@ -54,5 +54,9 @@ The root JVM/all-tests invocations should discover the new module normally. Exte
 - [x] Write specification and self-review scope, consistency, and ambiguity.
 - [x] User reviews this written specification.
 - [x] Write implementation plan after specification approval.
-- [ ] User selects execution method for the implementation plan.
+- [x] User selects execution method for the implementation plan.
 - [ ] Implement and verify.
+
+Implementation is present. Full JVM and macOS Native acid execution accounts for
+154 cases each, with 149 passed and five retained binding contract failures.
+All-green acceptance remains blocked; see `docs/acid-tests-verification.md`.
