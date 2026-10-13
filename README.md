@@ -68,7 +68,7 @@ The generated sources live in `dawn4k-native/generated/src` and are produced by 
 The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) implements a dual-speed system optimized for bandwidth and compute time:
 
 - **Fast-Track (Feature branches)**: Compiles and tests the JVM targets (`./gradlew jvmTest`), including adapter-dependent tests.
-- **Deep-Testing (Branches / Pull Requests to `master`)**: Runs the full test suite (`./gradlew allTests`) on all simulators and target platforms to validate code quality before production.
+- **Deep-Testing (Branches / Pull Requests to `master`)**: Runs root project checks (`./gradlew check`), including host-supported tests and Android/lint checks, after booting Apple simulators.
 - **CPU Vulkan (all branches and pull requests)**: Runs `:dawn4k:jvmTest` and `:dawn4k:linuxX64Test` on Ubuntu with Mesa lavapipe. Adapter availability is mandatory; a missing driver/adapter fails the job.
 
 ---
@@ -133,7 +133,7 @@ DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:m
 DAWN_TEST_BACKEND=Vulkan DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k-acid-tests:jvmTest :dawn4k-acid-tests:linuxX64Test
 ```
 
-Root `jvmTest` and `allTests` also include the module. It adds no iOS, tvOS,
+Root `jvmTest`, `allTests` and `check` also include the module. It adds no iOS, tvOS,
 Android or browser suite targets and publishes no library artifact.
 
 Per-case JSON reports live at

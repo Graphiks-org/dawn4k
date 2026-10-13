@@ -33,7 +33,7 @@ jobs:
         run: |
           if [[ "${{ github.base_ref }}" == "master" || "${{ github.ref }}" == "refs/heads/master" ]]; then
             echo "strategy=deep" >> $GITHUB_OUTPUT
-            echo "Running deep tests (All Targets) for master branch / merge request."
+            echo "Running root project checks for master branch / merge request."
           else
             echo "strategy=fast-track" >> $GITHUB_OUTPUT
             echo "Running JVM Fast-Track tests only."
@@ -50,11 +50,11 @@ jobs:
         run: |
           python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
 
-      # Step 3: Run Deep tests (JVM, Android, and iOS Simulator/Link)
+      # Step 3: Run root project checks (host-supported tests and Android/lint checks)
       # Runs only for pushes to or pull requests targeting 'master'
-      - name: Run Deep Tests (JVM, Android & iOS Simulator)
+      - name: Run Project Checks (Tests & Lint)
         if: steps.test-strategy.outputs.strategy == 'deep'
-        run: ./gradlew allTests --no-daemon --stacktrace
+        run: ./gradlew check --no-daemon --stacktrace
 
   cpu-vulkan-tests:
     runs-on: ubuntu-24.04
