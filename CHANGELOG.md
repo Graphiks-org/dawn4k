@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Buffer mapped views use absolute offsets, default to the remaining buffer size and reject overlapping views synchronously; timestamp query sets require the feature to be enabled on the device without producing a validation-scope error.
 - Blank Compose/Metal demo window, fixed-size surface rendering and animation stalls during mouse dragging; native UI work now runs on AppKit in common run-loop modes with explicit resource cleanup.
 - Default snapshot publication version when no workflow version is provided.
+- Maven Central publication: `:dawn4k` and `:dawn4k-native` now apply the publication convention with `org.graphiks` coordinates and Graphiks POM metadata, the workflow publishes from a macOS runner so Apple variants are built (they cannot be cross-compiled on Linux), and the Gradle task selector matches the publishing subprojects instead of the root project.
 
 ### Built with
 - Kotlin 2.4.10, Gradle 9.8.0, AGP 9.0.0
