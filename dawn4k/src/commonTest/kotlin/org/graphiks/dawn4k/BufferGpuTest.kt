@@ -85,11 +85,11 @@ class BufferGpuTest {
             val target = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
             try {
                 source.mapAsync(GPUMapMode.Write, offset = 8uL, size = 8uL).getOrThrow()
-                source.getMappedRange().setUInts(0uL, uintArrayOf(7u, 11u))
+                source.getMappedRange(8uL, 8uL).setUInts(0uL, uintArrayOf(7u, 11u))
                 source.unmap()
                 fixture.copyAndSubmit(source, target, 16uL)
                 target.mapAsync(GPUMapMode.Read, offset = 8uL, size = 8uL).getOrThrow()
-                assertContentEquals(uintArrayOf(7u, 11u), target.getMappedRange().toUIntArray())
+                assertContentEquals(uintArrayOf(7u, 11u), target.getMappedRange(8uL, 8uL).toUIntArray())
                 target.unmap()
             } finally {
                 source.close()
@@ -137,10 +137,10 @@ class BufferGpuTest {
             val target = fixture.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.MapRead or GPUBufferUsage.CopyDst))
             try {
                 source.mapAsync(GPUMapMode.Write, offset = 0uL, size = 8uL).getOrThrow()
-                source.getMappedRange().setUInts(0uL, uintArrayOf(1u, 2u))
+                source.getMappedRange(0uL, 8uL).setUInts(0uL, uintArrayOf(1u, 2u))
                 source.unmap()
                 source.mapAsync(GPUMapMode.Write, offset = 8uL, size = 8uL).getOrThrow()
-                source.getMappedRange().setUInts(0uL, uintArrayOf(3u, 4u))
+                source.getMappedRange(8uL, 8uL).setUInts(0uL, uintArrayOf(3u, 4u))
                 source.unmap()
                 fixture.copyAndSubmit(source, target, 16uL)
                 target.mapAsync(GPUMapMode.Read).getOrThrow()

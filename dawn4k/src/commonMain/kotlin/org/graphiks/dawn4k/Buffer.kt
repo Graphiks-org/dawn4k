@@ -72,6 +72,9 @@ class DawnBuffer internal constructor(
     /** Whether the current mapping is writable (mapped for write). */
     private var mappedWritable: Boolean = false
 
+    /** CPU-visible views already handed out for the current mapping. */
+    private val mappedViews = mutableListOf<ByteRange>()
+
     private val reference = OwnedReference(handle,
         destroy = { wgpuBufferDestroy(it) }, release = { wgpuBufferRelease(it) })
     internal val handle: WGPUBuffer
@@ -143,14 +146,27 @@ class DawnBuffer internal constructor(
         return result
     }
 
+    /**
+     * [offset] is absolute in the buffer; an omitted [size] reaches its end.
+     * The view must fit the active mapping and not overlap an existing view.
+     * Views are tracked until [unmap] or [close], not until garbage collection.
+     */
     override fun getMappedRange(offset: GPUSize64, size: GPUSize64?): ArrayBuffer {
         val nativeHandle = handle
         val mapped = mappedRange
             ?: throw IllegalStateException("the buffer is not mapped; call mapAsync and await it first")
-        val range = checkedRange(mapped.size, offset, size)
+        // WebGPU offsets are absolute; an omitted size extends to the buffer end.
+        val range = checkedRange(this.size, offset, size)
+        require(range.offset >= mapped.offset && range.offset + range.size <= mapped.offset + mapped.size) {
+            "the requested range is outside the current mapping"
+        }
+        require(mappedViews.none { view ->
+            range.size != 0uL && view.size != 0uL &&
+                range.offset < view.offset + view.size && view.offset < range.offset + range.size
+        }) { "the requested range overlaps an existing mapped view" }
         if (range.size == 0uL) return ArrayBuffer.allocate(0uL)
         requireRepresentableSize(range.size)
-        val absoluteOffset = mapped.offset + range.offset
+        val absoluteOffset = range.offset
         val writable = mappedWritable
         val address = run {
             // Dawn's C API takes an absolute buffer offset and separates the
@@ -164,19 +180,23 @@ class DawnBuffer internal constructor(
         } ?: throw IllegalStateException(
             "the mapped range ${range.offset}..${range.offset + range.size} is not accessible",
         )
-        return borrowedArrayBuffer(address, range.size)
+        val view = borrowedArrayBuffer(address, range.size)
+        mappedViews.add(range)
+        return view
     }
 
     override fun unmap() {
         val nativeHandle = handle
         mappedRange = null
         mappedWritable = false
+        mappedViews.clear()
         wgpuBufferUnmap(nativeHandle)
     }
 
     override fun close() {
         mappedRange = null
         mappedWritable = false
+        mappedViews.clear()
         reference.close()
     }
 }
