@@ -37,10 +37,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The public Graphiks WebGPU contract of this backend, validated against the
- * PUBLISHED acid suite: a context requests a fresh adapter, the adapter a
- * device, and the borrowed device runs the published buffer cases verbatim.
- * The companion cases pin the contract's own promises — fresh adapters,
+ * Binding-specific checks of the public Graphiks WebGPU contract.
+ * These cases pin the backend's own promises — fresh adapters,
  * required features and limits, error scopes, the uncaptured-error callback,
  * labels, and async pipeline creation.
  *
@@ -48,25 +46,6 @@ import kotlin.time.Duration.Companion.seconds
  * strict CPU CI requires an adapter and executes the actual assertions.
  */
 class PublicContractGpuTest {
-
-    @Test
-    fun publicBuffersMatchTheSharedContract() = runTest {
-        if (!gpuTestEnvironment("PublicContractGpuTest.publicBuffersMatchTheSharedContract")) return@runTest
-        val context = DawnContext.create(gpuTestConfig())
-        val events = context.startTestProgress(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()))
-        try {
-            context.requestAdapter().getOrThrow().use { adapter ->
-                adapter.requestDevice().getOrThrow().use { device ->
-                    org.graphiks.webgpu.suite.acid.buffers.mapWriteRoundTrip(device)
-                    org.graphiks.webgpu.suite.acid.buffers.mappedAtCreation(device)
-                }
-            }
-        } finally {
-            events.cancel()
-            context.settleTestEvents()
-            context.close()
-        }
-    }
 
     @Test
     fun eachAdapterRequestYieldsAFreshAdapter() = runTest {

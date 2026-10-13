@@ -51,6 +51,7 @@ nav:
   - Getting Started: getting-started.md
   - Native binding: native-binding.md
   - Architecture: architecture.md
+  - Acid-suite validation: acid-tests-verification.md
   - Demo: demo.md
   - Dependency updates: dependency-updates.md
 
@@ -69,5 +70,7 @@ plugins:
         - locale: fr
           name: Français
           build: true
+          nav_translations:
+            Acid-suite validation: Validation par les tests acid
           site_name: dawn4k
           site_description: Documentation technique de dawn4k (bindings Dawn/WebGPU desktop)

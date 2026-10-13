@@ -15,6 +15,7 @@ This site centralizes the technical documentation and API references for **dawn4
 ## 🧱 Project Organization
 
 *   **`:dawn4k-native`** — generated low-level Dawn bindings (`org.graphiks.dawn4k.native`), ABI oracle and linkage configuration.
+*   **`:dawn4k-acid-tests`** — independent validation against the published WebGPU acid registry. See [Acid-suite validation](acid-tests-verification.md) for execution, adapter configuration and result interpretation.
 
 See [Native Dawn binding](native-binding.md) for generation and linkage.
 

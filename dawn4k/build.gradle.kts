@@ -56,19 +56,6 @@ kotlin {
         implementation(libs.kotlinx.coroutines.test)
     }
 
-    // The published acid suite ships no iOS variants, so it cannot stay in
-    // commonTest now that the backend declares the iOS targets: it moves to a
-    // desktop-only intermediate test source set shared by the host test
-    // targets. webgpu-descriptors publishes iOS variants and stays common.
-    val desktopTest = sourceSets.create("desktopTest")
-    desktopTest.dependsOn(sourceSets.getByName("commonTest"))
-    desktopTest.dependencies {
-        implementation(libs.suite.acid.tests)
-    }
-    listOf("jvmTest", "macosArm64Test", "linuxX64Test").forEach { testSetName ->
-        sourceSets.getByName(testSetName).dependsOn(desktopTest)
-    }
-
     // The :dawn4k-native klib references `webgpu.native` types, so every native
     // compilation and binary of this module must resolve the same platform
     // library and link the same library, mirroring its build exactly. The

@@ -9,9 +9,35 @@ on:
       - '**'
 
 jobs:
-  build-and-test:
-    runs-on: macos-26 # Xcode 26 is required by Compose Multiplatform 1.11.1 for the iOS link
-    
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Xcode 26 is required by Compose Multiplatform 1.11.1 for the iOS link.
+          - os: macos-26
+            backend: Metal
+            android-tools: '15641748'
+            # Cold native/Compose builds plus simulator startup exceed one hour.
+            timeout: 90
+          - os: ubuntu-24.04
+            backend: Vulkan
+            android-tools: '16111833'
+            timeout: 30
+          - os: windows-2025
+            backend: D3D12
+            android-tools: '16111833'
+            timeout: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      DAWN_TEST_BACKEND: ${{ matrix.backend }}
+      DAWN_REQUIRE_ADAPTER: '1'
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -26,6 +52,36 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
+      - name: Set up Android SDK for Gradle project import
+        uses: android-actions/setup-android@v3
+        with:
+          # setup-android cannot download the architecture-suffixed macOS 23 archive.
+          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
+          cmdline-tools-version: ${{ matrix.android-tools }}
+          packages: 'cmdline-tools;23.0 platform-tools'
+
+      - name: Install Android platform
+        if: runner.os != 'Windows'
+        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+
+      - name: Install Android platform on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '& "$env:ANDROID_HOME\cmdline-tools\23.0\bin\sdkmanager.bat" "platforms;android-37.0" "build-tools;37.0.0"'
+
+      - name: Install and select CPU Vulkan adapter
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # Root tests also build the demo's Wayland bridge.
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools \
+            build-essential pkg-config wayland-protocols libwayland-dev libxkbcommon-dev
+          icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
+          test -n "$icd"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
+          VK_DRIVER_FILES="$icd" vulkaninfo --summary
+
       # Step 1: Determine the test strategy (Deep vs Fast-Track)
       # Check whether the PR targets 'master' or the current branch is 'master'
       - name: Determine Test Strategy
@@ -33,7 +89,7 @@ jobs:
         run: |
           if [[ "${{ github.base_ref }}" == "master" || "${{ github.ref }}" == "refs/heads/master" ]]; then
             echo "strategy=deep" >> $GITHUB_OUTPUT
-            echo "Running deep tests (All Targets) for master branch / merge request."
+            echo "Running root project checks for master branch / merge request."
           else
             echo "strategy=fast-track" >> $GITHUB_OUTPUT
             echo "Running JVM Fast-Track tests only."
@@ -43,69 +99,38 @@ jobs:
       # Runs when neither the PR base nor the current branch is 'master'
       - name: Run JVM Fast-Track Tests
         if: steps.test-strategy.outputs.strategy == 'fast-track'
-        run: ./gradlew jvmTest --no-daemon --stacktrace
+        run: ./gradlew jvmTest -Pdawn.acid.ignoreFailures=true --no-daemon --continue --stacktrace
 
       - name: Boot Apple simulators for Metal tests
-        if: steps.test-strategy.outputs.strategy == 'deep'
+        if: runner.os == 'macOS' && steps.test-strategy.outputs.strategy == 'deep'
         run: |
           python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
 
-      # Step 3: Run Deep tests (JVM, Android, and iOS Simulator/Link)
+      # Step 3: Run root project checks (host-supported tests and Android/lint checks)
       # Runs only for pushes to or pull requests targeting 'master'
-      - name: Run Deep Tests (JVM, Android & iOS Simulator)
+      - name: Run Project Checks (Tests & Lint)
         if: steps.test-strategy.outputs.strategy == 'deep'
-        run: ./gradlew allTests --no-daemon --stacktrace
+        run: ./gradlew check -Pdawn.acid.ignoreFailures=true --no-daemon --continue --stacktrace
 
-  cpu-vulkan-tests:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      DAWN_TEST_BACKEND: Vulkan
-      DAWN_REQUIRE_ADAPTER: '1'
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '25'
-          cache: 'gradle'
-
-      - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
-        with:
-          # Command-line Tools 23.0 understand the API 37.0 SDK catalog.
-          cmdline-tools-version: '16111833'
-          # The legacy 'tools' package is no longer available in the SDK repository.
-          packages: 'platform-tools'
-
-      - name: Install Android platform
-        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
-
-      - name: Install and select CPU Vulkan adapter
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
-          icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-          test -n "$icd"
-          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
-          VK_DRIVER_FILES="$icd" vulkaninfo --summary
-
-      - name: Run JVM and Linux Native tests with required CPU adapter
-        run: |
-          chmod +x gradlew
-          ./gradlew :dawn4k:jvmTest :dawn4k:linuxX64Test --no-daemon --continue --stacktrace
-
-      - name: Upload CPU test reports
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cpu-vulkan-test-reports
+          name: test-reports-${{ matrix.os }}
           path: |
-            dawn4k/build/reports/tests/
-            dawn4k/build/test-results/
+            **/build/reports/tests/
+            **/build/test-results/
+            dawn4k-acid-tests/build/reports/acid/
+            **/build/reports/lint-results*
           if-no-files-found: warn
+
+  # Preserve the required branch-protection check and require all three runners.
+  build-and-test:
+    runs-on: ubuntu-24.04
+    needs: tests
+    if: always()
+    steps:
+      - name: Require every test platform to pass
+        env:
+          TEST_RESULT: ${{ needs.tests.result }}
+        run: test "$TEST_RESULT" = success

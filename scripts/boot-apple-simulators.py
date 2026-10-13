@@ -39,7 +39,8 @@ def main():
     for platform, device in selected:
         print(f"{platform}: {device['name']} ({device['udid']})", flush=True)
         if device["state"] != "Booted":
-            subprocess.run(["xcrun", "simctl", "boot", device["udid"]], check=True, timeout=60)
+            # A cold hosted CoreSimulator service can take over a minute to accept boot.
+            subprocess.run(["xcrun", "simctl", "boot", device["udid"]], check=True, timeout=180)
         subprocess.run(
             ["xcrun", "simctl", "bootstatus", device["udid"], "-b"], check=True, timeout=600
         )
