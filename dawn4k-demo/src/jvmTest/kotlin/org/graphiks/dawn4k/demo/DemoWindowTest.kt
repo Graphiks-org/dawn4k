@@ -43,7 +43,12 @@ class DemoWindowTest {
                 window.setContent { DemoApp(window, controls = controls) }
                 window.isVisible = true
             }
-            awaitCondition("GPU controls ready") { controls.state.value.ready }
+            // Cold Compose/Metal startup on hosted macOS can exceed the normal
+            // interaction deadline. Keep the control assertions themselves strict.
+            awaitCondition("GPU controls ready", timeoutSeconds = 60) {
+                assertEquals(null, controls.state.value.error)
+                controls.state.value.ready
+            }
             controls.togglePause()
             controls.selectCount(256)
             awaitCondition("paused frame with the new particle count") {
@@ -172,8 +177,8 @@ class DemoWindowTest {
             size.get(ValueLayout.JAVA_DOUBLE, 8).roundToInt()
     }
 
-    private fun awaitCondition(description: String, condition: () -> Boolean) {
-        val deadline = System.nanoTime() + 10_000_000_000L
+    private fun awaitCondition(description: String, timeoutSeconds: Long = 10, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + timeoutSeconds * 1_000_000_000L
         while (System.nanoTime() < deadline) {
             if (condition()) return
             Thread.sleep(25)
