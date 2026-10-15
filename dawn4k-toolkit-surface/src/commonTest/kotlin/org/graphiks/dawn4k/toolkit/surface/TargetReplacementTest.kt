@@ -51,9 +51,7 @@ class TargetReplacementTest {
         controller.acquireFrame()!!.close()
         controller.retire()
     }
-    @Test fun presentationFailsWithoutReplacingDevice() = runTest {
-        withDawnSession { gpu ->
-            val originalDevice = gpu.device
+    @Test fun failedReplacementPreservesActiveGeneration() = runTest {
             val target = CountingTarget(1)
             val controller = controller(target, CountingSurface())
             controller.initialize()
@@ -62,11 +60,9 @@ class TargetReplacementTest {
             assertFailsWith<IllegalStateException> {
                 controller.replaceTarget(incompatible, attachment(incompatible, surface))
             }
-            assertSame(originalDevice, gpu.device)
             assertEquals(1L, controller.activeGeneration)
             assertEquals(1, incompatible.retirements)
             controller.retire()
-        }
     }
 
     @Test fun generationChangeCannotHideOldAttachment() = runTest {

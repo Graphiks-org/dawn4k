@@ -22,6 +22,15 @@ class DawnWindow internal constructor(
     val events = native.state.events
     internal val nativeHandle: Long get() { check(!closed.value); return native.handle }
 
+    /** Requests a content size in window coordinates; [extent] reports the resulting framebuffer pixels. */
+    suspend fun resize(width: Int, height: Int) {
+        require(width > 0 && height > 0) { "window dimensions must be positive" }
+        main.owner.onOwner {
+            check(!closed.value) { "window is closed" }
+            main.backend.resizeWindow(native.handle, width, height)
+        }
+    }
+
     suspend fun requestClose() = main.owner.onOwner {
         main.backend.requestClose(native.handle)
         native.state.event(DawnWindowEvent.CloseRequested)
@@ -99,6 +108,7 @@ internal suspend fun openDawnWindow(
     var runtime: GlfwRuntime.Lease? = null
     var presented: DawnPresentedSession? = null
     var allocatedHandle = 0L
+    var unleasedWindowDestroyed = false
     try {
         mainThread.owner.onOwner {
             runtime = mainThread.runtime.acquire(windowOptions.runtimeOwnership)
@@ -118,20 +128,19 @@ internal suspend fun openDawnWindow(
         return window
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
-            try { presented?.gpu?.manualProgress?.stop(); presented?.shutdown() }
-            catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
-            try {
-                mainThread.owner.onOwner {
-                    val acquired = lease
-                    if (acquired != null) acquired.retire() else {
-                        if (allocatedHandle != 0L) {
-                            mainThread.backend.awaitTargetRetirement(allocatedHandle)
-                            mainThread.backend.destroyWindow(allocatedHandle)
-                        }
-                        runtime?.retire()
+            mainThread.retireFailedStartup {
+                presented?.gpu?.manualProgress?.stop()
+                presented?.shutdown()
+                val acquired = lease
+                if (acquired != null) acquired.retire() else {
+                    if (allocatedHandle != 0L && !unleasedWindowDestroyed) {
+                        mainThread.backend.awaitTargetRetirement(allocatedHandle)
+                        mainThread.backend.destroyWindow(allocatedHandle)
+                        unleasedWindowDestroyed = true
                     }
+                    runtime?.retire()
                 }
-            } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+            }
         }
         throw failure
     }

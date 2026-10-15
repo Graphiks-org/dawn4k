@@ -17,6 +17,19 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
 }
 
 kotlin {
+    android {
+        withHostTestBuilder { sourceSetTreeName = "test" }.configure {}
+        withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
+    }
+    sourceSets.getByName("androidHostTest").dependencies { implementation(kotlin("test-junit")) }
+    val gpuTest = sourceSets.create("gpuTest") { dependsOn(sourceSets.getByName("commonTest")) }
+    listOf("jvmTest", "nativeTest", "androidDeviceTest").forEach { sourceSets.getByName(it).dependsOn(gpuTest) }
+    sourceSets.getByName("androidDeviceTest").dependencies {
+        implementation(kotlin("test-junit"))
+        implementation(libs.androidx.test.runner)
+    }
     val jvmSharedMain = sourceSets.create("jvmSharedMain") {
         dependsOn(sourceSets.getByName("commonMain"))
     }
@@ -26,6 +39,7 @@ kotlin {
         api(project(":dawn4k"))
         api(libs.kotlinx.coroutines.core)
         implementation(libs.kotlinx.atomicfu)
+        implementation(libs.webgpu.descriptors)
     }
     sourceSets.getByName("commonTest").dependencies {
         implementation(libs.kotlinx.coroutines.test)

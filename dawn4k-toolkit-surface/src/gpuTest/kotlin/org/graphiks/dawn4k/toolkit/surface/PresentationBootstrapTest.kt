@@ -10,6 +10,19 @@ import org.graphiks.dawn4k.toolkit.surface.internal.*
 import kotlin.test.*
 
 class PresentationBootstrapTest {
+    @Test fun frameCancellationReleasesViewThenTexture() = runTest {
+        val target = CountingTarget(1)
+        val native = CountingSurface()
+        val factory = SurfaceFactory { lease, _ -> SurfaceAttachment(lease, null, { native }, native::close) }
+        val presented = openDawnSurface(target, DawnSessionOptions(), DawnPresentationOptions(), factory)
+        try {
+            assertFailsWith<kotlinx.coroutines.CancellationException> {
+                presented.presentation.withFrame { throw kotlinx.coroutines.CancellationException("cancel frame") }
+            }
+            assertEquals(listOf("view", "texture"), native.releases)
+        } finally { presented.shutdown() }
+    }
+
     @Test fun targetGenerationChangeRetiresTheOldAttachment() = runTest {
         val target = CountingTarget(1)
         val native = CountingSurface()

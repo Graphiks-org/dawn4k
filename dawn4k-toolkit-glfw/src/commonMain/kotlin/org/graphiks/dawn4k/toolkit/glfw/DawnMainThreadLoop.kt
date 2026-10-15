@@ -23,10 +23,23 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
     internal val runtime = GlfwRuntime(backend)
     private val windows = mutableSetOf<DawnWindow>()
     private val cleanup = mutableMapOf<DawnWindow, Job>()
+    private val partialCleanup = mutableSetOf<Job>()
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
     internal fun register(window: DawnWindow) { windows += window }
     internal fun unregister(window: DawnWindow) { windows -= window; cleanup.remove(window) }
+
+    internal suspend fun retireFailedStartup(retire: suspend () -> Unit) = owner.onOwner {
+        val job = scope.launch {
+            try {
+                while (true) {
+                    try { retire(); break }
+                    catch (_: Throwable) { currentCoroutineContext().ensureActive(); delay(100) }
+                }
+            } finally { partialCleanup.remove(currentCoroutineContext().job) }
+        }
+        partialCleanup += job
+    }
 
     private fun drain() {
         while (true) {
@@ -49,7 +62,7 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
             val main = DawnMainThreadLoop(backend)
             val task = main.scope.async(start = CoroutineStart.UNDISPATCHED) { block(main) }
             try {
-                while (!task.isCompleted || main.windows.isNotEmpty()) {
+                while (!task.isCompleted || main.windows.isNotEmpty() || main.partialCleanup.isNotEmpty()) {
                     main.drain()
                     if (main.runtime.isActive) main.backend.pollEvents()
                     if (task.isCompleted) {

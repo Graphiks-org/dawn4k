@@ -17,6 +17,13 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
 }
 
 kotlin {
+    val gpuTest = sourceSets.create("gpuTest") { dependsOn(sourceSets.getByName("commonTest")) }
+    sourceSets.matching { it.name in setOf("jvmTest", "nativeTest", "androidDeviceTest") }.configureEach { dependsOn(gpuTest) }
+    // Share the public-API GPU oracles, without adding a dependency on another module's test artifact.
+    gpuTest.kotlin.srcDir(project(":dawn4k-toolkit-core").file("src/gpuTest/kotlin/org/graphiks/dawn4k/toolkit/testing"))
+    sourceSets.matching { it.name in setOf("jvmTest", "nativeTest", "androidDeviceTest") }.configureEach {
+        kotlin.srcDir(project(":dawn4k-toolkit-core").file("src/$name/kotlin/org/graphiks/dawn4k/toolkit/testing"))
+    }
     val appleMobileMain = sourceSets.create("appleMobileMain") {
         dependsOn(sourceSets.getByName("appleMain"))
     }
@@ -27,11 +34,20 @@ kotlin {
     }
     sourceSets.getByName("iosTest").dependsOn(appleMobileTest)
     sourceSets.getByName("tvosTest").dependsOn(appleMobileTest)
+    val desktopTest = sourceSets.create("desktopTest") {
+        dependsOn(gpuTest)
+        dependencies { implementation(project(":dawn4k-toolkit-glfw")) }
+    }
+    for (name in listOf("jvmTest", "macosArm64Test", "linuxX64Test")) {
+        sourceSets.getByName(name).dependsOn(desktopTest)
+    }
     android {
+        withHostTestBuilder { sourceSetTreeName = "test" }.configure {}
         withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         }
     }
+    sourceSets.getByName("androidHostTest").dependencies { implementation(kotlin("test-junit")) }
     sourceSets.getByName("androidDeviceTest").dependencies {
         implementation(kotlin("test-junit"))
         implementation(libs.androidx.test.runner)
@@ -54,6 +70,7 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
+    if (System.getProperty("os.name").lowercase().contains("mac")) jvmArgs("-XstartOnFirstThread")
 }
 tasks.withType<AbstractTestTask>().configureEach {
     outputs.upToDateWhen { false }

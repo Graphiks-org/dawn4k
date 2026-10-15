@@ -18,6 +18,7 @@ internal interface GlfwBackend {
     fun terminate()
     fun createWindow(options: DawnWindowOptions): Long
     fun destroyWindow(handle: Long)
+    fun resizeWindow(handle: Long, width: Int, height: Int) {}
     fun pollEvents()
     fun pixelExtent(handle: Long): PixelExtent
     fun surfaceTarget(handle: Long): DawnSurfaceTarget

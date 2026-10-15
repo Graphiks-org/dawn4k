@@ -13,6 +13,77 @@ import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 
 class DawnWindowTest {
+    @Test fun retryAfterPartialAllocationDoesNotDestroyWindowTwice() {
+        var attempts = 0
+        val backend = RecordingBackend().apply {
+            extentFailure = IllegalArgumentException("extent query failed")
+            beforeTermination = { if (++attempts == 1) throw IllegalStateException("termination interrupted") }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            DawnMainThreadLoop.run(backend) { main ->
+                openDawnWindow(DawnWindowOptions(), DawnSessionOptions(), DawnPresentationOptions(), main) { _, _, _ ->
+                    error("must not reach GPU bootstrap")
+                }
+            }
+        }
+        assertEquals(1, backend.destroys)
+        assertEquals(1, backend.terminations)
+    }
+
+    @Test fun interruptedPartialRetirementKeepsTheWindowUntilRetry() {
+        val gate = CompletableDeferred<Unit>()
+        val retry = CompletableDeferred<Unit>()
+        var attempts = 0
+        val backend = RecordingBackend().apply {
+            beforeRetirement = {
+                if (++attempts == 1) throw CancellationException("platform retirement interrupted")
+                retry.complete(Unit)
+                gate.await()
+            }
+        }
+        DawnMainThreadLoop.run(backend) { main ->
+            assertFailsWith<IllegalArgumentException> {
+                openDawnWindow(DawnWindowOptions(), DawnSessionOptions(), DawnPresentationOptions(), main) { _, _, _ ->
+                    throw IllegalArgumentException("startup failed")
+                }
+            }
+            try {
+                withTimeout(2_000) { retry.await() }
+                assertEquals(0, backend.destroys)
+                assertTrue(backend.initialized)
+            } finally { gate.complete(Unit) }
+        }
+        assertEquals(1, backend.destroys)
+        assertEquals(1, backend.terminations)
+    }
+
+    @Test fun failedStartupReturnsWhileNativeRetirementIsStillPending() {
+        val gate = CompletableDeferred<Unit>()
+        val entered = CompletableDeferred<Unit>()
+        val backend = RecordingBackend().apply {
+            beforeRetirement = { entered.complete(Unit); gate.await() }
+        }
+        DawnMainThreadLoop.run(backend) { main ->
+            val opening = async {
+                runCatching {
+                    openDawnWindow(DawnWindowOptions(), DawnSessionOptions(), DawnPresentationOptions(), main) { _, _, _ ->
+                        throw IllegalArgumentException("startup failed")
+                    }
+                }
+            }
+            try {
+                entered.await()
+                delay(50)
+                assertTrue(opening.isCompleted, "startup error must not wait for native retirement")
+                assertEquals(0, backend.destroys)
+                assertTrue(backend.initialized)
+                assertIs<IllegalArgumentException>(opening.await().exceptionOrNull())
+            } finally { gate.complete(Unit); opening.await() }
+        }
+        assertEquals(1, backend.destroys)
+        assertEquals(1, backend.terminations)
+    }
+
     @Test fun liveShutdownTimeoutPreservesTheRunningMainOwner() {
         assumeTrue(System.getenv("DAWN_DESKTOP_TESTS") == "1")
         DawnMainThreadLoop.run { main ->
@@ -42,12 +113,14 @@ class DawnWindowTest {
             try {
                 first.shutdown()
                 val original = second.extent.value
-                main.owner.onOwner { GLFW.glfwSetWindowSize(second.nativeHandle, 96, 80) }
+                assertFailsWith<IllegalArgumentException> { second.resize(0, 80) }
+                second.resize(96, 80)
                 withTimeout(3_000) { second.extent.first { it != original && it.isPositive } }
                 assertTrue(second.presentation.withFrame { it.present() })
                 second.requestClose()
                 withTimeout(3_000) { second.events.first { it == DawnWindowEvent.CloseRequested } }
             } finally { first.shutdown(); second.shutdown() }
+            assertFailsWith<IllegalStateException> { second.resize(32, 32) }
         }
     }
 

@@ -80,6 +80,10 @@ internal class NativeGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBac
         glfwDestroyWindow(window)
         reference.dispose()
     }
+    override fun resizeWindow(handle: Long, width: Int, height: Int) {
+        requireGlfwMainThread()
+        glfwSetWindowSize(pointer(handle), width, height)
+    }
     override fun pollEvents() { requireGlfwMainThread(); glfwPollEvents() }
     override fun pixelExtent(handle: Long): PixelExtent = memScoped {
         val width = alloc<IntVar>(); val height = alloc<IntVar>()

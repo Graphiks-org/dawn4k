@@ -62,6 +62,10 @@ internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBack
         Callbacks.glfwFreeCallbacks(handle)
         glfwDestroyWindow(handle)
     }
+    override fun resizeWindow(handle: Long, width: Int, height: Int) {
+        requireGlfwMainThread()
+        glfwSetWindowSize(handle, width, height)
+    }
     override fun pollEvents() { requireGlfwMainThread(); glfwPollEvents() }
 
     override fun pixelExtent(handle: Long): PixelExtent = MemoryStack.stackPush().use { stack ->
