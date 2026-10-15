@@ -57,8 +57,11 @@ def linux(directory):
     def run(name):
         binary = (directory / f"{name}.kexe").resolve()
         binary.chmod(0o755)
-        result = subprocess.run([str(binary)], env=env, check=True, capture_output=True, text=True, timeout=180)
+        result = subprocess.run([str(binary)], env=env, capture_output=True, text=True, timeout=180)
         print(result.stdout, flush=True)
+        if result.returncode:
+            print(result.stderr, flush=True)
+        result.check_returncode()
         expected = "[2, 4, 6, 8]" if name == "compute" else "TOOLKIT_SAMPLE frames=60"
         if expected not in result.stdout:
             raise RuntimeError(f"Missing actual Maven consumer result: {name}")

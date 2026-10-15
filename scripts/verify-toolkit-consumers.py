@@ -138,8 +138,11 @@ include(":consumer", ":androidApp")
             elif not args.compile_only:
                 environment = os.environ.copy()
                 environment["DAWN_EXAMPLE_FRAMES"] = "60"
-                executed = subprocess.run([str(files[0])], check=True, capture_output=True, text=True, env=environment, timeout=180)
+                executed = subprocess.run([str(files[0])], capture_output=True, text=True, env=environment, timeout=180)
                 print(executed.stdout, flush=True)
+                if executed.returncode:
+                    print(executed.stderr, flush=True)
+                executed.check_returncode()
                 expected = "[2, 4, 6, 8]" if binary == "compute" else "TOOLKIT_SAMPLE frames=60"
                 if expected not in executed.stdout:
                     raise RuntimeError(f"Missing actual {target}/{binary} result")

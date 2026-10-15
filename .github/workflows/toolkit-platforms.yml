@@ -29,7 +29,8 @@ jobs:
           - os: ubuntu-24.04-arm
             target: jvm-linuxArm64
             backend: Vulkan
-            android-tools: '16111833'
+            # SDK Manager 21 runs on Java; Android CLI 23's Linux binary is x86_64.
+            android-tools: '15641748'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     defaults:
@@ -45,10 +46,13 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: ${{ matrix.android-tools }}
-          packages: 'cmdline-tools;23.0 platform-tools'
+          packages: ${{ matrix.target == 'jvm-linuxArm64' && 'platform-tools' || 'cmdline-tools;23.0 platform-tools' }}
       - name: Install Android platform
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && matrix.target != 'jvm-linuxArm64'
         run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+      - name: Install Android platform with Java SDK Manager on ARM64
+        if: matrix.target == 'jvm-linuxArm64'
+        run: '"$ANDROID_HOME/cmdline-tools/15641748/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
       - name: Install Android platform (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

@@ -156,6 +156,8 @@ appel englobant peut donc dépasser le délai d’une tentative individuelle.
 
 ## Exécuter les exemples
 
+Les lanceurs desktop accordent 60 secondes au démarrage GPU, y compris pour les adaptateurs logiciels.
+
 ```bash
 ./gradlew :dawn4k-toolkit-examples:runCompute
 ./gradlew :dawn4k-toolkit-examples:runTriangle

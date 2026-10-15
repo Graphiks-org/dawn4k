@@ -146,6 +146,8 @@ retires, so its enclosing call can outlast an individual attempt's deadline.
 
 ## Run the examples
 
+Desktop launchers allow 60 seconds for GPU startup, including software adapters.
+
 ```bash
 ./gradlew :dawn4k-toolkit-examples:runCompute
 ./gradlew :dawn4k-toolkit-examples:runTriangle
