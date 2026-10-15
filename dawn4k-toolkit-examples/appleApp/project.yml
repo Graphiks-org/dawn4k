@@ -1,0 +1,106 @@
+name: ToolkitExamples
+options:
+  bundleIdPrefix: org.graphiks.dawn4k.toolkit.examples
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CODE_SIGNING_ALLOWED: NO
+    GENERATE_INFOPLIST_FILE: YES
+targets:
+  ToolkitIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources: [ToolkitApp]
+    dependencies:
+      - framework: $(BUILT_PRODUCTS_DIR)/ToolkitExamples.framework
+        embed: false
+    info:
+      path: ToolkitIOS-Info.plist
+      properties:
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.graphiks.dawn4k.toolkit.examples.ios
+        FRAMEWORK_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../../dawn4k-native/build/native/$(DAWN_NATIVE_TARGET)/static/lib"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lwebgpu_dawn", "-lc++", "-framework", Metal, "-framework", QuartzCore, "-framework", CoreGraphics, "-framework", IOKit, "-framework", IOSurface]
+        INFOPLIST_KEY_CFBundleDisplayName: Dawn4k toolkit
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        "DAWN_NATIVE_TARGET[sdk=iphonesimulator*][arch=arm64]": iosSimulatorArm64
+        "DAWN_NATIVE_TARGET[sdk=iphonesimulator*][arch=x86_64]": iosX64
+        "DAWN_NATIVE_TARGET[sdk=iphoneos*]": iosArm64
+    preBuildScripts:
+      - name: Build Kotlin toolkit framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/../.."
+          ./gradlew :dawn4k-toolkit-examples:embedAndSignAppleFrameworkForXcode --console=plain
+  ToolkitIOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources: [ToolkitUITests]
+    dependencies:
+      - target: ToolkitIOS
+  ToolkitTVOS:
+    type: application
+    platform: tvOS
+    deploymentTarget: "15.0"
+    sources: [ToolkitApp]
+    dependencies:
+      - framework: $(BUILT_PRODUCTS_DIR)/ToolkitExamples.framework
+        embed: false
+    info:
+      path: ToolkitTVOS-Info.plist
+      properties:
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.graphiks.dawn4k.toolkit.examples.tvos
+        FRAMEWORK_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"]
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(SRCROOT)/../../dawn4k-native/build/native/$(DAWN_NATIVE_TARGET)/static/lib"]
+        OTHER_LDFLAGS: ["$(inherited)", "-lwebgpu_dawn", "-lc++", "-framework", Metal, "-framework", QuartzCore, "-framework", CoreGraphics, "-framework", IOKit, "-framework", IOSurface]
+        INFOPLIST_KEY_CFBundleDisplayName: Dawn4k toolkit
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        "DAWN_NATIVE_TARGET[sdk=appletvsimulator*]": tvosSimulatorArm64
+        "DAWN_NATIVE_TARGET[sdk=appletvos*]": tvosArm64
+    preBuildScripts:
+      - name: Build Kotlin toolkit framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/../.."
+          ./gradlew :dawn4k-toolkit-examples:embedAndSignAppleFrameworkForXcode --console=plain
+  ToolkitTVOSUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    deploymentTarget: "15.0"
+    sources: [ToolkitUITests]
+    dependencies:
+      - target: ToolkitTVOS
+schemes:
+  ToolkitIOS:
+    build:
+      targets:
+        ToolkitIOS: all
+        ToolkitIOSUITests: [test]
+    test:
+      targets: [ToolkitIOSUITests]
+  ToolkitTVOS:
+    build:
+      targets:
+        ToolkitTVOS: all
+        ToolkitTVOSUITests: [test]
+    test:
+      targets: [ToolkitTVOSUITests]

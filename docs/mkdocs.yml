@@ -1,5 +1,5 @@
 site_name: dawn4k
-site_description: API & Technical Documentation for dawn4k (Dawn/WebGPU desktop bindings)
+site_description: API & Technical Documentation for dawn4k (Dawn/WebGPU Kotlin Multiplatform)
 site_url: https://graphiks-org.github.io/dawn4k/
 repo_url: https://github.com/Graphiks-org/dawn4k
 repo_name: Graphiks-org/dawn4k
@@ -51,6 +51,7 @@ nav:
   - Getting Started: getting-started.md
   - Native binding: native-binding.md
   - Architecture: architecture.md
+  - Toolkit: toolkit.md
   - Acid-suite validation: acid-tests-verification.md
   - Demo: demo.md
   - Dependency updates: dependency-updates.md
@@ -72,5 +73,6 @@ plugins:
           build: true
           nav_translations:
             Acid-suite validation: Validation par les tests acid
+            Toolkit: Toolkit
           site_name: dawn4k
-          site_description: Documentation technique de dawn4k (bindings Dawn/WebGPU desktop)
+          site_description: Documentation technique de dawn4k (Dawn/WebGPU Kotlin Multiplatform)

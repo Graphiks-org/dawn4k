@@ -42,3 +42,8 @@ include(":dawn4k-acid-tests")
 include(":dawn4k-demo")
 include(":dawn4k-native")
 include(":docs")
+
+include(":dawn4k-toolkit-examples")
+
+include(":dawn4k-toolkit-examples-androidApp")
+project(":dawn4k-toolkit-examples-androidApp").projectDir = file("dawn4k-toolkit-examples/androidApp")

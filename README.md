@@ -1,4 +1,4 @@
-# dawn4k — Dawn (WebGPU) desktop bindings
+# dawn4k — Dawn (WebGPU) Kotlin Multiplatform bindings
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-purple?logo=kotlin)](https://kotlinlang.org)
 [![Gradle](https://img.shields.io/badge/Gradle-9.8.0-blue?logo=gradle)](https://gradle.org)
@@ -15,7 +15,7 @@
 
 ---
 
-This project is **dawn4k**: a Kotlin Multiplatform binding to Google's Dawn (WebGPU) C API for **Desktop (JVM, macOS ARM64, Linux x64)**. It exposes the raw Dawn API produced by kextract, built on kffi.
+This project is **dawn4k**: a Kotlin Multiplatform binding to Google's Dawn (WebGPU) C API for **JVM, Android, macOS ARM64, Linux x64, iOS and tvOS**. It exposes the raw Dawn API produced by kextract, built on kffi, a WebGPU backend, and optional toolkit modules for managed sessions and presentation.
 
 ---
 
@@ -57,6 +57,10 @@ Contributions are welcome! See:
 
 - **`:dawn4k-native`** — generated low-level Dawn (WebGPU) bindings for JVM, Android, iOS/tvOS (device + simulator), macOS ARM64 and Linux x64, the C ABI oracle and the cinterop/linkage configuration. Depends only on kffi.
 - **`:dawn4k`** — WebGPU wrappers with caller-owned threading and resource lifetimes. Close each acquired resource before its device; device teardown does not release forgotten resource references. No worker or implicit event pump: call `DawnContext.processEvents()`, drain teardown before context close, and opt into `DawnConfig(implicitDeviceSynchronization = true)` for concurrent shared-device calls. See the [usage guide](docs/docs/getting-started.md) ([FR](docs/docs/getting-started.fr.md)).
+- **`:dawn4k-toolkit-core`** — scoped/persistent headless GPU sessions, a pinned execution owner, event progression and acknowledged shutdown. Same nine Kotlin targets as the backend.
+- **`:dawn4k-toolkit-surface`** — retained external native targets, Android/Apple views, capability selection and scoped frames. Same nine Kotlin targets.
+- **`:dawn4k-toolkit-glfw`** — toolkit-owned desktop windows for JVM, macOS ARM64 and Linux x64.
+- **`:dawn4k-toolkit-examples`** — unpublished common compute/triangle code with JVM/Native launchers and Android/iOS/tvOS sample hosts. See the [toolkit guide](docs/docs/toolkit.md) ([FR](docs/docs/toolkit.fr.md)) for lifetimes, target matrix and actual validation coverage.
 - **`:dawn4k-acid-tests`** — unpublished desktop validation module consuming the complete published Graphiks acid registry. The suite dependency, runner, event progression and reports stay outside the binding.
 
 The generated sources live in `dawn4k-native/generated/src` and are produced by the pinned kextract; ordinary compilation never runs the generator. See [Native Dawn binding](docs/docs/native-binding.md).
@@ -72,6 +76,18 @@ The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) impleme
 - **Platform matrix**: Both strategies run on macOS 26 (Metal), Ubuntu 24.04 (Vulkan via Mesa lavapipe) and Windows 2025 (D3D12, JVM tests only). Adapter availability is mandatory on every runner; a missing driver/adapter fails the tests. Reports are uploaded even on failure, and the required `build-and-test` check succeeds only when the entire matrix passes.
 
 ---
+
+## Toolkit examples
+
+```bash
+./gradlew :dawn4k-toolkit-examples:runCompute
+./gradlew :dawn4k-toolkit-examples:runTriangle
+```
+
+Use `withDawnSession` for compute/offscreen work, `withDawnSurface` for an existing
+window or view, and `withDawnWindow` for a desktop window owned by the toolkit.
+Application-created resources stay application-owned. The toolkit and sample
+hosts live in this repository.
 
 ## 🛠️ Useful Development Commands
 
