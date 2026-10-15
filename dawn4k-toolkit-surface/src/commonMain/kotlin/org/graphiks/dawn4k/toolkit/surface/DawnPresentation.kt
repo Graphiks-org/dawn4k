@@ -32,10 +32,11 @@ class DawnPresentation internal constructor(
 
     internal fun observe(target: DawnSurfaceTarget) {
         watch?.cancel()
+        val generation = controller.activeGeneration ?: return
         watch = monitoring.launch {
             target.state.collect { state ->
-                if (!state.available) runCatching {
-                    gpu.executionOwner.run { frames.withLock { controller.detachTarget(state.generation) } }
+                if (!state.available || state.generation != generation) runCatching {
+                    gpu.executionOwner.run { frames.withLock { controller.detachTarget(generation) } }
                 }
             }
         }

@@ -4,7 +4,6 @@ package org.graphiks.dawn4k.toolkit.surface
 import kotlinx.cinterop.objcPtr
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.interpretCPointer
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import platform.CoreFoundation.CFRetain
 import platform.CoreFoundation.CFRelease
@@ -28,5 +27,5 @@ fun DawnSurfaceTargets.metalLayer(
 }
 
 object DawnPlatformOwners {
-    fun appleMain(): DawnPlatformOwner = DawnPlatformOwner.fromDispatcher(Dispatchers.Main)
+    fun appleMain(): DawnPlatformOwner = appleMainOwner()
 }

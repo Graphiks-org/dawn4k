@@ -21,9 +21,13 @@ internal sealed class NativeSurfaceSource {
         catch (failure: Throwable) { wgpuSurfaceRelease(surface); throw failure }
     }
 
-    class Metal(private val layer: Long) : NativeSurfaceSource() {
+    class Metal(private val layer: () -> Long) : NativeSurfaceSource() {
+        constructor(layer: Long) : this({ layer })
         override fun chain(allocator: MemoryAllocator) = WGPUSurfaceSourceMetalLayer.allocate(allocator).apply {
-            chain.next = null; chain.sType = WGPUSType_SurfaceSourceMetalLayer; this.layer = NativeAddress(this@Metal.layer)
+            chain.next = null; chain.sType = WGPUSType_SurfaceSourceMetalLayer
+            val address = this@Metal.layer()
+            check(address != 0L) { "Metal layer is retired" }
+            this.layer = NativeAddress(address)
         }.chain
     }
     class Win32(private val hwnd: Long, private val hinstance: Long) : NativeSurfaceSource() {

@@ -17,6 +17,16 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
 }
 
 kotlin {
+    val appleMobileMain = sourceSets.create("appleMobileMain") {
+        dependsOn(sourceSets.getByName("appleMain"))
+    }
+    sourceSets.getByName("iosMain").dependsOn(appleMobileMain)
+    sourceSets.getByName("tvosMain").dependsOn(appleMobileMain)
+    val appleMobileTest = sourceSets.create("appleMobileTest") {
+        dependsOn(sourceSets.getByName("appleTest"))
+    }
+    sourceSets.getByName("iosTest").dependsOn(appleMobileTest)
+    sourceSets.getByName("tvosTest").dependsOn(appleMobileTest)
     android {
         withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -10,6 +10,23 @@ import org.graphiks.dawn4k.toolkit.surface.internal.*
 import kotlin.test.*
 
 class PresentationBootstrapTest {
+    @Test fun targetGenerationChangeRetiresTheOldAttachment() = runTest {
+        val target = CountingTarget(1)
+        val native = CountingSurface()
+        val retired = CompletableDeferred<Unit>()
+        target.onRetire = { retired.complete(Unit) }
+        val factory = SurfaceFactory { lease, _ -> SurfaceAttachment(lease, null, { native }, native::close) }
+        val presented = openDawnSurface(target, DawnSessionOptions(), DawnPresentationOptions(), factory)
+        try {
+            presented.gpu.run {
+                target.state.value = target.state.value.copy(generation = 2, available = true)
+                withTimeout(1_000) { retired.await() }
+            }
+            assertNull(presented.presentation.configuration.value)
+            assertEquals(1, target.retirements)
+        } finally { presented.shutdown() }
+    }
+
     @Test fun targetRetirementWaitsForFrameAndCanProgressInsideRun() = runTest {
         val target = CountingTarget(1)
         val native = CountingSurface()
