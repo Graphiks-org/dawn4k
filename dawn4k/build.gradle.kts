@@ -2,13 +2,13 @@ import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 import com.android.build.api.variant.KotlinMultiplatformAndroidComponentsExtension
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.AbstractTestTask
-import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
     id("ygdrasil.conventions.dawn-jvm-runtime")
     id("ygdrasil.conventions.kmp-publish")
+    id("ygdrasil.conventions.dawn-native-linkage")
 }
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
@@ -18,25 +18,6 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
         },
     )
 }
-
-val abiHost: String = run {
-    val os = System.getProperty("os.name").lowercase()
-    val arch = System.getProperty("os.arch").lowercase()
-    val osName = when {
-        os.contains("mac") -> "macos"
-        os.contains("linux") -> "linux"
-        else -> os.replace(Regex("[^a-z0-9]+"), "-")
-    }
-    val archName = when (arch) {
-        "aarch64", "arm64" -> "aarch64"
-        "x86_64", "amd64" -> "x86-64"
-        else -> arch
-    }
-    "$osName-$archName"
-}
-
-/** Provides the Dawn headers, shared libraries and cinterop def consumed here. */
-val dawnNativeProject = project(":dawn4k-native")
 
 kotlin {
     // JVM and Android share their platform actuals.
@@ -57,61 +38,7 @@ kotlin {
         implementation(libs.kotlinx.coroutines.test)
     }
 
-    // The :dawn4k-native klib references `webgpu.native` types, so every native
-    // compilation and binary of this module must resolve the same platform
-    // library and link the same library, mirroring its build exactly. The
-    // desktop targets consume the shared flavor of the Dawn archives; the iOS
-    // archives only publish a static flavor.
-    val appleFrameworks = listOf(
-        "Metal", "Foundation", "CoreGraphics", "QuartzCore", "IOKit", "IOSurface",
-    )
-    listOf(
-        "macosArm64" to "shared",
-        "linuxX64" to "shared",
-        "iosArm64" to "static",
-        "iosSimulatorArm64" to "static",
-        "iosX64" to "static",
-        "tvosArm64" to "static",
-        "tvosSimulatorArm64" to "static",
-    ).forEach { (nativeTarget, linkage) ->
-        (targets.getByName(nativeTarget) as KotlinNativeTarget).apply {
-            compilations.getByName("main").cinterops.create("dawn") {
-                defFile(dawnNativeProject.file("src/nativeInterop/cinterop/dawn.def"))
-                includeDirs(
-                    dawnNativeProject.layout.buildDirectory.dir("native/$nativeTarget/$linkage/include"),
-                )
-            }
-            binaries.all {
-                val dawnLibDir = dawnNativeProject.layout.buildDirectory
-                    .dir("native/$nativeTarget/$linkage/lib").get().asFile.absolutePath
-                linkerOpts("-L$dawnLibDir", "-lwebgpu_dawn")
-                when (nativeTarget) {
-                    "macosArm64" -> {
-                        // The test binary references Dawn symbols, so its runtime
-                        // loader must find the shared library next to its build path.
-                        linkerOpts("-rpath", dawnLibDir)
-                        appleFrameworks.forEach { linkerOpts("-framework", it) }
-                    }
-                    "linuxX64" -> {
-                        // Same rationale as macOS: the test binary references Dawn
-                        // symbols, so its runtime loader must find the shared library.
-                        linkerOpts("-rpath", dawnLibDir)
-                        linkerOpts("-lpthread", "-ldl", "-lm")
-                    }
-                    // iOS/tvOS link static Dawn and the Apple frameworks.
-                    else -> appleFrameworks.forEach { linkerOpts("-framework", it) }
-                }
-            }
-        }
-    }
-}
 
-// The Dawn headers and shared libraries are staged by :dawn4k-native:prepareDawn.
-tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach {
-    dependsOn(":dawn4k-native:prepareDawn")
-}
-tasks.matching { it.name == "linkDebugTestMacosArm64" || it.name == "linkDebugTestLinuxX64" }.configureEach {
-    dependsOn(":dawn4k-native:prepareDawn")
 }
 
 tasks.withType<Test>().configureEach {
@@ -136,14 +63,4 @@ tasks.withType<KotlinNativeSimulatorTest>().configureEach {
             environment("SIMCTL_CHILD_$variable", value)
         }
     }
-}
-
-// The Dawn Linux archives are built against a newer glibc/libstdc++ than the
-// Kotlin/Native macOS sysroot, so the Linux test binary can only be linked on a
-// Linux host. The Linux klib is still compiled everywhere.
-if (!abiHost.startsWith("linux")) {
-    tasks.matching {
-        it.name == "linkDebugTestLinuxX64" ||
-            it.name == "linuxX64Test"
-    }.configureEach { enabled = false }
 }
