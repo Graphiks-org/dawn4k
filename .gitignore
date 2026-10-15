@@ -28,5 +28,6 @@ docs/planning/
 /dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/xcuserdata/
 # Generated demo JNI libraries, Python caches and local qualification runner.
 /dawn4k-demo/src/androidMain/jniLibs/
+/dawn4k-toolkit-surface/src/androidMain/jniLibs/
 __pycache__/
 /scripts/test-demo-mobile.py

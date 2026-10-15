@@ -44,10 +44,12 @@ internal sealed class NativeSurfaceSource {
             display = NativeAddress(this@Wayland.display); surface = NativeAddress(this@Wayland.surface)
         }.chain
     }
-    class AndroidWindow(private val window: Long) : NativeSurfaceSource() {
+    class AndroidWindow(private val window: () -> Long) : NativeSurfaceSource() {
         override fun chain(allocator: MemoryAllocator) = WGPUSurfaceSourceAndroidNativeWindow.allocate(allocator).apply {
             chain.next = null; chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow
-            window = NativeAddress(this@AndroidWindow.window)
+            val address = this@AndroidWindow.window()
+            check(address != 0L) { "Android native window is retired" }
+            window = NativeAddress(address)
         }.chain
     }
 }
