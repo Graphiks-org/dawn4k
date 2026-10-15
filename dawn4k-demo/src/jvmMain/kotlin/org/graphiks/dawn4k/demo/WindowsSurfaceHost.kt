@@ -10,7 +10,8 @@ import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.toolkit.surface.*
+import kotlinx.coroutines.flow.StateFlow
 import org.graphiks.kffi.win32.generated.CreateWindowExW
 import org.graphiks.kffi.win32.generated.DestroyWindow
 import org.graphiks.kffi.win32.generated.DispatchMessageW
@@ -57,8 +58,8 @@ internal class WindowsSurfaceHost private constructor(
         }
     }
 
-    override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface =
-        DawnSurface.createWindows(bridge, deviceHandle, hwnd.address(), hinstance.address())
+    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget =
+        DawnSurfaceTargets.win32(hwnd, hinstance, DawnPlatformOwners.awt(), states, BorrowedDemoHostRetention)
 
     /** Compose layout coordinates and GetClientRect are both physical pixels. */
     override fun pixelSize(): Pair<Int, Int> = onWindowsEdt {

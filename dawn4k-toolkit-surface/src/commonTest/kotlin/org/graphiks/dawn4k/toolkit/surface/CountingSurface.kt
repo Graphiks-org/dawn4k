@@ -11,6 +11,7 @@ internal class CountingSurface : NativeSurface {
     var closes = 0
     var unconfigurations = 0
     var capabilityFailure: Throwable? = null
+    var advertised = SurfaceCapabilities(listOf(GPUTextureFormat.BGRA8Unorm), listOf(DawnAlphaMode.Opaque), listOf(DawnPresentMode.Fifo))
     var onCapabilities: () -> Unit = {}
     var onClose: () -> Unit = {}
     val releases = mutableListOf<String>()
@@ -18,7 +19,7 @@ internal class CountingSurface : NativeSurface {
     override fun capabilities(): SurfaceCapabilities {
         onCapabilities()
         capabilityFailure?.let { throw it }
-        return SurfaceCapabilities(listOf(GPUTextureFormat.BGRA8Unorm), listOf(DawnAlphaMode.Opaque), listOf(DawnPresentMode.Fifo))
+        return advertised
     }
     override fun configure(configuration: DawnSurfaceConfiguration) { configurations++ }
     override fun unconfigure() { unconfigurations++ }

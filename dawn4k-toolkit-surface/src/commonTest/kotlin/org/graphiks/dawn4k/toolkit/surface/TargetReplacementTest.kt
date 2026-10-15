@@ -4,8 +4,39 @@ import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.dawn4k.toolkit.surface.internal.*
 import kotlin.test.*
+import org.graphiks.webgpu.GPUTextureFormat
 
 class TargetReplacementTest {
+    @Test fun replacementCanRequireTheExistingSceneFormatAndKeepsItOnAcquisition() = runTest {
+        val old = CountingTarget(1)
+        val rgba = CountingSurface().apply { advertised = advertised.copy(formats = listOf(GPUTextureFormat.RGBA8Unorm)) }
+        val controller = controller(old, rgba)
+        controller.initialize()
+        val fresh = CountingTarget(2)
+        val both = CountingSurface().apply { advertised = advertised.copy(formats = listOf(GPUTextureFormat.BGRA8Unorm, GPUTextureFormat.RGBA8Unorm)) }
+        controller.replaceTarget(fresh, attachment(fresh, both), DawnPresentationOptions(requiredFormat = GPUTextureFormat.RGBA8Unorm))
+        assertEquals(GPUTextureFormat.RGBA8Unorm, controller.configuration.value?.format)
+        controller.acquireFrame()!!.close()
+        assertEquals(GPUTextureFormat.RGBA8Unorm, controller.configuration.value?.format)
+        controller.retire()
+    }
+
+    @Test fun rejectedReplacementOptionsDoNotChangeTheActiveConfiguration() = runTest {
+        val old = CountingTarget(1)
+        val controller = controller(old, CountingSurface())
+        controller.initialize()
+        val fresh = CountingTarget(2)
+        assertFailsWith<IllegalArgumentException> {
+            controller.replaceTarget(fresh, attachment(fresh, CountingSurface()),
+                DawnPresentationOptions(requiredFormat = GPUTextureFormat.RGBA8Unorm))
+        }
+        assertEquals(1L, controller.activeGeneration)
+        controller.acquireFrame()!!.close()
+        assertEquals(GPUTextureFormat.BGRA8Unorm, controller.configuration.value?.format)
+        assertEquals(1, fresh.retirements)
+        controller.retire()
+    }
+
     @Test fun zeroExtentDoesNotConfigure() = runTest {
         val target = CountingTarget(1, PixelExtent(0, 0))
         val native = CountingSurface()

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.TimeSource
+import org.graphiks.dawn4k.toolkit.DawnSession
 
 private val demoTimeOrigin = TimeSource.Monotonic.markNow()
 internal fun demoMonotonicNanos(): Long = demoTimeOrigin.elapsedNow().inWholeNanoseconds
@@ -21,6 +22,10 @@ internal class DemoSessionController(
     val state = mutableState.asStateFlow()
     private val mutableSurface = MutableStateFlow<DemoSurfaceLease?>(null)
     val surface = mutableSurface.asStateFlow()
+    private val mutableGpuSession = MutableStateFlow<DawnSession?>(null)
+    internal val gpuSession = mutableGpuSession.asStateFlow()
+    internal fun sessionOpened(gpu: DawnSession) { mutableGpuSession.value = gpu }
+    internal fun sessionClosed(gpu: DawnSession) { mutableGpuSession.compareAndSet(gpu, null) }
     val evidence = DemoEvidence(this)
     private val frameLock = Mutex()
     internal val frameClock = ParticleFrameClock()
@@ -58,14 +63,29 @@ internal class DemoSessionController(
     internal suspend fun <T> withSurface(block: suspend (DemoSurfaceLease?) -> T): T =
         frameLock.withLock { block(mutableSurface.value) }
 
-    private suspend fun retireSurface() = frameLock.withLock {
-        val lease = mutableSurface.value
-        mutableSurface.value = null
-        try { releasePresentation?.invoke() }
-        finally {
-            releasePresentation = null
-            lease?.close()
+    private suspend fun retireSurface() {
+        var failure: Throwable? = null
+        val lease = frameLock.withLock {
+            val previous = mutableSurface.value
+            mutableSurface.value = null
+            try { releasePresentation?.invoke() }
+            catch (caught: Throwable) { failure = caught }
+            finally { releasePresentation = null }
+            previous
         }
+        // A failed detach may require full session shutdown. The renderer must be
+        // able to take frameLock for its resource cleanup before Core can retry it.
+        withContext(NonCancellable) {
+            failure?.let { caught ->
+                renderer?.cancelAndJoin()
+                failed(state.value.id, caught.message ?: caught.toString())
+            }
+            try { lease?.awaitRetirement(); lease?.close() }
+            catch (caught: Throwable) {
+                if (failure == null) failure = caught else if (failure !== caught) failure?.addSuppressed(caught)
+            }
+        }
+        failure?.let { throw it }
     }
 
     fun attach(lease: DemoSurfaceLease) {
@@ -118,8 +138,8 @@ internal class DemoSessionController(
         mutableState.value = state.value.copy(phase = DemoPhase.Stopping)
         renderer?.cancelAndJoin()
         renderer = null
-        retireSurface()
-        mutableState.value = state.value.copy(phase = DemoPhase.Stopped)
+        try { retireSurface() }
+        finally { mutableState.value = state.value.copy(phase = DemoPhase.Stopped) }
     }
 
     suspend fun stop() = acknowledged { stopOwned() }

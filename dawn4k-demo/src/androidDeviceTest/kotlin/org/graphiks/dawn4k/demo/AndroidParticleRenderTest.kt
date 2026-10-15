@@ -3,7 +3,7 @@ package org.graphiks.dawn4k.demo
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
-import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
@@ -13,7 +13,8 @@ import kotlin.test.assertTrue
 
 class AndroidParticleRenderTest {
     @Test fun vulkanParticleDrawProducesNonblackPixelsNotJustSuccessfulPresent() = runBlocking {
-        DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { _, _, device ->
+        withDawnSession(DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan))) { gpu ->
+                    val device = gpu.device
                     device.pushErrorScope(GPUErrorFilter.Validation)
                     device.createTexture(TextureDescriptor(size = Extent3D(64u, 64u),
                         format = GPUTextureFormat.RGBA8Unorm,

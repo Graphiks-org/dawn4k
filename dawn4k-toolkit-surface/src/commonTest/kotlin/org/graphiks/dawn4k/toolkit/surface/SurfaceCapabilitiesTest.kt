@@ -3,8 +3,24 @@ package org.graphiks.dawn4k.toolkit.surface
 import org.graphiks.dawn4k.toolkit.surface.internal.*
 import org.graphiks.webgpu.GPUTextureFormat
 import kotlin.test.*
+import org.graphiks.kffi.NativeAddress
 
 class SurfaceCapabilitiesTest {
+    @Test fun capabilityPointersAndCountsAreCheckedBeforeReadingNativeMemory() {
+        assertEquals(emptyList(), readSurfaceEnums(null, 0uL))
+        assertFailsWith<IllegalStateException> { readSurfaceEnums(null, 1uL) }
+        assertFailsWith<IllegalStateException> { readSurfaceEnums(NativeAddress(1L), ULong.MAX_VALUE) }
+    }
+
+    @Test fun preferenceOrderDoesNotDependOnAdvertisementOrder() {
+        val capabilities = SurfaceCapabilities(
+            listOf(GPUTextureFormat.RGBA8Unorm, GPUTextureFormat.BGRA8Unorm),
+            listOf(DawnAlphaMode.Opaque, DawnAlphaMode.Auto), listOf(DawnPresentMode.Fifo),
+        )
+        val selected = capabilities.select(DawnPresentationOptions(), PixelExtent(4, 4))
+        assertEquals(GPUTextureFormat.BGRA8Unorm, selected.format)
+        assertEquals(DawnAlphaMode.Auto, selected.alphaMode)
+    }
     private val advertised = SurfaceCapabilities(
         listOf(GPUTextureFormat.RGBA8Unorm), listOf(DawnAlphaMode.Opaque), listOf(DawnPresentMode.Immediate),
     )

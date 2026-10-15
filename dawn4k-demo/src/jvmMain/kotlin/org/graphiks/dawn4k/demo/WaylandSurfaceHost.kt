@@ -10,7 +10,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.toolkit.surface.*
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.StateFlow
 
 /** Owns the Wayland objects. A close event cancels rendering, but never destroys Dawn's live handles. */
 internal class WaylandSurfaceHost private constructor(
@@ -107,14 +109,11 @@ internal class WaylandSurfaceHost private constructor(
         }
     }
 
-    override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface {
-        check(!closed.get()) { "the Wayland host is closed" }
-        val (display, surface) = onOwner {
-            failure?.let { throw it }
-            check(state.pixelSize().first > 0) { "Wayland must acknowledge initial configure before creating the Dawn surface" }
-            WaylandNative.display(native).address() to WaylandNative.surface(native).address()
-        }
-        return DawnSurface.createWayland(bridge, deviceHandle, display, surface)
+    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget = onOwner {
+        check(!closed.get())
+        failure?.let { throw it }
+        DawnSurfaceTargets.wayland(WaylandNative.display(native).address(), WaylandNative.surface(native).address(),
+            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, BorrowedDemoHostRetention)
     }
 
     override fun close() {

@@ -26,7 +26,7 @@ class WaylandDemoWindowTest {
         val host = WaylandSurfaceHost.open(controls) { scope.cancel() }
         try {
             awaitWaylandSize(host)
-            val rendering = scope.launch { runParticleDemo(host, controls, true) }
+            val rendering = scope.launch { runParticleDemo(host, controls) }
             try {
                 awaitWaylandTrace(trace, controls, "first frame") { it.contains("frame 1 rendered") }
                 swayCommand("[app_id=\"org.graphiks.dawn4k.demo\" pid=${ProcessHandle.current().pid()}] focus")

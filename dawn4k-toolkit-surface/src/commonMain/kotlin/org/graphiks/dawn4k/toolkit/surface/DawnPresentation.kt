@@ -51,7 +51,13 @@ class DawnPresentation internal constructor(
         }
     }
 
-    suspend fun replaceTarget(target: DawnSurfaceTarget) {
+    suspend fun replaceTarget(target: DawnSurfaceTarget) = replaceTargetWithOptions(target, null)
+
+    /** Applies the new policy only after successful attachment, for example to retain an existing pipeline's format. */
+    suspend fun replaceTarget(target: DawnSurfaceTarget, options: DawnPresentationOptions) =
+        replaceTargetWithOptions(target, options)
+
+    private suspend fun replaceTargetWithOptions(target: DawnSurfaceTarget, options: DawnPresentationOptions?) {
         checkOutsideFrame()
         check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
         gpu.executionOwner.run {
@@ -62,7 +68,7 @@ class DawnPresentation internal constructor(
                 try {
                     replacement = factory.create(lease, gpu.context)
                     replacement.bind(gpu)
-                    controller.replaceTarget(target, replacement)
+                    controller.replaceTarget(target, replacement, options)
                     observe(target)
                 } catch (failure: Throwable) {
                     withContext(NonCancellable) {

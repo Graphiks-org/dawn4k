@@ -39,7 +39,7 @@ kotlin {
     compilerOptions { optIn.add("kotlin.ExperimentalUnsignedTypes") }
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":dawn4k"))
+            implementation(project(":dawn4k-toolkit-surface"))
             implementation(libs.suite.demos)
             implementation(libs.webgpu.descriptors)
             implementation(libs.kotlinx.coroutines.core)
@@ -52,6 +52,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(project(":dawn4k-toolkit-surface"))
         }
         // Android host tests use SDK stubs, not a Compose UI runtime. Keep
         // pure common tests there; UI tests still run on desktop and the device.
@@ -103,27 +104,6 @@ kotlin {
 }
 
 tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach { dependsOn(":dawn4k-native:prepareDawn") }
-val androidSdk = providers.environmentVariable("ANDROID_HOME")
-    .orElse(providers.environmentVariable("ANDROID_SDK_ROOT"))
-    .orElse("${System.getProperty("user.home")}/Library/Android/sdk")
-val buildAndroidWindow = listOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android").map { (abi, triple) ->
-    tasks.register<Exec>("buildAndroidWindow${if (abi == "arm64-v8a") "Arm64" else "X64"}") {
-        val output = layout.projectDirectory.file("src/androidMain/jniLibs/$abi/libdawn4k_demo_window.so")
-        inputs.file("src/androidMain/c/android_window.c")
-        inputs.property("ndk", "28.2.13676358")
-        outputs.file(output)
-        doFirst {
-            val host = if (System.getProperty("os.name").lowercase().contains("mac")) "darwin-x86_64" else "linux-x86_64"
-            val compiler = "${androidSdk.get()}/ndk/28.2.13676358/toolchains/llvm/prebuilt/$host/bin/${triple}24-clang"
-            output.asFile.parentFile.mkdirs()
-            commandLine(compiler, "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
-                "src/androidMain/c/android_window.c", "-landroid", "-o", output.asFile.absolutePath)
-        }
-    }
-}
-tasks.matching { it.name == "mergeAndroidMainJniLibFolders" || it.name == "bundleAndroidMainAar" }.configureEach {
-    dependsOn(buildAndroidWindow)
-}
 val jvmTarget = kotlin.targets.getByName("jvm") as KotlinJvmTarget
 val jvmMainCompilation = jvmTarget.compilations.getByName("main")
 val jvmTestCompilation = jvmTarget.compilations.getByName("test")
@@ -246,7 +226,7 @@ fun registerWaylandBuild(name: String, target: String, cross: Boolean, test: Boo
             print(run(directory.resolve("abi").path))
             val server = flags(run("pkg-config", "--cflags", "--libs", "wayland-server"))
             waylandCommands.run(projectDir, environment, listOf(compiler) + common +
-                listOf("-fsanitize=address,undefined", "-g", "src/test/c/wayland-host-test.c") +
+                listOf("-fsanitize=address,undefined", "-Wl,--wrap=poll", "-g", "src/test/c/wayland-host-test.c") +
                 sources + libraries + server + listOf("-pthread", "-o", directory.resolve("test").path))
             print(run(directory.resolve("test").path))
         }

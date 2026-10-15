@@ -6,7 +6,7 @@ import org.graphiks.dawn4k.toolkit.surface.*
 
 internal class PresentationController(
     attachment: SurfaceAttachment,
-    private val options: DawnPresentationOptions,
+    private var options: DawnPresentationOptions,
     private val recreate: () -> NativeSurface,
 ) {
     private var attachment: SurfaceAttachment? = attachment
@@ -81,18 +81,20 @@ internal class PresentationController(
         return null
     }
 
-    suspend fun replaceTarget(target: DawnSurfaceTarget, replacement: SurfaceAttachment) {
+    suspend fun replaceTarget(target: DawnSurfaceTarget, replacement: SurfaceAttachment, replacementOptions: DawnPresentationOptions? = null) {
         check(active == null) { "cannot replace a target during frame use" }
         val state = replacement.lease.state.value
         require(state.generation == target.state.value.generation) { "retained target changed generation" }
         require(state.generation != activeGeneration) { "replacement must use a fresh target generation" }
+        val selectedOptions = replacementOptions ?: options
         try {
             val caps = replacement.surface.capabilities()
-            val config = caps.select(options, state.extent)
+            val config = caps.select(selectedOptions, state.extent)
             if (state.available && state.extent.isPositive) replacement.surface.configure(config)
             attachment?.retire()
             attachment = replacement
             capabilities = caps
+            options = selectedOptions
             selected.value = config
             reconfigure = false
         } catch (failure: Throwable) {

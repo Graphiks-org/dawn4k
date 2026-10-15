@@ -5,9 +5,8 @@ package org.graphiks.dawn4k.demo
 import kotlinx.cinterop.objcPtr
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.DawnDevice
-import org.graphiks.dawn4k.NativeBridge
 import platform.QuartzCore.CAMetalLayer
+import org.graphiks.dawn4k.toolkit.surface.*
 
 /** Strongly retains only the layer until the controller acknowledges native retirement. */
 internal class IosSurfaceHost(
@@ -18,17 +17,22 @@ internal class IosSurfaceHost(
     private val retainedLayer = MutableStateFlow<CAMetalLayer?>(layer)
     private val alive = MutableStateFlow(true)
     private val dimensions = MutableStateFlow(extent)
+    private val states = MutableStateFlow(DawnTargetState(generation,
+        org.graphiks.dawn4k.toolkit.surface.PixelExtent(extent.width, extent.height), true))
+    private val retainedTarget = RetiringDemoTarget(metalLayerTarget(layer, states))
+    override val target: DawnSurfaceTarget get() = retainedTarget
+    override suspend fun awaitRetirement() = retainedTarget.awaitRetirement()
     val layerPointer: Long get() = retainedLayer.value?.objcPtr()?.toLong() ?: 0L
     override val backend = DawnBackend.Metal
     override val valid get() = alive.value && retainedLayer.value != null
-    fun resize(extent: PixelExtent) { dimensions.value = extent }
-    fun invalidate() { alive.value = false }
-    override fun pixelExtent() = dimensions.value
-    override fun createSurface(bridge: NativeBridge, device: DawnDevice): DawnSurface {
-        check(valid) { "iOS viewport lease is invalid" }
-        return DawnSurface.createMetal(bridge, device.nativeHandle(), layerPointer)
+    fun resize(extent: PixelExtent) {
+        dimensions.value = extent
+        states.value = states.value.copy(extent = org.graphiks.dawn4k.toolkit.surface.PixelExtent(extent.width, extent.height))
     }
+    fun invalidate() { alive.value = false; states.value = states.value.copy(available = false) }
+    override fun pixelExtent() = dimensions.value
     override fun close() {
+        retainedTarget.requireRetired()
         invalidate()
         retainedLayer.value = null
     }

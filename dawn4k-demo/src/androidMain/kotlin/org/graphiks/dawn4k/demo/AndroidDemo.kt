@@ -84,7 +84,7 @@ private class ParticleSurfaceView(
         // Never block Android's main thread; controller retires under frame lock.
         CoroutineScope(Dispatchers.Default).launch {
             try { controller.detach(retired.generation) }
-            finally { retired.close() }
+            finally { withContext(NonCancellable) { retired.awaitRetirement(); retired.close() } }
         }
     }
 }

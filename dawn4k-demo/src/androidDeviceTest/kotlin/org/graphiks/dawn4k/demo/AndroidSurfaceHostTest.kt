@@ -2,15 +2,14 @@ package org.graphiks.dawn4k.demo
 
 import android.graphics.SurfaceTexture
 import android.view.Surface
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlinx.coroutines.*
+import org.graphiks.dawn4k.*
+import org.graphiks.dawn4k.toolkit.*
+import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
+import kotlin.test.*
 
 class AndroidSurfaceHostTest {
-    @Test fun nullAndReleasedSurfacesCannotBecomeNativePresentationTargets() {
-        assertEquals(0L, AndroidNativeWindow.acquire(null))
+    @Test fun releasedSurfacesCannotBecomeNativePresentationTargets() {
         val texture = SurfaceTexture(false)
         val surface = Surface(texture)
         try {
@@ -19,21 +18,33 @@ class AndroidSurfaceHostTest {
         } finally { texture.release() }
     }
 
-    @Test fun retainedWindowSurvivesJavaSurfaceReleaseUntilLeaseRetirement() {
+    @Test fun retainedWindowSurvivesJavaSurfaceReleaseUntilLeaseRetirement(): Unit = runBlocking {
         val texture = SurfaceTexture(false)
+        texture.setDefaultBufferSize(32, 32)
         val surface = Surface(texture)
+        var retained: DawnTargetLease? = null
+        var host: AndroidSurfaceHost? = null
         try {
-            val lease = AndroidSurfaceHost(1, surface, PixelExtent(32, 32))
-            assertTrue(lease.nativeWindow != 0L)
+            val lease = AndroidSurfaceHost(1, surface, PixelExtent(32, 32)).also { host = it }
+            val native = lease.target.retain().also { retained = it }
             surface.release()
             assertTrue(lease.valid)
+            withDawnSession(DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan))) { gpu ->
+                native.createSurface(gpu.context).use { reference -> assertNotEquals(0L, reference.nativeHandle()) }
+            }
             lease.invalidate()
             assertFalse(lease.valid)
-            assertTrue(lease.nativeWindow != 0L, "invalidation must not release before surface retirement")
+            val retired = async { lease.awaitRetirement(); lease.close() }
+            yield()
+            assertFalse(retired.isCompleted, "the UI host must wait for toolkit target acknowledgment")
+            native.retire()
+            retired.await()
             lease.close()
-            lease.close()
-            assertEquals(0L, lease.nativeWindow)
-        } finally { surface.release(); texture.release() }
+            assertFailsWith<IllegalStateException> { lease.target.retain() }
+        } finally {
+            withContext(NonCancellable) { retained?.retire(); host?.awaitRetirement(); host?.close() }
+            surface.release(); texture.release()
+        }
     }
 
     @Test fun replacementGenerationHasIndependentRetainedReferenceAndExtent() {
