@@ -5,6 +5,16 @@ import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import kotlin.test.*
 
 class GlfwPlatformTest {
+    @Test fun mainThreadIsAcceptedAndWorkerNamedMainIsRejected() {
+        requireGlfwMainThread()
+        var failure: Throwable? = null
+        Thread({ failure = runCatching { requireGlfwMainThread() }.exceptionOrNull() }, "main").apply {
+            start()
+            join()
+        }
+        assertIs<IllegalStateException>(failure)
+    }
+
     @Test fun usesFramebufferSizeNotLogicalSize() {
         val backend = RecordingBackend()
         assertEquals(PixelExtent(300, 150), WindowSurfaceState(backend, 1).extent.value)

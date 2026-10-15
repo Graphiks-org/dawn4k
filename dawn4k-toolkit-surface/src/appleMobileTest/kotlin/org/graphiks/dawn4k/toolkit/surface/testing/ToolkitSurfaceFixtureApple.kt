@@ -20,6 +20,7 @@ internal actual fun toolkitSurfaceTest(block: suspend (ToolkitSurfaceFixture) ->
     val presented = openDawnSurface(target, ToolkitGpuEnvironment.options)
     try {
         presented.gpu.run {
+            println("TOOLKIT_PRESENTATION kind=metal")
             block(ToolkitSurfaceFixture(presented.gpu, presented.presentation) { width, height ->
                 owner.onOwner {
                     view.setFrame(CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()))

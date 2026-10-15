@@ -46,12 +46,14 @@ class PresentationDeadlineTest {
         }
         val factory = SurfaceFactory { lease, _ -> SurfaceAttachment(lease, null, { native }, native::close) }
         val opening = async(Dispatchers.Default) {
-            runCatching { openDawnSurface(target, DawnSessionOptions(startupTimeout = 250.milliseconds,
+            // This fixture creates a real GPU before entering the blocked capability phase.
+            // Leave room for cold driver/JIT startup, including emulated Linux execution.
+            runCatching { openDawnSurface(target, DawnSessionOptions(startupTimeout = 5_000.milliseconds,
                 shutdownTimeout = 100.milliseconds), DawnPresentationOptions(), factory) }
         }
         try {
-            withTimeout(2_000) { entered.await() }
-            val result = withTimeout(500) { opening.await() }
+            withTimeout(8_000) { entered.await() }
+            val result = withTimeout(6_000) { opening.await() }
             assertIs<TimeoutCancellationException>(result.exceptionOrNull())
             assertEquals(0, native.closes)
         } finally {

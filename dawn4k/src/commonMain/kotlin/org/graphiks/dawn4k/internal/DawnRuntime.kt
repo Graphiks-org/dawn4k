@@ -29,6 +29,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     private var instance: WGPUInstance? = null
 
     init {
+        prepareDawnRuntime()
         preparePlatformLibraries()
         instance = createInstance()
     }

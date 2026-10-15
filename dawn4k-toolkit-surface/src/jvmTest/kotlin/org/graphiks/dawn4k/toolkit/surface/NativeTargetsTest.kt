@@ -130,8 +130,7 @@ class NativeTargetsTest {
             }
             val lease = hostTarget(owner(worker), retention).retain()
             waiting = async { withTimeout(20) { lease.retire() } }
-            delay(100)
-            assertTrue(waiting.isCompleted)
+            withTimeout(5_000) { waiting.join() }
             assertFailsWith<TimeoutCancellationException> { waiting.await() }
             gate.complete(Unit)
             lease.retire()

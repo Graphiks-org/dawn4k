@@ -18,6 +18,7 @@ internal actual fun toolkitSurfaceTest(block: suspend (ToolkitSurfaceFixture) ->
         val presented = openDawnSurface(view.target, ToolkitGpuEnvironment.options)
         try {
             presented.gpu.run {
+                println("TOOLKIT_PRESENTATION kind=android")
                 block(ToolkitSurfaceFixture(presented.gpu, presented.presentation) { width, height ->
                     val previous = view.target.state.value.extent
                     DawnPlatformOwners.androidMain().onOwner {

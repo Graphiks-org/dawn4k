@@ -10,6 +10,8 @@ normal WebGPU calls.
 | `org.graphiks:dawn4k-toolkit-surface` | External targets, supplied mobile views, frames | Same nine targets |
 | `org.graphiks:dawn4k-toolkit-glfw` | Desktop windows and main loop | JVM, macOS ARM64, Linux x64 |
 
+JVM native runtimes cover macOS ARM64, Linux x64/ARM64 and Windows x64.
+
 Add the smallest dependency that provides the host you need. Surface depends on
 core; GLFW depends on surface. Use the same release version as `dawn4k`. The
 unpublished `dawn4k-toolkit-examples` module contains the complete runnable code.
@@ -48,7 +50,7 @@ track arbitrary resources created through `device`.
 `withDawnWindow { gpu, window, presentation -> ... }` starts a process-main-thread
 GLFW loop, creates a compatible GPU and owns its window. Call it from
 `fun main() = runBlocking { ... }`, with `-XstartOnFirstThread` on macOS JVM. Do not wrap it in a dispatcher
-that moves process-main-thread work to a worker. JVM requires Java 25 and
+that moves process-main-thread work to a worker. JVM requires Java 25 HotSpot and
 `--enable-native-access=ALL-UNNAMED`.
 
 ```kotlin
@@ -159,7 +161,33 @@ runs compute and displays the triangle. Open the examples' Apple Xcode project
 and select the `ToolkitIOS` or `ToolkitTVOS` scheme; the shared Kotlin framework
 is built by its build phase. The examples use public toolkit/backend APIs.
 
-The Android sample requires API 28 or newer, matching the descriptor dependency.
+The core/surface libraries and Android sample require API 28 or newer, matching
+the descriptor dependency.
+
+## Publication checks
+
+`./gradlew verifyToolkitPublication` publishes the five library modules locally
+and checks that core/surface expose exactly nine Kotlin targets and GLFW three.
+`python3 scripts/verify-toolkit-consumers.py --maven-root ~/.m2/repository` builds
+an independent copy of the public examples using Maven coordinates, including
+Native executables/frameworks and a minified Android APK. It imports no build
+conventions or native-library search paths from this checkout.
+
+Native Apple variants embed static Dawn. Native Linux embeds the verified Dawn
+ELF in its cinterop carrier, checks loading before bootstrap, and extracts it to
+an anonymous memory file (or a temporary file when unavailable). The pinned
+Linux runtime requires glibc 2.38 and libstdc++ with `GLIBCXX_3.4.32`; embedding
+does not lower those runtime requirements. No repository path is needed at run
+time. A macOS publication host must receive source-identified, checksum-verified
+Linux Dawn/GLFW bundles; the publication workflow builds them on Ubuntu first.
+
+`./gradlew verifyToolkitCoverage` checks the complete execution matrix from
+portable `build/toolkit-coverage/**/summary.json` reports and their JUnit/log
+evidence. `-Ptoolkit.coverage.dir=...` selects downloaded reports. A local subset
+can be stated explicitly with `-Ptoolkit.coverage.require=module:target:presentation:gpu`;
+the default and CI aggregation always require the full matrix. Missing adapters,
+missing test cases, failed/skipped tests or absent execution markers fail the
+check. The existing protected `build-and-test` job also requires this workflow.
 
 ## Validation coverage
 

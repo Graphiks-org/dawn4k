@@ -74,6 +74,7 @@ The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) impleme
 - **Fast-Track (Feature branches)**: Compiles and tests the JVM targets (`./gradlew jvmTest`), including adapter-dependent tests.
 - **Deep-Testing (Branches / Pull Requests to `master`)**: Runs root project checks (`./gradlew check`), including host-supported tests and Android/lint checks. Apple simulators are booted on macOS only.
 - **Platform matrix**: Both strategies run on macOS 26 (Metal), Ubuntu 24.04 (Vulkan via Mesa lavapipe) and Windows 2025 (D3D12, JVM tests only). Adapter availability is mandatory on every runner; a missing driver/adapter fails the tests. Reports are uploaded even on failure, and the required `build-and-test` check succeeds only when the entire matrix passes.
+- **Toolkit qualification**: A reusable workflow additionally requires JVM Linux ARM64, Native macOS/Linux X11 and Wayland, ARM64 iOS/tvOS and Intel iOS simulator execution, Android Vulkan instrumentation, and coordinate-only Maven consumers including minified Android. iOS/tvOS device compilation remains distinct from physical-device GPU validation. Missing/skipped acceptance suites fail the existing `build-and-test` gate.
 
 ---
 

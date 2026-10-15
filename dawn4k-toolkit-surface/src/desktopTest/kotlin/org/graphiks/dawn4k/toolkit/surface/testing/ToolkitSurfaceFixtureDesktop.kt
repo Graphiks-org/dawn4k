@@ -5,8 +5,11 @@ import kotlinx.coroutines.flow.first
 import org.graphiks.dawn4k.toolkit.glfw.*
 import org.graphiks.dawn4k.toolkit.testing.ToolkitGpuEnvironment
 
+internal expect fun toolkitDesktopPresentationKind(): String
+
 internal actual fun toolkitSurfaceTest(block: suspend (ToolkitSurfaceFixture) -> Unit): Unit = runBlocking {
     withDawnWindow(DawnWindowOptions(width = 32, height = 32), ToolkitGpuEnvironment.options) { gpu, window, presentation ->
+        println("TOOLKIT_PRESENTATION kind=${toolkitDesktopPresentationKind()}")
         block(ToolkitSurfaceFixture(gpu, presentation) { width, height ->
             val previous = window.extent.value
             window.resize(width, height)

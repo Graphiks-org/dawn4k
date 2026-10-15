@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.first
 import org.lwjgl.glfw.GLFW
 import org.junit.Assume.assumeTrue
 import org.graphiks.dawn4k.DawnCommandEncoder
+import org.graphiks.dawn4k.DawnBackend
+import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.dawn4k.toolkit.surface.*
 import org.graphiks.webgpu.*
@@ -171,9 +173,14 @@ class DawnWindowTest {
     }
     @Test fun liveWindowRendersAndCloses() {
         assumeTrue(System.getenv("DAWN_DESKTOP_TESTS") == "1")
+        val backend = DawnBackend.valueOf(System.getenv("DAWN_TEST_BACKEND") ?: when {
+            System.getProperty("os.name").startsWith("Mac") -> "Metal"
+            System.getProperty("os.name").startsWith("Windows") -> "D3D12"
+            else -> "Vulkan"
+        })
         var captured: DawnWindow? = null
         runBlocking {
-            withDawnWindow(DawnWindowOptions(width = 64, height = 64)) { gpu, window, presentation ->
+            withDawnWindow(DawnWindowOptions(width = 64, height = 64), DawnSessionOptions(config = DawnConfig(backend))) { gpu, window, presentation ->
                 captured = window
                 assertTrue(window.extent.value.isPositive)
                 assertTrue(presentation.withFrame { frame ->
@@ -187,6 +194,15 @@ class DawnWindowTest {
                     gpu.queue.onSubmittedWorkDone().getOrThrow()
                     frame.present()
                 })
+                println("TOOLKIT_GLFW backend=$backend required=${System.getenv("DAWN_REQUIRE_ADAPTER") ?: "1"} device=${gpu.adapter.info.device}")
+                val kind = when (GLFW.glfwGetPlatform()) {
+                    GLFW.GLFW_PLATFORM_COCOA -> "metal"
+                    GLFW.GLFW_PLATFORM_WIN32 -> "win32"
+                    GLFW.GLFW_PLATFORM_X11 -> "x11"
+                    GLFW.GLFW_PLATFORM_WAYLAND -> "wayland"
+                    else -> error("No active desktop presentation platform")
+                }
+                println("TOOLKIT_PRESENTATION kind=$kind")
                 assertFailsWith<IllegalStateException> { window.shutdown() }
                 window.requestClose()
             }

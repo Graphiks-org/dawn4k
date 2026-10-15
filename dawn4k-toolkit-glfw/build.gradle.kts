@@ -8,6 +8,8 @@ plugins {
     kotlin("multiplatform")
     id("ygdrasil.conventions.dawn-jvm-runtime")
     id("ygdrasil.conventions.kmp-publish")
+    id("ygdrasil.conventions.kmp-dokka")
+    alias(libs.plugins.dokka.mkdocs)
 }
 
 val prepareGlfw by tasks.registering(PrepareGlfwTask::class) {

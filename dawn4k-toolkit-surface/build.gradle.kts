@@ -7,12 +7,15 @@ plugins {
     id("ygdrasil.conventions.kmp-library")
     id("ygdrasil.conventions.dawn-jvm-runtime")
     id("ygdrasil.conventions.kmp-publish")
+    id("ygdrasil.conventions.kmp-dokka")
+    alias(libs.plugins.dokka.mkdocs)
     id("ygdrasil.conventions.dawn-native-linkage")
 }
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
         namespace = "org.graphiks.dawn4k.toolkit.surface"
+        minSdk = 28
     })
 }
 
@@ -41,7 +44,14 @@ kotlin {
     for (name in listOf("jvmTest", "macosArm64Test", "linuxX64Test")) {
         sourceSets.getByName(name).dependsOn(desktopTest)
     }
+    val desktopNativeTest = sourceSets.create("desktopNativeTest") { dependsOn(desktopTest) }
+    listOf("macosArm64Test", "linuxX64Test").forEach { sourceSets.getByName(it).dependsOn(desktopNativeTest) }
+    sourceSets.getByName("jvmTest").dependencies { implementation(libs.lwjgl.glfw) }
     android {
+        optimization.consumerKeepRules.apply {
+            publish = true
+            file("consumer-rules.pro")
+        }
         withHostTestBuilder { sourceSetTreeName = "test" }.configure {}
         withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

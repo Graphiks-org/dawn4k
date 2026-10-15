@@ -8,6 +8,11 @@ docs_dir: docs
 site_dir: ../_site
 use_directory_urls: false
 
+# API declarations are reached through their module and package indexes.
+validation:
+  nav:
+    omitted_files: ignore
+
 theme:
   name: material
   features:
@@ -39,6 +44,7 @@ theme:
 markdown_extensions:
   - admonition
   - tables
+  - md_in_html
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:

@@ -14,9 +14,9 @@ internal actual fun requireGlfwMainThread() {
     val main = when {
         "mac" in os -> call("pthread_main_np") != 0
         else -> {
-            @Suppress("DEPRECATION")
-            val id = Thread.currentThread().id
-            id == 1L
+            // Java 25 HotSpot reserves IDs 1 and 2; its primordial thread has ID 3.
+            // Do not use the mutable thread name: a worker can also be named "main".
+            Thread.currentThread().threadId() == 3L
         }
     }
     check(main) { "GLFW requires the process main thread; macOS JVM launchers need -XstartOnFirstThread" }

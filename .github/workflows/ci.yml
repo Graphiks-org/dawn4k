@@ -9,7 +9,17 @@ on:
       - '**'
 
 jobs:
+  native-bundles:
+    uses: ./.github/workflows/toolkit-native-bundles.yml
+
+  toolkit:
+    needs: native-bundles
+    uses: ./.github/workflows/toolkit-platforms.yml
+    with:
+      native-bundle-artifact: toolkit-linux-native-bundles
+
   tests:
+    needs: native-bundles
     name: Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}
@@ -62,12 +72,25 @@ jobs:
 
       - name: Install Android platform
         if: runner.os != 'Windows'
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
 
       - name: Install Android platform on Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: '& "$env:ANDROID_HOME\cmdline-tools\23.0\bin\sdkmanager.bat" "platforms;android-37.0" "build-tools;37.0.0"'
+        run: '& "$env:ANDROID_HOME\cmdline-tools\23.0\bin\sdkmanager.bat" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+
+      - uses: actions/download-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: toolkit-linux-native-bundles
+          path: build/publication-bundles
+
+      - name: Configure verified foreign native bundles
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$HOME/.gradle"
+          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
+          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
 
       - name: Install and select CPU Vulkan adapter
         if: runner.os == 'Linux'
@@ -88,10 +111,10 @@ jobs:
         id: test-strategy
         run: |
           if [[ "${{ github.base_ref }}" == "master" || "${{ github.ref }}" == "refs/heads/master" ]]; then
-            echo "strategy=deep" >> $GITHUB_OUTPUT
+            echo "strategy=deep" >> "$GITHUB_OUTPUT"
             echo "Running root project checks for master branch / merge request."
           else
-            echo "strategy=fast-track" >> $GITHUB_OUTPUT
+            echo "strategy=fast-track" >> "$GITHUB_OUTPUT"
             echo "Running JVM Fast-Track tests only."
           fi
 
@@ -127,10 +150,11 @@ jobs:
   # Preserve the required branch-protection check and require all three runners.
   build-and-test:
     runs-on: ubuntu-24.04
-    needs: tests
+    needs: [tests, toolkit]
     if: always()
     steps:
       - name: Require every test platform to pass
         env:
           TEST_RESULT: ${{ needs.tests.result }}
-        run: test "$TEST_RESULT" = success
+          TOOLKIT_RESULT: ${{ needs.toolkit.result }}
+        run: test "$TEST_RESULT" = success && test "$TOOLKIT_RESULT" = success

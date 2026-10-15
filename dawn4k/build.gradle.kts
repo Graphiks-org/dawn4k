@@ -8,6 +8,8 @@ plugins {
     id("ygdrasil.conventions.kmp-library")
     id("ygdrasil.conventions.dawn-jvm-runtime")
     id("ygdrasil.conventions.kmp-publish")
+    id("ygdrasil.conventions.kmp-dokka")
+    alias(libs.plugins.dokka.mkdocs)
     id("ygdrasil.conventions.dawn-native-linkage")
 }
 
