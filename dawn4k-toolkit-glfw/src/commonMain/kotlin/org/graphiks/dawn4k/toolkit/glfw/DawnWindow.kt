@@ -9,10 +9,22 @@ import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.dawn4k.toolkit.surface.*
 import org.graphiks.dawn4k.toolkit.glfw.internal.*
 
+internal interface WindowSession {
+    val gpu: DawnSession
+    val presentation: DawnPresentation
+    suspend fun shutdown()
+}
+
+private class PresentedWindowSession(private val session: DawnPresentedSession) : WindowSession {
+    override val gpu get() = session.gpu
+    override val presentation get() = session.presentation
+    override suspend fun shutdown() = session.shutdown()
+}
+
 class DawnWindow internal constructor(
     private val main: DawnMainThreadLoop,
     private val native: NativeWindowLease,
-    private val presented: DawnPresentedSession,
+    private val presented: WindowSession,
 ) {
     private val closed = atomic(false)
     private val closing = Mutex()
@@ -20,18 +32,21 @@ class DawnWindow internal constructor(
     val presentation: DawnPresentation get() = presented.presentation
     val extent = native.state.extent
     val events = native.state.events
-    internal val nativeHandle: Long get() { check(!closed.value); return native.handle }
+    internal val nativeHandle: Long get() { check(!closed.value); native.requireLive(); return native.handle }
 
     /** Requests a content size in window coordinates; [extent] reports the resulting framebuffer pixels. */
     suspend fun resize(width: Int, height: Int) {
         require(width > 0 && height > 0) { "window dimensions must be positive" }
         main.owner.onOwner {
             check(!closed.value) { "window is closed" }
+            native.requireLive()
             main.backend.resizeWindow(native.handle, width, height)
         }
     }
 
     suspend fun requestClose() = main.owner.onOwner {
+        check(!closed.value) { "window is closed" }
+        native.requireLive()
         main.backend.requestClose(native.handle)
         native.state.event(DawnWindowEvent.CloseRequested)
     }
@@ -73,16 +88,18 @@ internal class NativeWindowLease(
     private val runtime: GlfwRuntime.Lease,
 ) {
     val state = WindowSurfaceState(backend, handle)
-    private var destroyed = false
+    private val destroyed = atomic(false)
     private var retired = false
     private val mutex = Mutex()
 
+    fun requireLive() { check(!destroyed.value) { "window has been destroyed" } }
+
     suspend fun retire() = mutex.withLock {
         if (!retired) {
-            if (!destroyed) {
+            if (!destroyed.value) {
                 backend.awaitTargetRetirement(handle)
                 backend.destroyWindow(handle)
-                destroyed = true
+                destroyed.value = true
             }
             runtime.retire()
             retired = true
@@ -120,7 +137,7 @@ internal suspend fun openDawnWindow(
         val native = checkNotNull(lease)
         val target = mainThread.owner.onOwner { mainThread.backend.surfaceTarget(native.handle) }
         presented = openSurface(target, sessionOptions, presentationOptions)
-        val window = DawnWindow(mainThread, native, presented)
+        val window = DawnWindow(mainThread, native, PresentedWindowSession(presented))
         mainThread.owner.onOwner {
             mainThread.backend.setEventSink(native.handle, native.state::event)
             mainThread.register(window)

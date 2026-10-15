@@ -12,6 +12,8 @@ internal class RecordingBackend : GlfwBackend {
     var terminations = 0
     var creates = 0
     var destroys = 0
+    var closeRequests = 0
+    var resizeRequests = 0
     var extentFailure: Throwable? = null
     var beforeRetirement: suspend () -> Unit = {}
     var beforeTermination: () -> Unit = {}
@@ -20,6 +22,8 @@ internal class RecordingBackend : GlfwBackend {
     override fun terminate() { beforeTermination(); initialized = false; terminations++ }
     override fun createWindow(options: DawnWindowOptions): Long { creates++; return creates.toLong() }
     override fun destroyWindow(handle: Long) { destroys++ }
+    override fun requestClose(handle: Long) { closeRequests++ }
+    override fun resizeWindow(handle: Long, width: Int, height: Int) { resizeRequests++ }
     override fun pollEvents() {}
     override suspend fun awaitTargetRetirement(handle: Long) { beforeRetirement() }
     override fun pixelExtent(handle: Long): PixelExtent {
