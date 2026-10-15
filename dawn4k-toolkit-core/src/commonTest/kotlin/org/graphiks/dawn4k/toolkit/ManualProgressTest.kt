@@ -1,9 +1,31 @@
 package org.graphiks.dawn4k.toolkit
 
 import kotlinx.coroutines.test.runTest
+import org.graphiks.dawn4k.DawnContext
 import kotlin.test.*
 
 class ManualProgressTest {
+    @Test
+    fun scopedManualFailureStopsItsDriverBeforeCleanup() = runTest {
+        val owner = DawnExecutionOwner.dedicated()
+        var retained: DawnSession? = null
+        var context: DawnContext? = null
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                withDawnSession(DawnSessionOptions(execution = DawnExecutionMode.Manual(owner))) {
+                    retained = it
+                    context = it.context
+                    throw IllegalArgumentException("application failed")
+                }
+            }
+            assertEquals(0L, assertNotNull(context).nativeBridge().instanceHandle())
+        } finally {
+            retained?.manualProgress?.stop()
+            retained?.shutdown()
+            owner.close()
+        }
+    }
+
     @Test
     fun manualBootstrapHandsOffExactlyOnce() = runTest {
         val owner = DawnExecutionOwner.dedicated()

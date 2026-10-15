@@ -108,6 +108,7 @@ suspend fun <T> withDawnSession(
     try { return session.run(block) }
     catch (caught: Throwable) { failure = caught; throw caught }
     finally {
+        session.manualProgress?.stop()
         try { session.shutdown() }
         catch (cleanup: Throwable) { if (failure == null) throw cleanup else failure.addSuppressed(cleanup) }
     }
