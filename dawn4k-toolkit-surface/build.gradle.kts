@@ -17,6 +17,11 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
 }
 
 kotlin {
+    sourceSets.getByName("jvmMain").dependencies {
+        implementation(libs.kffi.objc.jvm)
+        implementation(libs.kffi.win32.jvm)
+        implementation(libs.kffi.x11.jvm)
+    }
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k-toolkit-core"))
         api(libs.kotlinx.coroutines.core)

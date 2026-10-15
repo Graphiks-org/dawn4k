@@ -1,8 +1,13 @@
 package org.graphiks.dawn4k.toolkit.surface
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.toolkit.DawnSession
+import org.graphiks.dawn4k.toolkit.DawnSessionState
 import org.graphiks.dawn4k.toolkit.surface.internal.*
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 /** Uses the GPU session owner. The application continues to own an external window or view. */
 class DawnPresentation internal constructor(
@@ -12,41 +17,70 @@ class DawnPresentation internal constructor(
 ) {
     val configuration = controller.configuration
     private val monitoring = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val frames = Mutex()
     private var watch: Job? = null
+
+    private class FrameUse(val presentation: DawnPresentation) : AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<FrameUse>
+    }
+
+    private suspend fun checkOutsideFrame() {
+        check(currentCoroutineContext()[FrameUse]?.presentation !== this) {
+            "finish the current frame before replacing or detaching its target"
+        }
+    }
 
     internal fun observe(target: DawnSurfaceTarget) {
         watch?.cancel()
         watch = monitoring.launch {
             target.state.collect { state ->
-                if (!state.available) runCatching { detachTarget(state.generation) }
+                if (!state.available) runCatching {
+                    gpu.executionOwner.run { frames.withLock { controller.detachTarget(state.generation) } }
+                }
             }
         }
     }
+
     suspend fun withFrame(block: suspend (DawnFrame) -> Unit): Boolean = gpu.run {
-        val frame = controller.acquireFrame() ?: return@run false
-        frame.use { block(it) }
-        true
-    }
-    suspend fun replaceTarget(target: DawnSurfaceTarget) = gpu.run {
-        val lease = target.retain()
-        var replacement: SurfaceAttachment? = null
-        try {
-            replacement = factory.create(lease, gpu.context)
-            replacement.bind(gpu)
-            controller.replaceTarget(target, replacement)
-            observe(target)
-        } catch (failure: Throwable) {
-            withContext(NonCancellable) {
-                try { if (replacement == null) lease.retire() else replacement.retire() }
-                catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
-            }
-            throw failure
+        checkOutsideFrame()
+        frames.withLock {
+            val frame = controller.acquireFrame() ?: return@withLock false
+            withContext(FrameUse(this@DawnPresentation)) { frame.use { block(it) } }
+            true
         }
     }
-    suspend fun detachTarget(generation: Long) = gpu.run { controller.detachTarget(generation) }
+
+    suspend fun replaceTarget(target: DawnSurfaceTarget) {
+        checkOutsideFrame()
+        check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
+        gpu.executionOwner.run {
+            frames.withLock {
+                check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
+                val lease = target.retain()
+                var replacement: SurfaceAttachment? = null
+                try {
+                    replacement = factory.create(lease, gpu.context)
+                    replacement.bind(gpu)
+                    controller.replaceTarget(target, replacement)
+                    observe(target)
+                } catch (failure: Throwable) {
+                    withContext(NonCancellable) {
+                        try { if (replacement == null) lease.retire() else replacement.retire() }
+                        catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+                    }
+                    throw failure
+                }
+            }
+        }
+    }
+
+    suspend fun detachTarget(generation: Long) {
+        checkOutsideFrame()
+        gpu.executionOwner.run { frames.withLock { controller.detachTarget(generation) } }
+    }
 
     internal suspend fun retire() {
         monitoring.cancel()
-        controller.retire()
+        frames.withLock { controller.retire() }
     }
 }

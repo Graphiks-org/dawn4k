@@ -18,6 +18,8 @@ class DawnSession internal constructor(
     private val initialization: DawnPreparedInitialization?,
 ) {
     val queue: DawnQueue get() = device.queue as DawnQueue
+    /** Borrowed owner for platform integrations with their own admission protocol; never close it while the session lives. */
+    val executionOwner: DawnExecutionOwner get() = owner
     private val admission = SessionAdmission()
     private val lifecycle = SessionLifecycle()
     val state = lifecycle.state

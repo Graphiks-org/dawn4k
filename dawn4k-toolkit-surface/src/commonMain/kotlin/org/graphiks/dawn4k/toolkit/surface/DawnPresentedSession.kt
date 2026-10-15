@@ -56,9 +56,10 @@ internal suspend fun openDawnSurface(
                 DawnNativeSurface(reference, session.adapter, session.device)
             }
             // Store the owner before capability negotiation, so failure has a cleanup route.
-            presentation = DawnPresentation(session, controller, factory)
+            val createdPresentation = DawnPresentation(session, controller, factory)
+            presentation = createdPresentation
             controller.initialize()
-            presentation!!.observe(target)
+            createdPresentation.observe(target)
         }
         return DawnPresentedSession(session, checkNotNull(presentation))
     } catch (failure: Throwable) {

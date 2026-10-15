@@ -1,12 +1,36 @@
 package org.graphiks.dawn4k.toolkit.surface
 
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.dawn4k.toolkit.surface.internal.*
 import kotlin.test.*
 
 class PresentationBootstrapTest {
+    @Test fun targetRetirementWaitsForFrameAndCanProgressInsideRun() = runTest {
+        val target = CountingTarget(1)
+        val native = CountingSurface()
+        val retired = CompletableDeferred<Unit>()
+        target.onRetire = { retired.complete(Unit) }
+        val factory = SurfaceFactory { lease, _ -> SurfaceAttachment(lease, null, { native }, native::close) }
+        val presented = openDawnSurface(target, DawnSessionOptions(), DawnPresentationOptions(), factory)
+        try {
+            presented.gpu.run {
+                presented.presentation.withFrame {
+                    target.state.value = target.state.value.copy(available = false)
+                    delay(10)
+                    assertFalse(retired.isCompleted)
+                }
+                withTimeout(1_000) { retired.await() }
+            }
+            assertEquals(listOf("view", "texture"), native.releases)
+            assertEquals(1, target.retirements)
+        } finally { presented.shutdown() }
+    }
+
     @Test fun capabilityFailureRetiresSurfaceAndTargetBeforeContext() = runTest {
         val target = CountingTarget(1)
         val native = CountingSurface().apply { capabilityFailure = IllegalStateException("unsupported capability") }
