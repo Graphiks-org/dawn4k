@@ -243,6 +243,12 @@ class DawnDevice internal constructor(
 
     override fun close() = session.close()
 
+    /** Observes future uncaptured errors without replacing descriptor callbacks or retaining history. */
+    fun observeUncapturedErrors(observer: (GPUError) -> Unit): AutoCloseable {
+        session.requireOpen()
+        return session.callbacks.observeUncapturedErrors(observer)
+    }
+
     /** The popped scope's copied outcome; owns nothing native. */
     private class ErrorScopeOutcome(
         val status: WGPUPopErrorScopeStatus,

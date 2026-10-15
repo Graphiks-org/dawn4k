@@ -6,34 +6,39 @@ import org.graphiks.dawn4k.toolkit.DawnExecutionOwner
 import kotlin.time.Duration
 
 internal class EventProgress(
-    private val context: DawnContext,
     private val owner: DawnExecutionOwner,
     private val interval: Duration,
+    private val process: () -> Unit,
+    private val pending: () -> Boolean,
 ) {
+    constructor(context: DawnContext, owner: DawnExecutionOwner, interval: Duration) :
+        this(owner, interval, context::processEvents, context::hasPendingOperations)
+
     private val scope = CoroutineScope(SupervisorJob() + owner.dispatcher)
     private var job: Job? = null
+    var onFailure: (Throwable) -> Unit = {}
+    var failure: Throwable? = null
+        private set
+
+    fun processEvents() { owner.checkThread(); process() }
 
     fun start() {
-        check(job == null)
+        if (job?.isActive == true) return
         job = scope.launch {
-            while (isActive) {
-                owner.checkThread()
-                context.processEvents()
-                delay(interval)
-            }
+            try {
+                while (isActive) { processEvents(); delay(interval) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (caught: Throwable) { failure = caught; onFailure(caught) }
         }
     }
     suspend fun drain() {
         while (true) {
-            owner.checkThread()
-            context.processEvents()
-            if (!context.hasPendingOperations()) return
+            processEvents()
+            if (!pending()) return
             delay(interval)
         }
     }
-    suspend fun stop() {
-        job?.cancelAndJoin()
-        job = null
-        scope.cancel()
-    }
+    suspend fun pause() { job?.cancelAndJoin(); job = null }
+    fun finish() { scope.cancel() }
+    suspend fun stop() { pause(); finish() }
 }

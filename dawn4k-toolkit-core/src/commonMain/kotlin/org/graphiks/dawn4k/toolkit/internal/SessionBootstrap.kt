@@ -14,27 +14,36 @@ internal suspend fun bootstrapSession(
     }
     val owner = supplied ?: DawnExecutionOwner.dedicated()
     val transaction = BootstrapTransaction()
+    var events: EventProgress? = null
     try {
         val session = owner.run {
             withTimeout(options.startupTimeout) {
                 val context = DawnContext.create(options.config)
-                val events = EventProgress(context, owner, options.progressInterval)
-                transaction.onRollback { events.drain(); events.stop(); context.close() }
-                if (options.execution is DawnExecutionMode.Managed) events.start()
+                val progress = EventProgress(context, owner, options.progressInterval)
+                events = progress
+                val bootstrapJob = currentCoroutineContext()[Job]!!
+                progress.onFailure = { bootstrapJob.cancel(CancellationException("Dawn bootstrap progression failed", it)) }
+                transaction.onRollback { progress.drain(); progress.stop(); context.close() }
+                progress.start()
                 val prepared = initialization?.prepare(context)
-                if (prepared != null) transaction.onRollback { prepared.retire() }
+                if (prepared != null) transaction.onRollback { progress.drain(); prepared.retire() }
                 val adapter = (prepared?.compatibleSurface?.let {
                     context.requestAdapter(options.adapterOptions, it)
                 } ?: context.requestAdapter(options.adapterOptions)).getOrThrow() as DawnAdapter
-                transaction.onRollback { events.drain(); adapter.close() }
+                transaction.onRollback { progress.drain(); adapter.close() }
                 val device = adapter.requestDevice(options.deviceDescriptor).getOrThrow() as DawnDevice
-                transaction.onRollback { events.drain(); device.close(); events.drain() }
-                DawnSession(context, adapter, device, owner, supplied == null, options, events, prepared)
+                transaction.onRollback { progress.drain(); device.close(); progress.drain() }
+                if (options.execution is DawnExecutionMode.Manual) progress.pause()
+                DawnSession(context, adapter, device, owner, supplied == null, options, progress, prepared).also {
+                    transaction.onRollback { it.abandonBootstrap() }
+                }
             }
         }
         transaction.commit()
+        session.activate()
         return session
-    } catch (failure: Throwable) {
+    } catch (caught: Throwable) {
+        val failure = events?.failure ?: caught
         var cleaned = false
         withContext(NonCancellable) {
             try {
@@ -45,8 +54,8 @@ internal suspend fun bootstrapSession(
             if (supplied == null) owner.close()
         } else {
             // Retain acquisitions until native callbacks become quiescent.
-            CoroutineScope(SupervisorJob() + owner.dispatcher).launch {
-                while (!transaction.rollback()) delay(options.progressInterval)
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                while (!owner.run { transaction.rollback() }) delay(options.progressInterval)
                 if (supplied == null) owner.close()
             }
         }
