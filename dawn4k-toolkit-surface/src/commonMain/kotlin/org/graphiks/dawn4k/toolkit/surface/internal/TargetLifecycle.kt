@@ -9,15 +9,16 @@ import kotlinx.coroutines.flow.first
 import org.graphiks.dawn4k.toolkit.surface.*
 
 private val generations = atomic(0L)
+internal fun nextTargetGeneration(): Long = generations.incrementAndGet()
 
 internal class TargetLifecycle {
-    private val mutableState = MutableStateFlow(DawnTargetState(generations.incrementAndGet(), PixelExtent(0, 0), false))
+    private val mutableState = MutableStateFlow(DawnTargetState.fresh(PixelExtent(0, 0), false))
     val state = mutableState.asStateFlow()
     private val invalidated = atomic(0L)
     val lastInvalidatedGeneration: Long get() = invalidated.value
 
     fun available(extent: PixelExtent): Long {
-        val generation = generations.incrementAndGet()
+        val generation = nextTargetGeneration()
         mutableState.value = DawnTargetState(generation, extent, true)
         return generation
     }

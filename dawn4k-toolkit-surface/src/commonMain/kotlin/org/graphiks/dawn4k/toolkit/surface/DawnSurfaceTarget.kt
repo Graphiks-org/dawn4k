@@ -20,7 +20,12 @@ data class PixelExtent(val width: Int, val height: Int) {
 }
 
 /** Use a fresh generation whenever the native target identity changes. */
-data class DawnTargetState(val generation: Long, val extent: PixelExtent, val available: Boolean)
+data class DawnTargetState(val generation: Long, val extent: PixelExtent, val available: Boolean) {
+    companion object {
+        fun fresh(extent: PixelExtent, available: Boolean): DawnTargetState =
+            DawnTargetState(org.graphiks.dawn4k.toolkit.surface.internal.nextTargetGeneration(), extent, available)
+    }
+}
 
 interface DawnSurfaceTarget {
     val state: StateFlow<DawnTargetState>
