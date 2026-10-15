@@ -15,6 +15,7 @@ import sys
 import tomllib
 
 BUILD = r'''
+@file:OptIn(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi::class)
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 plugins {
@@ -44,6 +45,12 @@ kotlin {
     val appleMobileMain = sourceSets.create("appleMobileMain") { dependsOn(sourceSets.commonMain.get()) }
     listOf("iosMain", "tvosMain").forEach { sourceSets.getByName(it).dependsOn(appleMobileMain) }
     targets.withType<KotlinNativeTarget>().configureEach {
+        binaries.configureEach {
+            disableNativeCache(
+                org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion.`@KOTLIN_CACHE_VERSION@`,
+                "Verify that published Maven klibs link without caches from repository builds",
+            )
+        }
         if (name in setOf("macosArm64", "linuxX64")) {
             binaries.executable("compute") { entryPoint = "org.graphiks.dawn4k.toolkit.examples.computeMain" }
             binaries.executable("triangle") { entryPoint = "org.graphiks.dawn4k.toolkit.examples.triangleMain" }
@@ -51,6 +58,20 @@ kotlin {
     }
 }
 val jvm = kotlin.targets.getByName("jvm") as KotlinJvmTarget
+tasks.register("verifyConsumerNativeCacheIsolation") {
+    doLast {
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeLink>().forEach { link ->
+            // Fail closed if the pinned plugin changes this verification input.
+            val settings = link.inputs.properties.entries.single {
+                it.key.startsWith("effectiveCacheSettings")
+            }.value.toString()
+            check(settings == "Configured(kind=NONE)" || "NonCacheableTarget" in settings) {
+                "Consumer must link published klibs without Native caches: ${link.path}: $settings"
+            }
+        }
+        println("MAVEN_CONSUMER native-cache=disabled")
+    }
+}
 for ((name, launcher) in listOf("runCompute" to "compute", "runTriangle" to "triangle")) {
     tasks.register<JavaExec>(name) {
         mainClass.set("org.graphiks.dawn4k.toolkit.examples.$launcher.MainKt")
@@ -96,7 +117,8 @@ include(":consumer", ":androidApp")
     (root / "build.gradle.kts").write_text('plugins {\n kotlin("multiplatform") version "' + versions["kotlin"] + '" apply false\n id("com.android.kotlin.multiplatform.library") version "' + versions["agp"] + '" apply false\n id("com.android.application") version "' + versions["agp"] + '" apply false\n}\n')
     consumer = root / "consumer"
     consumer.mkdir(exist_ok=True)
-    (consumer / "build.gradle.kts").write_text(BUILD.replace("@WEBGPU@", versions["webgpu"]))
+    (consumer / "build.gradle.kts").write_text(BUILD.replace("@WEBGPU@", versions["webgpu"])
+        .replace("@KOTLIN_CACHE_VERSION@", versions["kotlin"].replace(".", "_")))
     source = repo / "dawn4k-toolkit-examples/src"
     for directory in source.iterdir():
         if directory.is_dir() and directory.name.endswith("Main"):
@@ -110,9 +132,13 @@ include(":consumer", ":androidApp")
     (android / "build.gradle.kts").write_text(app)
     # Keep standalone compilation reproducible without importing root gradle.properties.
     # Link the published klibs directly, without reusing dependency caches from project builds.
-    (root / "gradle.properties").write_text("android.useAndroidX=true\nkotlin.native.ignoreDisabledTargets=true\nkotlin.native.cacheKind=none\nkotlin.compiler.execution.strategy=in-process\n")
+    (root / "gradle.properties").write_text(
+        "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n"
+        "android.useAndroidX=true\nkotlin.native.ignoreDisabledTargets=true\n"
+        "kotlin.compiler.execution.strategy=in-process\n")
     targets = ["MacosArm64", "LinuxX64"] if platform.system() == "Darwin" else ["LinuxX64"]
-    tasks = [f":consumer:link{binary}DebugExecutable{target}" for target in targets for binary in ("Compute", "Triangle")]
+    tasks = [":consumer:verifyConsumerNativeCacheIsolation"]
+    tasks += [f":consumer:link{binary}DebugExecutable{target}" for target in targets for binary in ("Compute", "Triangle")]
     if platform.system() == "Darwin":
         tasks += [":consumer:linkDebugFramework" + target for target in ("IosArm64", "IosSimulatorArm64", "IosX64", "TvosArm64", "TvosSimulatorArm64")]
     tasks += [":androidApp:assembleRelease"]
