@@ -8,6 +8,28 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ShutdownTest {
+    @Test fun automaticCleanupRetriesAfterTheDeadline() = runTest {
+        val driver = Recorder(backgroundScope).apply { pending = true }
+        val lifecycle = SessionLifecycle()
+        val shutdown = shutdown(driver, lifecycle)
+        shutdown.requestCleanup()
+        advanceTimeBy(21); runCurrent()
+        assertEquals(DawnSessionState.ShutdownTimedOut, lifecycle.state.value)
+        driver.pending = false
+        advanceTimeBy(200); runCurrent()
+        assertEquals(1, driver.contexts)
+        assertEquals(DawnSessionState.Closed, lifecycle.state.value)
+    }
+
+    @Test fun timedOutShutdownEventuallyRetiresWithoutAnotherCaller() = runTest {
+        val driver = Recorder(backgroundScope).apply { pending = true }
+        val shutdown = shutdown(driver)
+        assertFailsWith<DawnShutdownTimeoutException> { shutdown.shutdown() }
+        driver.pending = false
+        advanceTimeBy(200); runCurrent()
+        assertEquals(1, driver.contexts)
+    }
+
     @Test
     fun cleanupCanAwaitGpuAfterCancellation() = runTest {
         val entered = CompletableDeferred<Unit>()

@@ -1,11 +1,13 @@
 package org.graphiks.dawn4k.toolkit.internal
 
 import kotlinx.coroutines.*
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.toolkit.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 internal interface SessionShutdownDriver {
     fun processEvents()
@@ -33,8 +35,19 @@ internal class SessionShutdown(
     private val mutex = Mutex()
     private var attempt: Deferred<Unit>? = null
     private var stage = 0
+    private val cleanupRequested = atomic(false)
 
-    fun requestCleanup() { scope.launch { runCatching { shutdown() } } }
+    fun requestCleanup() {
+        if (!cleanupRequested.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                while (isActive && lifecycle.state.value != DawnSessionState.Closed) {
+                    runCatching { shutdown() }
+                    if (lifecycle.state.value != DawnSessionState.Closed) delay(maxOf(interval, 100.milliseconds))
+                }
+            } finally { cleanupRequested.value = false }
+        }
+    }
 
     suspend fun shutdown() = withContext(NonCancellable) {
         val shared = mutex.withLock {
@@ -64,9 +77,11 @@ internal class SessionShutdown(
                     lifecycle.closed()
                 } catch (timeout: TimeoutCancellationException) {
                     lifecycle.timedOut()
+                    requestCleanup()
                     throw DawnShutdownTimeoutException(timeout)
                 } catch (failure: Throwable) {
                     lifecycle.shutdownFailed(failure)
+                    requestCleanup()
                     throw failure
                 }
             }.also { attempt = it; it.start() }

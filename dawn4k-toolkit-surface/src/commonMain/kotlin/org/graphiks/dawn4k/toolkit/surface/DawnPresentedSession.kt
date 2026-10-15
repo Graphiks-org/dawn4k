@@ -21,56 +21,43 @@ internal suspend fun openDawnSurface(
     presentationOptions: DawnPresentationOptions,
     factory: SurfaceFactory,
 ): DawnPresentedSession {
-    val lease = target.retain()
+    var lease: DawnTargetLease? = null
     var attachment: SurfaceAttachment? = null
     var presentation: DawnPresentation? = null
-    var gpu: DawnSession? = null
-    var leaseRetired = false
-    try {
-        val session = openDawnSession(sessionOptions, object : DawnSessionInitialization {
-            override suspend fun prepare(context: DawnContext): DawnPreparedInitialization {
-                val created = try { factory.create(lease, context) }
-                catch (failure: Throwable) {
-                    withContext(NonCancellable) {
-                        try { lease.retire(); leaseRetired = true } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
-                    }
-                    throw failure
+    val session = openDawnSession(sessionOptions, object : DawnSessionInitialization {
+        override suspend fun prepare(context: DawnContext): DawnPreparedInitialization {
+            return object : DawnPreparedInitialization {
+                override val compatibleSurface get() = attachment?.compatibleSurface
+                override suspend fun acquire() {
+                    val retained = target.retain()
+                    lease = retained
+                    attachment = factory.create(retained, context)
                 }
-                attachment = created
-                return object : DawnPreparedInitialization {
-                    override val compatibleSurface = created.compatibleSurface
-                    override suspend fun retire() {
-                        if (presentation != null) presentation!!.retire() else created.retire()
+                override suspend fun initialize(session: DawnSession) {
+                    val binding = checkNotNull(attachment)
+                    binding.bind(session)
+                    lateinit var controller: PresentationController
+                    controller = PresentationController(binding, presentationOptions) {
+                        val active = checkNotNull(controller.currentAttachment)
+                        val reference = active.lease.createSurface(session.context)
+                        DawnNativeSurface(reference, session.adapter, session.device)
                     }
+                    val created = DawnPresentation(session, controller, factory)
+                    presentation = created
+                    controller.initialize()
+                    created.observe(target)
+                }
+                override suspend fun retire() {
+                    val configured = presentation
+                    val acquired = attachment
+                    if (configured != null) configured.retire()
+                    else if (acquired != null) acquired.retire()
+                    else lease?.retire()
                 }
             }
-        })
-        gpu = session
-        val binding = checkNotNull(attachment)
-        session.run {
-            binding.bind(session)
-            lateinit var controller: PresentationController
-            controller = PresentationController(binding, presentationOptions) {
-                val active = checkNotNull(controller.currentAttachment)
-                val reference = active.lease.createSurface(session.context)
-                DawnNativeSurface(reference, session.adapter, session.device)
-            }
-            // Store the owner before capability negotiation, so failure has a cleanup route.
-            val createdPresentation = DawnPresentation(session, controller, factory)
-            presentation = createdPresentation
-            controller.initialize()
-            createdPresentation.observe(target)
         }
-        return DawnPresentedSession(session, checkNotNull(presentation))
-    } catch (failure: Throwable) {
-        withContext(NonCancellable) {
-            try {
-                if (gpu != null) { gpu.manualProgress?.stop(); gpu.shutdown() }
-                else if (attachment == null && !leaseRetired) { lease.retire(); leaseRetired = true }
-            } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
-        }
-        throw failure
-    }
+    })
+    return DawnPresentedSession(session, checkNotNull(presentation))
 }
 
 suspend fun <T> withDawnSurface(

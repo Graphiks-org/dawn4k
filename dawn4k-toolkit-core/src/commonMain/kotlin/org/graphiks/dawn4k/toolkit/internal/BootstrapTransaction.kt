@@ -3,6 +3,7 @@ package org.graphiks.dawn4k.toolkit.internal
 /** Retains acquisitions across withContext's cancellable return boundary. */
 internal class BootstrapTransaction {
     private val actions = mutableListOf<suspend () -> Unit>()
+    val isEmpty: Boolean get() = actions.isEmpty()
     fun onRollback(action: suspend () -> Unit) { actions += action }
     fun commit() { actions.clear() }
 

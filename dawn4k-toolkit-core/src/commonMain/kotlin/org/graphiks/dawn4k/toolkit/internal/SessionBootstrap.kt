@@ -1,8 +1,10 @@
 package org.graphiks.dawn4k.toolkit.internal
 
 import kotlinx.coroutines.*
+import kotlinx.atomicfu.atomic
 import org.graphiks.dawn4k.*
 import org.graphiks.dawn4k.toolkit.*
+import kotlin.time.Duration.Companion.milliseconds
 
 internal suspend fun bootstrapSession(
     options: DawnSessionOptions,
@@ -14,50 +16,63 @@ internal suspend fun bootstrapSession(
     }
     val owner = supplied ?: DawnExecutionOwner.dedicated()
     val transaction = BootstrapTransaction()
-    var events: EventProgress? = null
-    try {
-        val session = owner.run {
-            withTimeout(options.startupTimeout) {
-                val context = DawnContext.create(options.config)
-                val progress = EventProgress(context, owner, options.progressInterval)
-                events = progress
-                val bootstrapJob = currentCoroutineContext()[Job]!!
-                progress.onFailure = { bootstrapJob.cancel(CancellationException("Dawn bootstrap progression failed", it)) }
-                transaction.onRollback { progress.drain(); progress.stop(); context.close() }
-                progress.start()
-                val prepared = initialization?.prepare(context)
-                if (prepared != null) transaction.onRollback { progress.drain(); prepared.retire() }
-                val adapter = (prepared?.compatibleSurface?.let {
-                    context.requestAdapter(options.adapterOptions, it)
-                } ?: context.requestAdapter(options.adapterOptions)).getOrThrow() as DawnAdapter
-                transaction.onRollback { progress.drain(); adapter.close() }
-                val device = adapter.requestDevice(options.deviceDescriptor).getOrThrow() as DawnDevice
-                transaction.onRollback { progress.drain(); device.close(); progress.drain() }
+    val events = atomic<EventProgress?>(null)
+    // Keep acquisitions reachable even when platform retention or a native call cannot finish at the deadline.
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val worker = scope.async {
+        owner.run {
+            val context = DawnContext.create(options.config)
+            val progress = EventProgress(context, owner, options.progressInterval)
+            events.value = progress
+            val bootstrapJob = currentCoroutineContext()[Job]!!
+            progress.onFailure = { bootstrapJob.cancel(CancellationException("Dawn bootstrap progression failed", it)) }
+            transaction.onRollback { progress.drain(); progress.stop(); context.close() }
+            progress.start()
+            val prepared = initialization?.prepare(context)
+            if (prepared != null) transaction.onRollback { progress.drain(); prepared.retire() }
+            prepared?.acquire()
+            val adapter = (prepared?.compatibleSurface?.let {
+                context.requestAdapter(options.adapterOptions, it)
+            } ?: context.requestAdapter(options.adapterOptions)).getOrThrow() as DawnAdapter
+            transaction.onRollback { progress.drain(); adapter.close() }
+            val device = adapter.requestDevice(options.deviceDescriptor).getOrThrow() as DawnDevice
+            transaction.onRollback { progress.drain(); device.close(); progress.drain() }
+            DawnSession(context, adapter, device, owner, supplied == null, options, progress, prepared).also {
+                transaction.onRollback { it.abandonBootstrap() }
+                if (prepared != null) it.run { session -> prepared.initialize(session) }
                 if (options.execution is DawnExecutionMode.Manual) progress.pause()
-                DawnSession(context, adapter, device, owner, supplied == null, options, progress, prepared).also {
-                    transaction.onRollback { it.abandonBootstrap() }
-                }
             }
         }
+    }
+    try {
+        // The deadline uses the real GPU clock, including when the caller uses a virtual test dispatcher.
+        val session = withContext(Dispatchers.Default) { withTimeout(options.startupTimeout) { worker.await() } }
         transaction.commit()
         session.activate()
+        scope.cancel()
         return session
     } catch (caught: Throwable) {
-        val failure = events?.failure ?: caught
-        var cleaned = false
-        withContext(NonCancellable) {
-            try {
-                owner.run { withTimeout(options.shutdownTimeout) { cleaned = transaction.rollback(failure) } }
-            } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
-        }
-        if (cleaned) {
-            if (supplied == null) owner.close()
-        } else {
-            // Retain acquisitions until native callbacks become quiescent.
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                while (!owner.run { transaction.rollback() }) delay(options.progressInterval)
-                if (supplied == null) owner.close()
+        val failure = if (worker.isCompleted) events.value?.failure ?: caught else caught
+        worker.cancel()
+        val retirement = scope.async {
+            worker.join()
+            var primary: Throwable? = failure
+            while (true) {
+                val cleaned = try {
+                    transaction.isEmpty || owner.run { transaction.rollback(primary) }
+                } catch (cleanup: Throwable) { primary?.addSuppressed(cleanup); false }
+                primary = null
+                if (cleaned) {
+                    if (supplied == null) owner.close()
+                    break
+                }
+                delay(maxOf(options.progressInterval, 100.milliseconds))
             }
+        }
+        retirement.invokeOnCompletion { scope.cancel() }
+        withContext(NonCancellable + Dispatchers.Default) {
+            try { withTimeout(options.shutdownTimeout) { retirement.await() } }
+            catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
         }
         throw failure
     }

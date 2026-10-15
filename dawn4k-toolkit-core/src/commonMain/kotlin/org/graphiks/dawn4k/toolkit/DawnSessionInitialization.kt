@@ -11,6 +11,10 @@ fun interface DawnSessionInitialization {
 
 interface DawnPreparedInitialization {
     val compatibleSurface: DawnSurfaceReference?
+    /** Core registers retirement before this phase; record acquisitions before suspending. */
+    suspend fun acquire() {}
+    /** Finish device-dependent setup on the GPU owner before the session is handed to its caller. */
+    suspend fun initialize(session: DawnSession) {}
     /** Release platform resources before the context closes; support retry after failure. */
     suspend fun retire()
 }
