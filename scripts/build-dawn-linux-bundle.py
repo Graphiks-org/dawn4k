@@ -160,7 +160,7 @@ def main():
         raise ValueError("Prepared Dawn source identity mismatch")
     expected = {item["path"]: item["sha256"] for item in manifest["artifacts"]}
     for file in (header, library):
-        if sha256(file) != expected[str(file.relative_to(args.prepared))]:
+        if sha256(file) != expected[file.relative_to(args.prepared).as_posix()]:
             raise ValueError(f"Prepared Dawn checksum mismatch: {file}")
     identity = {"target": "linuxX64", "revision": lock["revision"], "headerSha256": sha256(header), "librarySha256": sha256(library), "generatorSha256": sha256(__file__)}
     args.output.mkdir(parents=True, exist_ok=True)

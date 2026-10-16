@@ -79,18 +79,30 @@ jobs:
         shell: pwsh
         run: '& "$env:ANDROID_HOME\cmdline-tools\23.0\bin\sdkmanager.bat" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
 
+      - name: Verify foreign native bundle handling
+        run: python3 scripts/tests/test_dawn_linux_bundle_host.py
+
       - uses: actions/download-artifact@v4
-        if: runner.os == 'macOS'
+        if: runner.os != 'Linux'
         with:
           name: toolkit-linux-native-bundles
           path: build/publication-bundles
 
       - name: Configure verified foreign native bundles
-        if: runner.os == 'macOS'
+        if: runner.os != 'Linux'
         run: |
-          mkdir -p "$HOME/.gradle"
-          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
-          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          root = Path('build/publication-bundles').resolve()
+          gradle_home = Path(os.environ.get('GRADLE_USER_HOME', Path.home() / '.gradle'))
+          gradle_home.mkdir(parents=True, exist_ok=True)
+          with (gradle_home / 'gradle.properties').open('a', encoding='utf-8') as output:
+              dawn = (root / 'dawn4k-native/build/dawnCarrier/linuxX64').as_posix()
+              glfw = (root / 'dawn4k-toolkit-glfw/build/glfw/linuxX64').as_posix()
+              output.write(f'\ndawn.nativeBundle.linuxX64={dawn}\n')
+              output.write(f'glfw.nativeBundle.linuxX64={glfw}\n')
+          PYTHON
 
       - name: Install and select CPU Vulkan adapter
         if: runner.os == 'Linux'
@@ -99,7 +111,8 @@ jobs:
           sudo apt-get update
           # Root tests also build the demo's Wayland bridge.
           sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools \
-            build-essential pkg-config wayland-protocols libwayland-dev libxkbcommon-dev xvfb
+            build-essential cmake pkg-config wayland-protocols libwayland-dev libxkbcommon-dev xvfb \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
           # Root JVM checks include presentation, so they need a real X11 server.
           Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac >"$RUNNER_TEMP/toolkit-xvfb.log" 2>&1 &
           for _ in $(seq 1 100); do
