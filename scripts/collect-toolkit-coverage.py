@@ -38,7 +38,7 @@ def main():
             for index, path in enumerate(candidates):
                 copied = destination / f"{index}-{path.name}"
                 shutil.copyfile(path, copied)
-                record["junit"].append(str(copied.relative_to(args.output)))
+                record["junit"].append(copied.relative_to(args.output).as_posix())
             record["stdout"] = ["execution.log"]
         records.append(record)
     manifest = args.output / "summary.json"

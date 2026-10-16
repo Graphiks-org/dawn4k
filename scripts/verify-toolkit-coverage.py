@@ -4,6 +4,8 @@ import argparse
 import json
 import hashlib
 import re
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -179,6 +181,20 @@ class CoverageFixtures(unittest.TestCase):
             verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.native"/>')
         verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.bindings"/>')
 
+    def test_windowsReportPathsArePortableAcrossHosts(self):
+        nested = self.directory / "windows-module"
+        nested.mkdir()
+        self.junit.replace(nested / self.junit.name)
+        self.stdout.replace(nested / self.stdout.name)
+        (nested / self.stdout.name).write_text("TOOLKIT_GPU backend=D3D12 required=1\n")
+        report = self.directory / "summary.json"
+        record = dict(self.record, target="jvm-mingwX64", backend="D3D12",
+                      junit=["windows-module\\TEST-core.xml"], stdout=["windows-module\\execution.log"])
+        report.write_text(json.dumps({"schema": 1, "results": [record]}))
+        result = subprocess.run([sys.executable, __file__, "--report", str(report), "--require",
+                                 f"{MODULES[0]}:jvm-mingwX64:headless:gpu"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_rejectsSkippedRequiredGpuSuite(self):
         tree = ET.parse(self.junit)
         ET.SubElement(tree.getroot().find("testcase"), "skipped")
@@ -247,7 +263,8 @@ def main():
             for record in manifest["results"]:
                 record = dict(record)
                 for key in ("junit", "stdout", "evidence"):
-                    record[key] = [str((path.parent / item).resolve()) if not Path(item).is_absolute() else item for item in record.get(key, [])]
+                    portable = [item.replace("\\", "/") for item in record.get(key, [])]
+                    record[key] = [str((path.parent / item).resolve()) if not Path(item).is_absolute() else item for item in portable]
                 records.append(record)
         required = [tuple(value.split(":")) for value in args.require] or required_suites()
         verify_coverage(records, required)
