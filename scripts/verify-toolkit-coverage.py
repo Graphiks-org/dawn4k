@@ -67,8 +67,11 @@ def verify_runtime_archives(root, version):
             verify_android_manifest_package(aar.read("AndroidManifest.xml"))
             for abi, machine in (("arm64-v8a", 183), ("x86_64", 62)):
                 require_elf(aar, f"jni/{abi}/lib{library}.so", machine)
+            rules = "\n".join(aar.read(name).decode() for name in aar.namelist() if "proguard" in name.lower())
+            if module == "dawn4k-native-android":
+                if "org.graphiks.dawn4k.native.*Trampoline" not in rules or "public static void dispatch(...);" not in rules:
+                    raise VerificationError("Raw AAR does not publish its JNI upcall consumer keep rules")
             if module == "dawn4k-toolkit-surface-android":
-                rules = "\n".join(aar.read(name).decode() for name in aar.namelist() if "proguard" in name.lower())
                 if "org.graphiks.dawn4k.toolkit.surface.AndroidNativeWindow" not in rules or "native <methods>" not in rules:
                     raise VerificationError("Surface AAR does not publish its JNI consumer keep rules")
 

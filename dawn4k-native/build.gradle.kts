@@ -27,6 +27,10 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
         org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
             namespace = "org.graphiks.dawn4k.bindings"
+            optimization.consumerKeepRules.apply {
+                publish = true
+                file("consumer-rules.pro")
+            }
         },
     )
 }
