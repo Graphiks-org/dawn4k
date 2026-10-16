@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.toolkit.glfw
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -70,7 +71,11 @@ class DawnWindow internal constructor(
 internal class WindowSurfaceState(backend: GlfwBackend, handle: Long) {
     private val size = MutableStateFlow(backend.pixelExtent(handle))
     val extent = size.asStateFlow()
-    private val notifications = MutableSharedFlow<DawnWindowEvent>(replay = 1, extraBufferCapacity = 64)
+    // Native callbacks cannot suspend. Drop old input so the terminal event always enters
+    // the buffer; no later event can evict it, and new collectors receive its replay.
+    private val notifications = MutableSharedFlow<DawnWindowEvent>(
+        replay = 1, extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
     val events = notifications.asSharedFlow()
     private var closeRequested = false
 

@@ -65,15 +65,20 @@ class DawnPresentation internal constructor(
                 check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
                 val lease = target.retain()
                 var replacement: SurfaceAttachment? = null
+                var transferred = false
                 try {
                     replacement = factory.create(lease, gpu.context)
                     replacement.bind(gpu)
+                    transferred = true
                     controller.replaceTarget(target, replacement, options)
                     observe(target)
                 } catch (failure: Throwable) {
-                    withContext(NonCancellable) {
-                        try { if (replacement == null) lease.retire() else replacement.retire() }
-                        catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+                    if (!transferred) withContext(NonCancellable) {
+                        try {
+                            controller.retireRejected {
+                                if (replacement == null) lease.retire() else replacement.retire()
+                            }
+                        } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
                     }
                     throw failure
                 }

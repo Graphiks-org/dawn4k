@@ -7,6 +7,29 @@ import kotlin.test.*
 import org.graphiks.webgpu.GPUTextureFormat
 
 class TargetReplacementTest {
+    @Test fun rejectedReplacementKeepsFailedRetirementForShutdownRetry() = runTest {
+        val original = CountingTarget(1)
+        val controller = controller(original, CountingSurface())
+        controller.initialize()
+        val rejected = CountingTarget(2)
+        var attempts = 0
+        rejected.onRetire = { if (++attempts == 1) error("temporary host retirement failure") }
+        val native = CountingSurface().apply { capabilityFailure = IllegalArgumentException("incompatible") }
+        val failure = assertFailsWith<IllegalArgumentException> {
+            controller.replaceTarget(rejected, attachment(rejected, native))
+        }
+        assertEquals(1, failure.suppressedExceptions.size)
+        assertEquals(1L, controller.activeGeneration)
+        assertEquals(0, rejected.retirements)
+        controller.retire()
+        assertEquals(2, attempts)
+        assertEquals(1, rejected.retirements)
+        assertEquals(1, original.retirements)
+        assertEquals(1, native.closes)
+        controller.retire()
+        assertEquals(2, attempts)
+    }
+
     @Test fun replacementCanRequireTheExistingSceneFormatAndKeepsItOnAcquisition() = runTest {
         val old = CountingTarget(1)
         val rgba = CountingSurface().apply { advertised = advertised.copy(formats = listOf(GPUTextureFormat.RGBA8Unorm)) }
@@ -47,17 +70,20 @@ class TargetReplacementTest {
         assertNull(controller.acquireFrame())
         controller.retire()
     }
-    @Test fun lostSurfaceRecreatesOnce() = runTest {
+    @Test fun repeatedLostSurfaceFailsAfterOneRecreationAndRemainsRetirable() = runTest {
         val target = CountingTarget(1)
         val first = CountingSurface().apply { statuses += SurfaceAcquisition.Lost }
         val second = CountingSurface().apply { statuses += SurfaceAcquisition.Lost }
         var recreations = 0
         val controller = controller(target, first) { recreations++; second }
         controller.initialize()
-        assertNull(controller.acquireFrame())
+        val failure = assertFailsWith<IllegalStateException> { controller.acquireFrame() }
+        assertTrue(failure.message.orEmpty().contains("lost", ignoreCase = true))
         assertEquals(1, recreations)
         assertEquals(1, first.closes)
         controller.retire()
+        assertEquals(1, second.closes)
+        assertEquals(1, target.retirements)
     }
     @Test fun oldGenerationDetachDoesNotTouchReplacement() = runTest {
         val old = CountingTarget(1)

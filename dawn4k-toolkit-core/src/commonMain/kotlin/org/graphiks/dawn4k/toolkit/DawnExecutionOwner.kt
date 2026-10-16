@@ -11,6 +11,7 @@ class DawnExecutionOwner private constructor(
 ) : AutoCloseable {
     private val thread = atomic(0L)
     private val closed = atomic(false)
+    private val progressing = atomic(false)
 
     companion object {
         @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
@@ -27,6 +28,18 @@ class DawnExecutionOwner private constructor(
         val current = currentOsThreadId().toLong()
         thread.compareAndSet(0L, current)
         check(thread.value == current) { "execution owner changed OS thread; use a pinned dispatcher" }
+    }
+
+    internal fun requireOutsideProgress() {
+        check(!progressing.value || thread.value != currentOsThreadId().toLong()) {
+            "session operations cannot reenter event progression; enqueue deferred work instead"
+        }
+    }
+
+    internal fun processEvents(process: () -> Unit) {
+        checkThread()
+        check(progressing.compareAndSet(false, true)) { "event progression cannot reenter itself" }
+        try { process() } finally { progressing.value = false }
     }
 
     suspend fun <T> run(block: suspend CoroutineScope.() -> T): T = withContext(dispatcher) {

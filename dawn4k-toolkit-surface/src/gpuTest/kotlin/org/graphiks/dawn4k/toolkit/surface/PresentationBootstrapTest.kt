@@ -10,6 +10,33 @@ import org.graphiks.dawn4k.toolkit.surface.internal.*
 import kotlin.test.*
 
 class PresentationBootstrapTest {
+    @Test fun rejectedUnboundReplacementRetirementIsRetriedDuringSessionShutdown() = runTest {
+        val original = CountingTarget(1)
+        val rejected = CountingTarget(2)
+        var attempts = 0
+        var retryAllowed = false
+        rejected.onRetire = {
+            attempts++
+            check(retryAllowed) { "temporary host retirement failure" }
+        }
+        val factory = SurfaceFactory { lease, _ ->
+            if (lease === rejected) error("surface creation failed")
+            val native = CountingSurface()
+            SurfaceAttachment(lease, null, { native }, native::close)
+        }
+        val presented = openDawnSurface(original, DawnSessionOptions(), DawnPresentationOptions(), factory)
+        try {
+            val failure = assertFailsWith<IllegalStateException> { presented.presentation.replaceTarget(rejected) }
+            assertEquals("surface creation failed", failure.message)
+            assertEquals(0, rejected.retirements)
+            retryAllowed = true
+            presented.shutdown()
+            assertTrue(attempts >= 2)
+            assertEquals(1, rejected.retirements)
+            assertEquals(1, original.retirements)
+        } finally { retryAllowed = true; presented.shutdown() }
+    }
+
     @Test fun frameCancellationReleasesViewThenTexture() = runTest {
         val target = CountingTarget(1)
         val native = CountingSurface()

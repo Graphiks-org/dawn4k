@@ -2,6 +2,8 @@ package org.graphiks.dawn4k.toolkit.surface.internal
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.graphiks.dawn4k.toolkit.surface.*
 
 internal class PresentationController(
@@ -13,6 +15,7 @@ internal class PresentationController(
     private var active: DawnFrame? = null
     private var capabilities: SurfaceCapabilities? = null
     private var reconfigure = false
+    private val rejectedRetirements = mutableListOf<suspend () -> Unit>()
     private val selected = MutableStateFlow<DawnSurfaceConfiguration?>(null)
     val configuration = selected.asStateFlow()
     val currentAttachment: SurfaceAttachment? get() = attachment
@@ -74,7 +77,7 @@ internal class PresentationController(
                         replacement.close()
                         throw failure
                     }
-                }
+                } else error("surface is still lost after one recreation")
                 is SurfaceAcquisition.Error -> throw acquired.cause
             }
         }
@@ -82,12 +85,12 @@ internal class PresentationController(
     }
 
     suspend fun replaceTarget(target: DawnSurfaceTarget, replacement: SurfaceAttachment, replacementOptions: DawnPresentationOptions? = null) {
-        check(active == null) { "cannot replace a target during frame use" }
-        val state = replacement.lease.state.value
-        require(state.generation == target.state.value.generation) { "retained target changed generation" }
-        require(state.generation != activeGeneration) { "replacement must use a fresh target generation" }
-        val selectedOptions = replacementOptions ?: options
         try {
+            check(active == null) { "cannot replace a target during frame use" }
+            val state = replacement.lease.state.value
+            require(state.generation == target.state.value.generation) { "retained target changed generation" }
+            require(state.generation != activeGeneration) { "replacement must use a fresh target generation" }
+            val selectedOptions = replacementOptions ?: options
             val caps = replacement.surface.capabilities()
             val config = caps.select(selectedOptions, state.extent)
             if (state.available && state.extent.isPositive) replacement.surface.configure(config)
@@ -98,9 +101,18 @@ internal class PresentationController(
             selected.value = config
             reconfigure = false
         } catch (failure: Throwable) {
-            try { replacement.retire() } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+            withContext(NonCancellable) {
+                try { retireRejected(replacement::retire) }
+                catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+            }
             throw failure
         }
+    }
+    /** Register before the first attempt; shutdown keeps retrying until acknowledgment. */
+    suspend fun retireRejected(retirement: suspend () -> Unit) {
+        rejectedRetirements += retirement
+        retirement()
+        rejectedRetirements.remove(retirement)
     }
     suspend fun detachTarget(generation: Long) {
         if (activeGeneration == generation) retire()
@@ -110,5 +122,9 @@ internal class PresentationController(
         attachment?.retire()
         attachment = null
         selected.value = null
+        while (rejectedRetirements.isNotEmpty()) {
+            rejectedRetirements.first().invoke()
+            rejectedRetirements.removeAt(0)
+        }
     }
 }

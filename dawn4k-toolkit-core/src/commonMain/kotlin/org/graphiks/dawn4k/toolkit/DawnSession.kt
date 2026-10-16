@@ -77,6 +77,7 @@ class DawnSession internal constructor(
     }
 
     suspend fun <T> run(block: suspend CoroutineScope.(DawnSession) -> T): T {
+        owner.requireOutsideProgress()
         val nested = admission.isAdmitted()
         if (!nested) lifecycle.requireReady()
         return owner.run {
@@ -90,6 +91,7 @@ class DawnSession internal constructor(
     suspend fun awaitLost(): Result<GPUDeviceLostInfo> = device.awaitLost()
 
     suspend fun shutdown() {
+        owner.requireOutsideProgress()
         check(!admission.isAdmitted()) { "shutdown cannot run inside session.run" }
         check(manualProgress == null || manualProgress.isStopped) { "stop the manual driver before shutdown" }
         shutdownDriver.shutdown()

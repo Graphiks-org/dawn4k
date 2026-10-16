@@ -20,7 +20,7 @@ internal class EventProgress(
     var failure: Throwable? = null
         private set
 
-    fun processEvents() { owner.checkThread(); process() }
+    fun processEvents() = owner.processEvents(process)
 
     fun start() {
         if (job?.isActive == true) return
