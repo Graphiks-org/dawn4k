@@ -48,7 +48,10 @@ class DemoToolkitLifecycleTest {
         assertEquals(DawnSessionState.Closed, first.state.value)
         controller.restart()
         controller.attach(DesktopSurfaceLease(2, awaitMetalLayerHost(window)))
-        await(controller) { controller.evidence.snapshot().sessionId == 2L && controller.evidence.snapshot().frameCount > 0 }
+        await(controller) {
+            val snapshot = controller.evidence.snapshot()
+            snapshot.sessionId == 2L && snapshot.frameCount > 0 && snapshot.phase == DemoPhase.Running
+        }
         assertNotSame(first, assertNotNull(controller.gpuSession.value))
         assertEquals(DemoPhase.Running, controller.state.value.phase)
     }
