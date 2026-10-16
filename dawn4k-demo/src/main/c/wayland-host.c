@@ -256,6 +256,11 @@ static int pump(dawn_wl_host *h, int timeout) {
         int64_t remaining = deadline - now_ms();
         result = poll(fds, 2, remaining > 0 ? (int)remaining : 0);
     } while (result < 0 && errno == EINTR && now_ms() < deadline);
+    if (result < 0 && errno == EINTR) {
+        /* The deadline expired during a signal handler; no connection failed. */
+        wl_display_cancel_read(h->display);
+        return 0;
+    }
     if (result < 0) { wl_display_cancel_read(h->display); fail(h, errno); return -1; }
     if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) {
         wl_display_cancel_read(h->display); fail(h, EPIPE); return -1;

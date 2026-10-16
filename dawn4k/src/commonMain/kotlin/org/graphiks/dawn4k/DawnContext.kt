@@ -37,6 +37,25 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
         Result.failure(failure)
     }
 
+    /** Selects an adapter compatible with a surface owned by this context. */
+    suspend fun requestAdapter(
+        options: GPURequestAdapterOptions? = null,
+        compatibleSurface: DawnSurfaceReference,
+    ): Result<GPUAdapter> = try {
+        val adapter = runtime.requestAdapter(options, compatibleSurface)
+        Result.success(DawnAdapter(runtime, adapter, options?.forceFallbackAdapter == true))
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (failure: Throwable) {
+        Result.failure(failure)
+    }
+
+    /**
+     * Adopts one acquired WGPUSurface reference for platform integration.
+     * Ownership transfers only when this method returns successfully.
+     */
+    fun adoptSurface(handle: Long): DawnSurfaceReference = runtime.adoptSurface(handle)
+
     /** Runs one event iteration and callback settlements on the caller. Never concurrent/reentrant. */
     fun processEvents() = runtime.processEvents()
 

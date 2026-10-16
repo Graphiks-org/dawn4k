@@ -30,11 +30,12 @@ def select_device(devices, platform):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", type=Path, default=Path("build/apple-simulators.env"))
+    parser.add_argument("--platform", choices=("iOS", "tvOS"), action="append", help="Default: both platforms")
     args = parser.parse_args()
     devices = json.loads(subprocess.check_output(
         ["xcrun", "simctl", "list", "devices", "available", "--json"], text=True
     ))["devices"]
-    selected = [(platform, select_device(devices, platform)) for platform in ("iOS", "tvOS")]
+    selected = [(platform, select_device(devices, platform)) for platform in (args.platform or ("iOS", "tvOS"))]
     variables = []
     for platform, device in selected:
         print(f"{platform}: {device['name']} ({device['udid']})", flush=True)

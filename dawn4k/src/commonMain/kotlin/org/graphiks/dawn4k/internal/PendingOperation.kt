@@ -269,6 +269,11 @@ internal class PendingOperation<T>(val releaseRejected: (T) -> Unit) {
         nativeFacet.complete(Unit)
     }
 
+    /** Registers cleanup against native quiescence, never against waiter cancellation. */
+    internal fun onNativeTerminal(action: () -> Unit) {
+        nativeFacet.invokeOnCompletion { action() }
+    }
+
     /**
      * Whether the wait reached `delivered`, `cancelled` or `owner-closed` for
      * a registered waiter. An outcome buffered before any waiter registered

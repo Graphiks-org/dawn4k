@@ -6,6 +6,8 @@ import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.mapper.allocateRequestAdapterOptions
 import org.graphiks.dawn4k.mapper.initNull
 import org.graphiks.dawn4k.native.*
+import org.graphiks.dawn4k.DawnSurfaceReference
+import org.graphiks.kffi.NativeAddress
 import org.graphiks.kffi.CallbackPolicy
 import org.graphiks.kffi.CallbackRegistration
 import org.graphiks.kffi.MemoryAllocator
@@ -18,6 +20,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     private val mailbox = CallbackMailbox()
     private val operations = AsyncOperationRegistry()
     private val adapters = mutableSetOf<Long>()
+    private val surfaces = mutableSetOf<SurfaceReferenceState>()
     private val sessions = mutableSetOf<DeviceSession>()
     private val teardowns = mutableSetOf<DeviceSession>()
     private val rejectedDevices = mutableSetOf<DeviceCallbacks>()
@@ -26,6 +29,7 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
     private var instance: WGPUInstance? = null
 
     init {
+        prepareDawnRuntime()
         preparePlatformLibraries()
         instance = createInstance()
     }
@@ -110,8 +114,8 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         if (closedMarker.isCompleted) return
         requireCanClose()
         val released = lock.withLock {
-            check(adapters.isEmpty() && sessions.isEmpty() && rejectedDevices.isEmpty()) {
-                "context has open children; close devices and adapters first"
+            check(adapters.isEmpty() && sessions.isEmpty() && rejectedDevices.isEmpty() && surfaces.isEmpty()) {
+                "context has open children; close surfaces, devices and adapters first"
             }
             instance.also { instance = null; closedMarker.complete(Unit) }
         }
@@ -120,6 +124,25 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
 
     internal fun releaseAdapter(adapter: WGPUAdapter) {
         lock.withLock { adapters.remove(adapter.handler.rawValue) }
+    }
+
+    internal fun adoptSurface(handle: Long): DawnSurfaceReference {
+        requireOpen()
+        require(handle != 0L) { "the surface handle is null" }
+        lateinit var state: SurfaceReferenceState
+        state = SurfaceReferenceState(
+            owner = this,
+            handle = handle,
+            addRef = { wgpuSurfaceAddRef(WGPUSurface(NativeAddress(it))) },
+            release = { wgpuSurfaceRelease(WGPUSurface(NativeAddress(it))) },
+            onReleased = { lock.withLock { surfaces.remove(state) } },
+        )
+        val reference = DawnSurfaceReference(this, state)
+        lock.withLock {
+            requireOpen()
+            surfaces.add(state)
+        }
+        return reference
     }
 
     internal fun registerSession(session: DeviceSession) { lock.withLock { sessions += session } }
@@ -137,9 +160,21 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
         }
     }
 
-    internal suspend fun requestAdapter(options: GPURequestAdapterOptions?): WGPUAdapter {
-        val operation = pending<AdapterOutcome>(this) { outcome ->
-            outcome.adapter?.let { wgpuAdapterRelease(it) }
+    internal suspend fun requestAdapter(
+        options: GPURequestAdapterOptions?,
+        compatibleSurface: DawnSurfaceReference? = null,
+    ): WGPUAdapter {
+        val retainedSurface = compatibleSurface?.retainForRequest(this)
+        val operation = try {
+            pending<AdapterOutcome>(this) { outcome ->
+                outcome.adapter?.let { wgpuAdapterRelease(it) }
+            }
+        } catch (failure: Throwable) {
+            retainedSurface?.second?.close()
+            throw failure
+        }
+        retainedSurface?.let { (_, lease) ->
+            operation.onNativeTerminal { postCallback { lease.close() } }
         }
         var registration: CallbackRegistration<WGPURequestAdapterCallback>? = null
         beginSubdeviceOperation(operation, issue = {
@@ -148,7 +183,10 @@ internal class DawnRuntime internal constructor(internal val config: DawnConfig)
                 postCallback { finishSubdeviceOperation(operation, registration!!, Result.success(outcome)) }
             }
             memoryScope { allocator ->
-                val native = allocator.allocateRequestAdapterOptions(options, config.backend)
+                val native = allocator.allocateRequestAdapterOptions(
+                    options, config.backend,
+                    retainedSurface?.first?.let { WGPUSurface(NativeAddress(it)) },
+                )
                 val info = WGPURequestAdapterCallbackInfo.allocate(allocator, WGPUCallbackMode_AllowProcessEvents, registration)
                     .also { it.nextInChain = null }
                 wgpuInstanceRequestAdapter(allocator, instance, native, info)

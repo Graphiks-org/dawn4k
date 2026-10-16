@@ -8,6 +8,7 @@ import org.graphiks.dawn4k.native.WGPUBackendType_Vulkan
 import org.graphiks.dawn4k.native.WGPUFeatureLevel_Undefined
 import org.graphiks.dawn4k.native.WGPUPowerPreference_Undefined
 import org.graphiks.dawn4k.native.WGPURequestAdapterOptions
+import org.graphiks.dawn4k.native.WGPUSurface
 import org.graphiks.kffi.MemoryAllocator
 import org.graphiks.webgpu.GPURequestAdapterOptions
 
@@ -26,6 +27,7 @@ import org.graphiks.webgpu.GPURequestAdapterOptions
 internal fun MemoryAllocator.allocateRequestAdapterOptions(
     options: GPURequestAdapterOptions?,
     backend: DawnBackend?,
+    compatibleSurface: WGPUSurface? = null,
 ): WGPURequestAdapterOptions {
     val native = WGPURequestAdapterOptions.allocate(this)
     native.nextInChain = null
@@ -38,6 +40,6 @@ internal fun MemoryAllocator.allocateRequestAdapterOptions(
         DawnBackend.Vulkan -> WGPUBackendType_Vulkan
         DawnBackend.D3D12 -> WGPUBackendType_D3D12
     }
-    native.compatibleSurface = null
+    native.compatibleSurface = compatibleSurface
     return native
 }

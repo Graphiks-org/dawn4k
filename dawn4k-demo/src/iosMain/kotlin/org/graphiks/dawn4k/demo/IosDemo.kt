@@ -67,7 +67,7 @@ private fun IosDemo(controller: DemoSessionController) {
                 // Never block UIKit. The lease retains its layer through native cleanup.
                 CoroutineScope(Dispatchers.Default).launch {
                     try { controller.detach(old.generation) }
-                    finally { old.close() }
+                    finally { withContext(NonCancellable) { old.awaitRetirement(); old.close() } }
                 }
             }
             UIKitView(

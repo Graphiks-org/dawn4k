@@ -27,8 +27,11 @@ kffi = "1.0.0-SNAPSHOT"
 
 # Skiko native runtime (managed by the Compose plugin version)
 skiko = "0.144.6"
+lwjgl = "3.4.3"
 
 [libraries]
+lwjgl-core = { module = "org.lwjgl:lwjgl", version.ref = "lwjgl" }
+lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw", version.ref = "lwjgl" }
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

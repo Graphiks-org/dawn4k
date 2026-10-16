@@ -86,6 +86,15 @@ internal class DeviceCallbacks internal constructor() {
 
     private val lock = SynchronizedObject()
     private var sink: ((GPUError) -> Unit)? = null
+    private val observers = mutableMapOf<Any, (GPUError) -> Unit>()
+
+    internal fun observeUncapturedErrors(observer: (GPUError) -> Unit): AutoCloseable {
+        val key = Any()
+        lock.withLock { check(!routesClosed) { "device callbacks are closed" }; observers[key] = observer }
+        return object : AutoCloseable {
+            override fun close() { lock.withLock { observers.remove(key) } }
+        }
+    }
 
     /** Terminal marker: completed with the factual loss once both callback routes are proven stopped. */
     internal val lost = CompletableDeferred<DawnDeviceLost>()
@@ -130,16 +139,18 @@ internal class DeviceCallbacks internal constructor() {
 
     /** Delivers an error without retaining it; stderr is the fallback for missing or failing sinks. */
     internal fun handleUncapturedError(error: DawnNativeError) {
-        val target = lock.withLock { sink }
+        val (target, observation) = lock.withLock { sink to observers.values.toList() }
         if (target == null) {
             reportUncapturedError(error)
-            return
-        }
-        try {
+        } else try {
             target(error.gpuError)
         } catch (failure: Throwable) {
             // Only user callback failures are isolated from the progress loop.
             reportUncapturedError(error, failure)
+        }
+        observation.forEach { observer ->
+            try { observer(error.gpuError) }
+            catch (failure: Throwable) { reportUncapturedError(error, failure) }
         }
     }
 
@@ -148,6 +159,7 @@ internal class DeviceCallbacks internal constructor() {
         val routes = lock.withLock {
             if (routesClosed) null else {
                 routesClosed = true
+                observers.clear()
                 lostRoute to errorRoute
             }
         } ?: return

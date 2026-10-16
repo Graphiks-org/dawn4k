@@ -1,6 +1,5 @@
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.AbstractTestTask
-import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 import groovy.json.JsonSlurper
 import org.jetbrains.kotlin.gradle.testing.internal.KotlinTestReport
@@ -9,6 +8,7 @@ plugins {
     kotlin("multiplatform")
     alias(libs.plugins.kotlin.serialization)
     id("ygdrasil.conventions.dawn-jvm-runtime")
+    id("ygdrasil.conventions.dawn-native-linkage")
 }
 
 kotlin {
@@ -30,29 +30,8 @@ kotlin {
         }
         jvmTest.dependencies { implementation(kotlin("test-junit")) }
     }
-    targets.withType<KotlinNativeTarget>().configureEach {
-        val dawn = project(":dawn4k-native")
-        compilations.getByName("main").cinterops.create("dawn") {
-            defFile(dawn.file("src/nativeInterop/cinterop/dawn.def"))
-            includeDirs(dawn.layout.buildDirectory.dir("native/$targetName/shared/include"))
-        }
-        binaries.all {
-            val lib = dawn.layout.buildDirectory.dir("native/$targetName/shared/lib").get().asFile.absolutePath
-            linkerOpts("-L$lib", "-lwebgpu_dawn", "-rpath", lib)
-            if (targetName == "macosArm64") {
-                listOf("Metal", "Foundation", "CoreGraphics", "QuartzCore", "IOKit", "IOSurface").forEach {
-                    linkerOpts("-framework", it)
-                }
-            } else {
-                linkerOpts("-lpthread", "-ldl", "-lm")
-            }
-        }
-    }
 }
 
-tasks.matching { it.name.startsWith("cinteropDawn") || it.name.startsWith("linkDebugTest") }.configureEach {
-    dependsOn(":dawn4k-native:prepareDawn")
-}
 tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=ALL-UNNAMED") }
 
 val advisoryResults = providers.gradleProperty("dawn.acid.ignoreFailures").map { it.toBoolean() }.orElse(false)

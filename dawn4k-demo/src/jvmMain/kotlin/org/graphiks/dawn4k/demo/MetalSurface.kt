@@ -2,19 +2,15 @@ package org.graphiks.dawn4k.demo
 
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
-import org.graphiks.dawn4k.NativeBridge
 import org.graphiks.kffi.objc.CALayer
 import org.graphiks.kffi.objc.CAAutoresizingMask
 import org.graphiks.kffi.objc.NSView
 import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 
-/** AppKit attachment; the common Dawn lifecycle lives in [DawnSurface]. */
+/** AppKit layer attachment; GPU presentation belongs to the toolkit. */
 @OptIn(PlatformAvailability::class)
 internal object MetalSurface {
-    fun create(bridge: NativeBridge, deviceHandle: Long, metalLayerPtr: Long): DawnSurface =
-        DawnSurface.createMetal(bridge, deviceHandle, metalLayerPtr)
-
     fun createCaMetalLayer(): MemorySegment {
         val layerClass = ObjCRuntime.getClass("CAMetalLayer")
         val allocated = ObjCRuntime.msgSend(

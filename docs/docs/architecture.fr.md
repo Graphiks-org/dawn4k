@@ -17,6 +17,19 @@ commun.
 | Wrappers & mappers | `dawn4k/.../*.kt`, `dawn4k/.../mapper/*` | une classe `Dawn*` par interface WebGPU ; tables explicites de descripteurs/énumérations par nom |
 | Point d'entrée public | `dawn4k/.../DawnContext.kt`, `Adapter.kt`, `Device.kt` | `DawnContext.create(config)` → `requestAdapter` → `requestDevice` |
 
+### Couche de possession du toolkit
+
+`dawn4k-toolkit-core` → `dawn4k` ajoute la durée de vie GPU, un propriétaire fixé
+à un thread du système et la progression. `dawn4k-toolkit-surface` → core ajoute
+les cibles natives retenues, le choix d’un adapter compatible et les frames à
+portée définie. `dawn4k-toolkit-glfw` → surface ajoute les fenêtres desktop et
+leur boucle sur le thread principal du processus. Core et surface reprennent les
+neuf cibles Kotlin du backend ; GLFW déclare ses trois cibles desktop. Ces modules
+ne dépendent pas de Compose. La démo utilise désormais les factories publiques
+du toolkit et conserve sa scène, ses contrôles et son redémarrage côté application.
+Voir [Dawn4k toolkit](toolkit.fr.md) pour la possession, la libération des vues
+mobiles, les modes de progression et la couverture réellement exécutée.
+
 ### Bindings générés
 
 Le package `org.graphiks.dawn4k.native` est généré par kextract depuis la
@@ -28,7 +41,7 @@ d'énumération/drapeau passe par une table de constantes nommées dans
 
 ### Threads et progression choisis par le consommateur
 
-dawn4k ne crée **aucun worker, dispatcher ou job de pompe**. Les downcalls,
+Le backend `:dawn4k` ne crée **aucun worker, dispatcher ou job de pompe**. Les downcalls,
 y compris l'émission des requêtes asynchrones, s'exécutent sur l'appelant.
 L'application choisit ses threads, l'ordre, la fréquence et l'annulation.
 

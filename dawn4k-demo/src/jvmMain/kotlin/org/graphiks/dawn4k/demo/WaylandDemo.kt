@@ -26,7 +26,7 @@ internal fun runWaylandDemo() {
                     withTimeout(10_000) {
                         while (host.pixelSize().first <= 0) delay(10)
                     }
-                    withContext(Dispatchers.Default) { runParticleDemo(host, controls, true) }
+                    withContext(Dispatchers.Default) { runParticleDemo(host, controls) }
                 }
             }
         }

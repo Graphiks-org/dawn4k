@@ -1,0 +1,3 @@
+headers = dawn/webgpu.h
+headerFilter = dawn/webgpu.h
+package = webgpu.native

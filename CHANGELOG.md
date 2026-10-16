@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
 
 ### Added
+- Optional `dawn4k-toolkit-core`, `dawn4k-toolkit-surface` and `dawn4k-toolkit-glfw` modules in this repository: managed/headless GPU sessions, caller-owned execution, typed native presentation, cancellation-safe frames and view/window retirement, desktop GLFW windows, and public compute/triangle examples for all existing backend targets.
+- Strict toolkit publication/coverage checks and platform CI for JVM macOS/Windows/Linux x64/ARM64, Native macOS/Linux X11 and Wayland, Android Vulkan, and ARM64/Intel Apple simulators. Physical iOS/tvOS device compilation is reported separately from GPU execution.
 - Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CI integration. Usage and result interpretation are documented in `docs/docs/acid-tests-verification.md` and its French translation.
 - Android Vulkan and iOS Metal demo applications sharing the adaptive Compose UI, native surface ownership, lifecycle controls and mobile tests.
 - Compose controls above the Metal particle demo: pause/resume, reset and GPU-limited particle counts, with a draggable title strip and close button for the transparent undecorated window.
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the Dokka GFM and Python post-processing pipeline with Dokka for Material for MkDocs.
 
 ### Fixed
+- Native publication embeds Dawn and GLFW archives with relocatable linker metadata; Linux packages the verified Dawn shared runtime through a typed, thread-safe carrier instead of checkout-specific runtime paths. JVM resources include the Windows Dawn runtime, and Android surface JNI ships consumer keep rules for minified apps.
 - Buffer mapped views use absolute offsets, default to the remaining buffer size and reject overlapping views synchronously; timestamp query sets require the feature to be enabled on the device without producing a validation-scope error.
 - Blank Compose/Metal demo window, fixed-size surface rendering and animation stalls during mouse dragging; native UI work now runs on AppKit in common run-loop modes with explicit resource cleanup.
 - Default snapshot publication version when no workflow version is provided.

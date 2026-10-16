@@ -25,8 +25,8 @@ import org.graphiks.kffi.objc.ObjCRuntime
 import org.graphiks.kffi.objc.PlatformAvailability
 
 /**
- * AWT's EDT is not AppKit's thread. A common-mode source also runs during mouse
- * tracking/live resize, unlike dispatch_sync on the main queue, which stalls there.
+ * AWT's EDT is not AppKit's thread. A source registered in common modes and
+ * AWT's nested mode runs during tracking and AppKit-to-EDT accessibility queries.
  */
 @OptIn(PlatformAvailability::class)
 internal fun <T> onAppKitThread(block: () -> T): T {
@@ -71,6 +71,13 @@ private object AppKitDispatch {
         var source = MemorySegment.NULL
         var interrupted = false
         val loop = CFRunLoopGetMain()
+        // OpenJDK 25 pumps this separate mode while AppKit waits for the EDT.
+        // https://github.com/openjdk/jdk25u/blob/master/src/java.desktop/macosx/native/libosxapp/ThreadUtilities.m
+        val awtUtilities = ObjCRuntime.getClass("ThreadUtilities")
+        val awtMode = if (awtUtilities != MemorySegment.NULL) {
+            ObjCRuntime.msgSend(ValueLayout.ADDRESS, awtUtilities,
+                ObjCRuntime.sel("javaRunLoopMode")) as MemorySegment
+        } else MemorySegment.NULL
         try {
             source = Arena.ofConfined().use { arena ->
                 val context = CFRunLoopSourceContext.allocate(arena)
@@ -82,6 +89,7 @@ private object AppKitDispatch {
             }
             check(source != MemorySegment.NULL) { "CFRunLoopSourceCreate failed" }
             CFRunLoopAddSource(loop, source, kCFRunLoopCommonModes)
+            if (awtMode != MemorySegment.NULL) CFRunLoopAddSource(loop, source, awtMode)
             CFRunLoopSourceSignal(source)
             CFRunLoopWakeUp(loop)
             // Match a synchronous native call: keep resources alive until the
@@ -98,6 +106,7 @@ private object AppKitDispatch {
             if (source != MemorySegment.NULL) {
                 CFRunLoopSourceInvalidate(source)
                 CFRunLoopRemoveSource(loop, source, kCFRunLoopCommonModes)
+                if (awtMode != MemorySegment.NULL) CFRunLoopRemoveSource(loop, source, awtMode)
                 CFRelease(source)
             }
             tasks.remove(id)

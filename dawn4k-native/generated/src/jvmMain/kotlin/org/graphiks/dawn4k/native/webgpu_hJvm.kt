@@ -83,6 +83,19 @@ private object KextractNativeBootstrap {
                 "webgpu_dawn" to "libwebgpu_dawn.so",
             ),
         ),
+        "win32-x86-64" to Bundle(
+            key = "4007d9f70acae90063ad5f53556d28ccbaa60cac6a4e349b26a931f73e73164c",
+            resources = kotlin.collections.listOf(
+                Resource("msvcp140.dll", "0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9"),
+                Resource("msvcp140_atomic_wait.dll", "640b2aefced484d0368eea5bdd06addd0658a3a70a49256e560d6923b404a479"),
+                Resource("vcruntime140.dll", "d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066"),
+                Resource("vcruntime140_1.dll", "1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f"),
+                Resource("webgpu_dawn.dll", "965188d52dc4075a25736164304ed5059b45c62986f4c468246263d65c539e3d"),
+            ),
+            libraryPaths = kotlin.collections.mapOf(
+                "webgpu_dawn" to "webgpu_dawn.dll",
+            ),
+        ),
     )
 
     private fun currentPlatform(): kotlin.String {
@@ -17871,3 +17884,4 @@ private val __kffiJvmStructLayouts: Unit = run {
     __kffiJvmRegisterStructLayout194()
     __kffiJvmRegisterStructLayout195()
 }
+

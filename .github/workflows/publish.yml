@@ -11,11 +11,15 @@ on:
         required: false
 
 jobs:
+  native-bundles:
+    uses: ./.github/workflows/toolkit-native-bundles.yml
+
   snapshot:
+    needs: native-bundles
     if: github.event_name == 'push' && github.ref_name == 'master' || github.event_name == 'workflow_dispatch'
     # Publication must run on macOS: the Apple cinterops cannot be processed on a
     # Linux host, so a Linux runner would silently drop every Apple variant.
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
       ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -35,8 +39,17 @@ jobs:
           # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
           cmdline-tools-version: '15641748'
           packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+      - name: Install Android platform and NDK
+        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolkit-linux-native-bundles
+          path: build/publication-bundles
+      - name: Configure verified Linux publication bundles
+        run: |
+          mkdir -p "$HOME/.gradle"
+          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
+          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Set snapshot version
@@ -49,8 +62,9 @@ jobs:
         run: ./gradlew publishToMavenCentral --no-configuration-cache --no-daemon --stacktrace -PreleaseVersion="${VERSION}"
 
   release:
+    needs: native-bundles
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
       ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -70,12 +84,21 @@ jobs:
           # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
           cmdline-tools-version: '15641748'
           packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+      - name: Install Android platform and NDK
+        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolkit-linux-native-bundles
+          path: build/publication-bundles
+      - name: Configure verified Linux publication bundles
+        run: |
+          mkdir -p "$HOME/.gradle"
+          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
+          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Extract version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - name: Publish release
         # The task selector publishes every subproject that applies the publication
         # convention; the root project deliberately has no such task.
