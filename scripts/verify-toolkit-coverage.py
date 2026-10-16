@@ -22,6 +22,17 @@ GPU_TESTS = {
 class VerificationError(ValueError):
     pass
 
+def verify_android_manifest_package(manifest):
+    package = ET.fromstring(manifest).get("package", "")
+    keywords = set("""abstract assert boolean break byte case catch char class const continue
+        default do double else enum extends final finally float for goto if implements import
+        instanceof int interface long native new package private protected public return short
+        static strictfp super switch synchronized this throw throws transient try void volatile
+        while true false null _""".split())
+    if not package or any(part in keywords or not part.replace("$", "_").isidentifier()
+                          for part in package.split(".")):
+        raise VerificationError(f"Published AAR manifest has an invalid Java package: {package}")
+
 def verify_runtime_archives(root, version):
     def archive(module, extension):
         path = root / "org/graphiks" / module / version / f"{module}-{version}.{extension}"
@@ -53,6 +64,7 @@ def verify_runtime_archives(root, version):
                 raise VerificationError(f"Windows runtime dependency checksum mismatch: {name}")
     for module, library in (("dawn4k-native-android", "webgpu_dawn"), ("dawn4k-toolkit-surface-android", "dawn4k_toolkit_window")):
         with archive(module, "aar") as aar:
+            verify_android_manifest_package(aar.read("AndroidManifest.xml"))
             for abi, machine in (("arm64-v8a", 183), ("x86_64", 62)):
                 require_elf(aar, f"jni/{abi}/lib{library}.so", machine)
             if module == "dawn4k-toolkit-surface-android":
@@ -158,6 +170,11 @@ class CoverageFixtures(unittest.TestCase):
     def test_rejectsMissingTarget(self):
         with self.assertRaises(VerificationError): verify_coverage([], self.required)
         verify_coverage([self.record], self.required)
+
+    def test_rejectsJavaKeywordInAndroidManifestPackage(self):
+        with self.assertRaises(VerificationError):
+            verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.native"/>')
+        verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.bindings"/>')
 
     def test_rejectsSkippedRequiredGpuSuite(self):
         tree = ET.parse(self.junit)

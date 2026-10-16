@@ -11,6 +11,7 @@ import javax.inject.Inject
 
 plugins {
     id("ygdrasil.conventions.dawn-jvm-runtime")
+    id("ygdrasil.conventions.dawn-native-linkage")
     kotlin("multiplatform")
     alias(libs.plugins.kotlin.serialization)
     id("com.android.kotlin.multiplatform.library")
@@ -89,21 +90,9 @@ kotlin {
             baseName = "Dawn4kDemo"
             isStatic = true
         }
-        val dawn = project(":dawn4k-native")
-        compilations.getByName("main").cinterops.create("dawn") {
-            defFile(dawn.file("src/nativeInterop/cinterop/dawn.def"))
-            includeDirs(dawn.layout.buildDirectory.dir("native/$targetName/static/include"))
-        }
-        binaries.all {
-            linkerOpts("-L${dawn.layout.buildDirectory.dir("native/$targetName/static/lib").get().asFile}", "-lwebgpu_dawn")
-            listOf("Metal", "Foundation", "CoreGraphics", "QuartzCore", "IOKit", "IOSurface").forEach {
-                linkerOpts("-framework", it)
-            }
-        }
     }
 }
 
-tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach { dependsOn(":dawn4k-native:prepareDawn") }
 val jvmTarget = kotlin.targets.getByName("jvm") as KotlinJvmTarget
 val jvmMainCompilation = jvmTarget.compilations.getByName("main")
 val jvmTestCompilation = jvmTarget.compilations.getByName("test")

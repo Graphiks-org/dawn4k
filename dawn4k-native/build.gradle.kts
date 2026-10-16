@@ -26,7 +26,7 @@ dokka {
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
         org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
-            namespace = "org.graphiks.dawn4k.native"
+            namespace = "org.graphiks.dawn4k.bindings"
         },
     )
 }
