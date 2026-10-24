@@ -193,6 +193,12 @@ et libstdc++ avec `GLIBCXX_3.4.32` ; son inclusion ne réduit pas ces exigences.
 Aucun chemin du dépôt n’est requis à l’exécution. La publication macOS reçoit
 des bundles Dawn/GLFW Linux identifiés par leur source et leurs checksums
 (sommes de contrôle), construits préalablement sur Ubuntu par le workflow.
+Ces archives Linux ne pouvant être produites que sur un hôte Linux x86_64 (ou
+fournies depuis celui-ci), la cible `linuxX64` n’y est déclarée que là-bas ou
+lorsque `dawn.nativeBundle.linuxX64` et `glfw.nativeBundle.linuxX64` désignent
+des bundles vérifiés. Les imports Gradle et IDE sur tout autre hôte restent
+verts sans eux ; renseignez ces deux propriétés (comme la CI) pour compiler
+les variantes Linux localement.
 
 `./gradlew verifyToolkitCoverage` contrôle toute la matrice d’exécution à partir
 des rapports portables `build/toolkit-coverage/**/summary.json` et de leurs

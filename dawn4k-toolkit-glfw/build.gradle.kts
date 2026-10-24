@@ -26,7 +26,7 @@ kotlin {
     jvmToolchain(25)
     jvm()
     macosArm64()
-    linuxX64()
+    if (ygdrasil.conventions.linuxX64TargetEnabled(providers)) linuxX64()
     applyDefaultHierarchyTemplate()
     sourceSets.commonMain.dependencies {
         api(project(":dawn4k-toolkit-surface"))

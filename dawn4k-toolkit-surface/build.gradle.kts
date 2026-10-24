@@ -41,11 +41,13 @@ kotlin {
         dependsOn(gpuTest)
         dependencies { implementation(project(":dawn4k-toolkit-glfw")) }
     }
+    // linuxX64 is only declared on Linux x86_64 hosts or with verified bundles; the
+    // desktop test sets stay wired for whichever native desktop targets exist.
     for (name in listOf("jvmTest", "macosArm64Test", "linuxX64Test")) {
-        sourceSets.getByName(name).dependsOn(desktopTest)
+        sourceSets.findByName(name)?.dependsOn(desktopTest)
     }
     val desktopNativeTest = sourceSets.create("desktopNativeTest") { dependsOn(desktopTest) }
-    listOf("macosArm64Test", "linuxX64Test").forEach { sourceSets.getByName(it).dependsOn(desktopNativeTest) }
+    listOf("macosArm64Test", "linuxX64Test").forEach { sourceSets.findByName(it)?.dependsOn(desktopNativeTest) }
     sourceSets.getByName("jvmTest").dependencies { implementation(libs.lwjgl.glfw) }
     android {
         optimization.consumerKeepRules.apply {

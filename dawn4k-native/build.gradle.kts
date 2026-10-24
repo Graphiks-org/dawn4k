@@ -235,7 +235,7 @@ kotlin {
         }
     }
 
-    linuxX64 {
+    if (ygdrasil.conventions.linuxX64TargetEnabled(providers)) linuxX64 {
         compilations.getByName("main").cinterops.create("dawn") {
             defFile(project.file("src/nativeInterop/cinterop/dawn.def"))
             includeDirs(layout.buildDirectory.dir("native/linuxX64/shared/include"), project.file("src/nativeInterop/cinterop"))

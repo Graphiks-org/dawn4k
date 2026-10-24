@@ -182,6 +182,11 @@ Linux runtime requires glibc 2.38 and libstdc++ with `GLIBCXX_3.4.32`; embedding
 does not lower those runtime requirements. No repository path is needed at run
 time. A macOS publication host must receive source-identified, checksum-verified
 Linux Dawn/GLFW bundles; the publication workflow builds them on Ubuntu first.
+Because those Linux archives can only be produced on (or supplied for) a Linux
+x86_64 host, the `linuxX64` target is declared only there or when both
+`dawn.nativeBundle.linuxX64` and `glfw.nativeBundle.linuxX64` point at verified
+bundles. Gradle and IDE imports on any other host stay green without them; set
+both properties (as CI does) to cross-build Linux variants locally.
 
 `./gradlew verifyToolkitCoverage` checks the complete execution matrix from
 portable `build/toolkit-coverage/**/summary.json` reports and their JUnit/log

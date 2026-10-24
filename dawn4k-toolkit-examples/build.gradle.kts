@@ -27,9 +27,11 @@ kotlin {
         dependsOn(sourceSets.commonMain.get())
         dependencies { implementation(project(":dawn4k-toolkit-glfw")) }
     }
-    listOf("jvmMain", "macosArm64Main", "linuxX64Main").forEach { sourceSets.getByName(it).dependsOn(desktopMain) }
+    // linuxX64 is only declared on Linux x86_64 hosts or with verified bundles; the
+    // desktop sets stay wired for whichever native desktop targets exist.
+    listOf("jvmMain", "macosArm64Main", "linuxX64Main").forEach { sourceSets.findByName(it)?.dependsOn(desktopMain) }
     val desktopNativeMain = sourceSets.create("desktopNativeMain") { dependsOn(desktopMain) }
-    listOf("macosArm64Main", "linuxX64Main").forEach { sourceSets.getByName(it).dependsOn(desktopNativeMain) }
+    listOf("macosArm64Main", "linuxX64Main").forEach { sourceSets.findByName(it)?.dependsOn(desktopNativeMain) }
     val appleMobileMain = sourceSets.create("appleMobileMain") { dependsOn(sourceSets.commonMain.get()) }
     listOf("iosMain", "tvosMain").forEach { sourceSets.getByName(it).dependsOn(appleMobileMain) }
     targets.withType<KotlinNativeTarget>().configureEach {
