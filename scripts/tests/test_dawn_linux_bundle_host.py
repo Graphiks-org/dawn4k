@@ -9,6 +9,10 @@ import unittest
 from unittest.mock import patch
 
 
+def crlf_script_path() -> Path:
+    return Path(__file__).parents[1] / "build-dawn-linux-bundle.py"
+
+
 class WindowsRelativePath(type(Path())):
     """Use Windows manifest lookup paths while retaining real local file I/O."""
     def relative_to(self, *args, **kwargs):
@@ -48,7 +52,7 @@ class DawnLinuxBundleHostTest(unittest.TestCase):
             "target": "linuxX64", "revision": dawn["revision"],
             "headerSha256": artifacts[0]["sha256"],
             "librarySha256": artifacts[1]["sha256"],
-            "generatorSha256": hashlib.sha256(script.read_bytes()).hexdigest(),
+            "generatorSha256": hashlib.sha256(script.read_bytes().replace(b"\r\n", b"\n")).hexdigest(),
             "archiveSha256": hashlib.sha256(self.archive).hexdigest(),
         }))
 
@@ -75,6 +79,21 @@ class DawnLinuxBundleHostTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Prepared Dawn checksum mismatch"):
             self.verify(WindowsRelativePath)
         self.assertFalse(self.output.exists())
+
+    def test_crlf_checkout_of_generator_still_verifies_lf_built_bundle(self):
+        # Git checkouts without .gitattributes materialize this script with CRLF on
+        # Windows while the CI bundle was generated from the LF file; the generator
+        # identity must be computed over line endings, not raw checkout bytes.
+        crlf_script = self.root / "build-dawn-linux-bundle.py"
+        crlf_script.write_bytes(crlf_script_path().read_bytes().replace(b"\n", b"\r\n"))
+        spec = importlib.util.spec_from_file_location("bundle_host_crlf", crlf_script)
+        crlf_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(crlf_module)
+        argv = ["build-dawn-linux-bundle.py", "--prepared", str(self.prepared),
+                "--lock", str(self.lock), "--bundle", str(self.source), "--output", str(self.output)]
+        with patch.object(sys, "argv", argv):
+            crlf_module.main()
+        self.assert_copied_bundle()
 
 
 if __name__ == "__main__":

@@ -16,6 +16,13 @@ import shutil
 import subprocess
 
 
+def generator_sha256(path):
+    # The bundle identity tracks the generator's logic, not the line endings a
+    # platform-specific checkout materializes (git autocrlf rewrites LF to CRLF
+    # on Windows, changing the raw file digest without changing the generator).
+    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -162,7 +169,7 @@ def main():
     for file in (header, library):
         if sha256(file) != expected[file.relative_to(args.prepared).as_posix()]:
             raise ValueError(f"Prepared Dawn checksum mismatch: {file}")
-    identity = {"target": "linuxX64", "revision": lock["revision"], "headerSha256": sha256(header), "librarySha256": sha256(library), "generatorSha256": sha256(__file__)}
+    identity = {"target": "linuxX64", "revision": lock["revision"], "headerSha256": sha256(header), "librarySha256": sha256(library), "generatorSha256": generator_sha256(__file__)}
     args.output.mkdir(parents=True, exist_ok=True)
     if args.bundle:
         verify_bundle(args.bundle, identity)

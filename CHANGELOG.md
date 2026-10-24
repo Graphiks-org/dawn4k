@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the Dokka GFM and Python post-processing pipeline with Dokka for Material for MkDocs.
 
 ### Fixed
+- Windows CI no longer rejects the Linux Dawn carrier bundle: the generator identity is now computed over line-ending-normalized script bytes (a Windows `autocrlf` checkout hashed differently than the Linux-built bundle), and `.gitattributes` pins `*.py`/`*.sh`/`gradlew` to LF so every host checks out identical bytes.
 - Gradle and IDE imports no longer fail on hosts that cannot produce the Linux Dawn carrier and GLFW archives: the `linuxX64` target is now declared only on Linux x86_64 hosts or when both verified `dawn.nativeBundle.linuxX64` and `glfw.nativeBundle.linuxX64` bundles are supplied, mirroring the CI flow and `wayland.targets`. Unchanged elsewhere: Linux hosts and bundle-provided builds keep the full target.
 - Native publication embeds Dawn and GLFW archives with relocatable linker metadata; Linux packages the verified Dawn shared runtime through a typed, thread-safe carrier instead of checkout-specific runtime paths. JVM resources include the Windows Dawn runtime, and Android surface JNI ships consumer keep rules for minified apps.
 - Buffer mapped views use absolute offsets, default to the remaining buffer size and reject overlapping views synchronously; timestamp query sets require the feature to be enabled on the device without producing a validation-scope error.
