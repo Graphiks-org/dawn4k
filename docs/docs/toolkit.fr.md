@@ -116,19 +116,6 @@ GPU qui a besoin de l’UI pour libérer les références natives. Apple conserv
 vraies références Core Foundation ; Android conserve une référence native-window
 indépendante du wrapper Java. Les hôtes d’exemple montrent ce nettoyage asynchrone.
 
-Pour lancer l’app d’exemple iOS/tvOS — ou toute app embarquant le framework — sur
-un simulateur depuis Xcode, désactiver la validation de l’API Metal pour l’action
-Run (Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled ; les
-schemes partagés de l’exemple l’ont déjà désactivée).
-Dawn épinglé (`chromium/8077`) appelle `setDepthClipMode` à chaque attachement de
-pipeline de rendu ; les GPU de simulateur ne supportent pas le depth clip mode,
-donc la couche de validation avorte avec `MTLValidateFeatureSupport: Depth Clip
-Mode is not supported on this device`. Sans cette couche, l’appel est sans effet
-et correspond au découpage par défaut de Metal : le rendu est inchangé. Les tests
-simulateur lancés par Gradle ne chargent pas cette couche et ne sont pas
-concernés. À revisiter quand Dawn conditionnera cet appel à l’état du pipeline ou
-au support du device.
-
 ## Progression, perte du device et arrêt
 
 Le mode géré possède un dispatcher fixé à un thread du système et sa progression

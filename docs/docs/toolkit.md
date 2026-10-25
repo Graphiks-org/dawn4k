@@ -112,18 +112,6 @@ native release. Apple layer retention uses actual Core Foundation references;
 Android retention uses a native-window reference independent of the Java wrapper.
 The sample hosts demonstrate asynchronous view teardown.
 
-When running the iOS/tvOS sample app — or any app embedding the framework — on a
-simulator from Xcode, disable Metal API Validation for the Run action
-(Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled; the
-shared sample schemes already ship with it disabled). The
-pinned Dawn (`chromium/8077`) calls `setDepthClipMode` on every render-pipeline
-bind; simulator GPUs do not support depth clip mode, so the validation layer
-aborts with `MTLValidateFeatureSupport: Depth Clip Mode is not supported on this
-device`. Without the layer the call is a no-op matching Metal's default clipping
-and rendering is unaffected; Gradle-run simulator tests do not load the layer and
-are unaffected. Revisit once Dawn gates that call on pipeline state or device
-support.
-
 ## Progress, loss and shutdown
 
 Managed execution owns one OS-thread-pinned dispatcher and event progression.
