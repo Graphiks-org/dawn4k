@@ -1,21 +1,21 @@
 {
-  "release": "v8077.0.0",
+  "release": "v8077.0.1",
   "tag": "chromium/8077",
   "revision": "531028367c60ce07251ec0231c1b95bedb4495bc",
   "archives": [
-    {"target":"mingwX64","linkage":"shared","name":"dawn-chromium-8077-mingwX64-shared.tar.gz","sha256":"308b22cd3e5385fb4c1285e9577574c089715a0e27ea18ce2b1b524d3fa823ba"},
-    {"target":"macosArm64","linkage":"shared","name":"dawn-chromium-8077-macosArm64-shared.tar.gz","sha256":"5ec6b21e1012a1b7596c1c5563c0f2f7ed3ebe8eee83c3a91a715051208eae30"},
-    {"target":"macosArm64","linkage":"static","name":"dawn-chromium-8077-macosArm64-static.tar.gz","sha256":"23333b72888860d87982edea0a637cac9b10c1b8737582eb65f79bc2abd3fbc2"},
-    {"target":"linuxX64","linkage":"shared","name":"dawn-chromium-8077-linuxX64-shared.tar.gz","sha256":"942074e2fc77858786b38ebe5661a9f21593fd3a8084eb15a0481a3e369e32a5"},
-    {"target":"linuxX64","linkage":"static","name":"dawn-chromium-8077-linuxX64-static.tar.gz","sha256":"047a2c9d88dce11beab42bb5365f1c9d03ee7d249f32217380782095bd260a39"},
-    {"target":"linuxArm64","linkage":"shared","name":"dawn-chromium-8077-linuxArm64-shared.tar.gz","sha256":"e0a3656a9786fdb2855bab20bb54b9d71838726417877d531962376db35b6f05"},
-    {"target":"linuxArm64","linkage":"static","name":"dawn-chromium-8077-linuxArm64-static.tar.gz","sha256":"31815aeaa95ec0b08037686c7008a7353d4f06588336092142da1f37c479f246"},
-    {"target":"iosArm64","linkage":"static","name":"dawn-chromium-8077-iosArm64-static.tar.gz","sha256":"6a825012ecc3256911907bde6bc6d102c51b02c2bb2ed1a3cb5c0c546e40e59c"},
-    {"target":"iosSimulatorArm64","linkage":"static","name":"dawn-chromium-8077-iosSimulatorArm64-static.tar.gz","sha256":"b5bc75ebeede7377734293f6752e5af2ec1fcff7e22f08db85063e75a8ca34b7"},
-    {"target":"iosX64","linkage":"static","name":"dawn-chromium-8077-iosX64-static.tar.gz","sha256":"6fb1bbecff9d25b08269f9330390caa830fa6d060c80d9f50d609d204793ce68"},
-    {"target":"tvosArm64","linkage":"static","name":"dawn-chromium-8077-tvosArm64-static.tar.gz","sha256":"a0cadd6ee7aa104036d57c1a938d140bf5f2fdad48604a41c1f0a335cf11e631"},
-    {"target":"tvosSimulatorArm64","linkage":"static","name":"dawn-chromium-8077-tvosSimulatorArm64-static.tar.gz","sha256":"ba7ae4b053950a7f2d0547a8318f00d848bfe825ef90d606071015da36cbd978"},
-    {"target":"androidNativeArm64","linkage":"shared","name":"dawn-chromium-8077-androidNativeArm64-shared.tar.gz","sha256":"a6b4db2083bee888ce374fea644c062e6678f320280dcfc43f1bece62c44cfc0"},
-    {"target":"androidNativeX64","linkage":"shared","name":"dawn-chromium-8077-androidNativeX64-shared.tar.gz","sha256":"9c564de53f239e396be352ebd5b4645aefa26b54b4a427fa64c49f5373f83c82"}
+    {"target":"mingwX64","linkage":"shared","name":"dawn-chromium-8077-mingwX64-shared.tar.gz","sha256":"27357df4e687721ee67d9522f0a84a9751614622f5c17a2544a5389f62e90192"},
+    {"target":"macosArm64","linkage":"shared","name":"dawn-chromium-8077-macosArm64-shared.tar.gz","sha256":"afdf1c20d51a982f97851ca5b23c3ef4281c5a8191c8ffe58de0f6d04557e27b"},
+    {"target":"macosArm64","linkage":"static","name":"dawn-chromium-8077-macosArm64-static.tar.gz","sha256":"a403b2d3b89b852ab8404a98bd4fe604f229060b904702c0fd03fa4325dc9f16"},
+    {"target":"linuxX64","linkage":"shared","name":"dawn-chromium-8077-linuxX64-shared.tar.gz","sha256":"e4e9b51894f245d0c839effde7aa601529d4556ecc44da9ebfa5b424a22fc94e"},
+    {"target":"linuxX64","linkage":"static","name":"dawn-chromium-8077-linuxX64-static.tar.gz","sha256":"45d7ab66dd553c6ab797f44a50bbe64cd11cc85e67c02a51c99819cd0eeb7311"},
+    {"target":"linuxArm64","linkage":"shared","name":"dawn-chromium-8077-linuxArm64-shared.tar.gz","sha256":"b8278b414920c056009ad28b70ec98b1917360ce27c53d77ce415ebc403988c7"},
+    {"target":"linuxArm64","linkage":"static","name":"dawn-chromium-8077-linuxArm64-static.tar.gz","sha256":"23f89f698839f9f5a6cf772a0552608018fae0e6c2e74f0bfd03324377f20ec7"},
+    {"target":"iosArm64","linkage":"static","name":"dawn-chromium-8077-iosArm64-static.tar.gz","sha256":"36920118efc63ece4918c53d49e6198329177da51976720481bb4ba924d29858"},
+    {"target":"iosSimulatorArm64","linkage":"static","name":"dawn-chromium-8077-iosSimulatorArm64-static.tar.gz","sha256":"b503850e04e9f004b6fed04a05433f1614ff738e34363ab113e9e6e7c41f419c"},
+    {"target":"iosX64","linkage":"static","name":"dawn-chromium-8077-iosX64-static.tar.gz","sha256":"d7d1da6e38a9f7cae3679a1df79906d54bd5b9cb862b250d895b4ba54c6cb061"},
+    {"target":"tvosArm64","linkage":"static","name":"dawn-chromium-8077-tvosArm64-static.tar.gz","sha256":"10c9fbce24b1f4ef72acfc3b23c913429671da94ce18fe14cf38d280d5b1f5c7"},
+    {"target":"tvosSimulatorArm64","linkage":"static","name":"dawn-chromium-8077-tvosSimulatorArm64-static.tar.gz","sha256":"de07e77e5c25f8a4a663a38b42f992c01c8fd535ae2d1f703739f30b257a0a9e"},
+    {"target":"androidNativeArm64","linkage":"shared","name":"dawn-chromium-8077-androidNativeArm64-shared.tar.gz","sha256":"44c180ccdf17f356525ea573c0f6ffc04edda5792fb4d854e82bc3d76c15c52d"},
+    {"target":"androidNativeX64","linkage":"shared","name":"dawn-chromium-8077-androidNativeX64-shared.tar.gz","sha256":"4a85a387df5ef60e1ff1fc000a4e6082a79ea62407e0f9d70914ff9b3bda3858"}
   ]
 }
