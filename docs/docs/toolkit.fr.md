@@ -118,7 +118,8 @@ indépendante du wrapper Java. Les hôtes d’exemple montrent ce nettoyage asyn
 
 Pour lancer l’app d’exemple iOS/tvOS — ou toute app embarquant le framework — sur
 un simulateur depuis Xcode, désactiver la validation de l’API Metal pour l’action
-Run (Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled).
+Run (Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled ; les
+schemes partagés de l’exemple l’ont déjà désactivée).
 Dawn épinglé (`chromium/8077`) appelle `setDepthClipMode` à chaque attachement de
 pipeline de rendu ; les GPU de simulateur ne supportent pas le depth clip mode,
 donc la couche de validation avorte avec `MTLValidateFeatureSupport: Depth Clip

@@ -114,7 +114,8 @@ The sample hosts demonstrate asynchronous view teardown.
 
 When running the iOS/tvOS sample app — or any app embedding the framework — on a
 simulator from Xcode, disable Metal API Validation for the Run action
-(Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled). The
+(Scheme → Edit Scheme → Run → Options → Metal API Validation → Disabled; the
+shared sample schemes already ship with it disabled). The
 pinned Dawn (`chromium/8077`) calls `setDepthClipMode` on every render-pipeline
 bind; simulator GPUs do not support depth clip mode, so the validation layer
 aborts with `MTLValidateFeatureSupport: Depth Clip Mode is not supported on this
