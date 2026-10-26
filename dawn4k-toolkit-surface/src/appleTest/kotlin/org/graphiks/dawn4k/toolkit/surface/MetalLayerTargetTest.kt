@@ -8,13 +8,13 @@ import platform.QuartzCore.CAMetalLayer
 import org.graphiks.dawn4k.toolkit.DawnExecutionOwner
 import kotlin.test.*
 
-class AppleLayerTargetTest {
+class MetalLayerTargetTest {
     @Test fun metalTargetSelectsACompatibleAdapter() = runTest {
         val layer = CAMetalLayer()
         val worker = DawnExecutionOwner.dedicated("test-layer-owner")
         try {
-            val target = DawnSurfaceTargets.metalLayer(layer, DawnPlatformOwner.fromExecutionOwner(worker),
-                MutableStateFlow(DawnTargetState(2, PixelExtent(16, 16), true)))
+            val target = metalLayerTarget(layer,
+                MutableStateFlow(DawnTargetState(2, PixelExtent(16, 16), true)), owner = DawnPlatformOwner.fromExecutionOwner(worker))
             val presented = openDawnSurface(target)
             try { assertNotNull(presented.presentation.configuration.value) }
             finally { presented.shutdown() }
@@ -26,8 +26,8 @@ class AppleLayerTargetTest {
         val layer = CAMetalLayer()
         val worker = DawnExecutionOwner.dedicated("test-retention-owner")
         try {
-            val target = DawnSurfaceTargets.metalLayer(layer, DawnPlatformOwner.fromExecutionOwner(worker),
-                MutableStateFlow(DawnTargetState(1, PixelExtent(16, 16), true)))
+            val target = metalLayerTarget(layer,
+                MutableStateFlow(DawnTargetState(1, PixelExtent(16, 16), true)), owner = DawnPlatformOwner.fromExecutionOwner(worker))
             val lease = target.retain()
             lease.retire()
             lease.retire()

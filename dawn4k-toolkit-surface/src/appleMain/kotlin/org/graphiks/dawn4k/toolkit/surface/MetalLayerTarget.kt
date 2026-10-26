@@ -15,14 +15,14 @@ import platform.CoreFoundation.CFTypeRef
 import platform.QuartzCore.CAMetalLayer
 
 /** Retains the caller's layer on the Apple main thread for each GPU surface attachment. */
-fun metalLayerTarget(layer: CAMetalLayer, states: StateFlow<DawnTargetState>): DawnSurfaceTarget =
-    metalLayerTarget(layer, states, null)
+fun metalLayerTarget(
+    layer: CAMetalLayer, states: StateFlow<DawnTargetState>, owner: DawnPlatformOwner = DawnPlatformOwners.appleMain(),
+): DawnSurfaceTarget = metalLayerTarget(layer, states, null, owner)
 
 internal fun metalLayerTarget(
-    layer: CAMetalLayer, states: StateFlow<DawnTargetState>, retirement: TargetRetirement?,
+    layer: CAMetalLayer, states: StateFlow<DawnTargetState>, retirement: TargetRetirement?, owner: DawnPlatformOwner = DawnPlatformOwners.appleMain(),
 ): DawnSurfaceTarget = object : DawnSurfaceTarget {
     override val state = states
-    private val owner = DawnPlatformOwners.appleMain()
     override suspend fun retain(): DawnTargetLease {
         val address = atomic(0L)
         var reference: CFTypeRef? = null
