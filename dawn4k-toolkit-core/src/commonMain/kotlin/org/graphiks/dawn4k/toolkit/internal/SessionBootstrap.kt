@@ -56,18 +56,7 @@ internal suspend fun bootstrapSession(
         worker.cancel()
         val retirement = scope.async {
             worker.join()
-            var primary: Throwable? = failure
-            while (true) {
-                val cleaned = try {
-                    transaction.isEmpty || owner.run { transaction.rollback(primary) }
-                } catch (cleanup: Throwable) { primary?.addSuppressed(cleanup); false }
-                primary = null
-                if (cleaned) {
-                    if (supplied == null) owner.close()
-                    break
-                }
-                delay(maxOf(options.progressInterval, 100.milliseconds))
-            }
+            retireWithDeadline(owner, transaction, failure, supplied == null, options)
         }
         retirement.invokeOnCompletion { scope.cancel() }
         withContext(NonCancellable + Dispatchers.Default) {
@@ -75,5 +64,36 @@ internal suspend fun bootstrapSession(
             catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
         }
         throw failure
+    }
+}
+
+/**
+ * Unwinds [transaction] after a failed bootstrap with the same bounding as the
+ * [SessionShutdown] stages: one rollback attempt never outlives
+ * [DawnSessionOptions.shutdownTimeout], and a timed-out attempt counts as
+ * unclean — the loop retries after the progress delay instead of blocking
+ * retirement on a hung drain.
+ */
+internal suspend fun retireWithDeadline(
+    owner: DawnExecutionOwner,
+    transaction: BootstrapTransaction,
+    failure: Throwable,
+    ownsOwner: Boolean,
+    options: DawnSessionOptions,
+) {
+    var primary: Throwable? = failure
+    while (true) {
+        val cleaned = try {
+            transaction.isEmpty || withTimeout(options.shutdownTimeout) { owner.run { transaction.rollback(primary) } }
+        } catch (deadline: TimeoutCancellationException) {
+            // A hung rollback (e.g. an unbounded drain) is an unclean attempt, not this loop's end.
+            false
+        } catch (cleanup: Throwable) { primary?.addSuppressed(cleanup); false }
+        primary = null
+        if (cleaned) {
+            if (ownsOwner) owner.close()
+            break
+        }
+        delay(maxOf(options.progressInterval, 100.milliseconds))
     }
 }

@@ -28,19 +28,19 @@ class DawnContext internal constructor(private val runtime: DawnRuntime) : AutoC
      * reference — there is no shared adapter cache. Business failures arrive
      * as [Result.failure]; a cancellation stays a cancellation.
      */
-    suspend fun requestAdapter(options: GPURequestAdapterOptions? = null): Result<GPUAdapter> = try {
-        val adapter = runtime.requestAdapter(options)
-        Result.success(DawnAdapter(runtime, adapter, options?.forceFallbackAdapter == true))
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Throwable) {
-        Result.failure(failure)
-    }
+    suspend fun requestAdapter(options: GPURequestAdapterOptions? = null): Result<GPUAdapter> =
+        requestAdapterImpl(options, null)
 
     /** Selects an adapter compatible with a surface owned by this context. */
     suspend fun requestAdapter(
         options: GPURequestAdapterOptions? = null,
         compatibleSurface: DawnSurfaceReference,
+    ): Result<GPUAdapter> = requestAdapterImpl(options, compatibleSurface)
+
+    /** Shared body of the two [requestAdapter] overloads, which only differ by the surface. */
+    private suspend fun requestAdapterImpl(
+        options: GPURequestAdapterOptions?,
+        compatibleSurface: DawnSurfaceReference?,
     ): Result<GPUAdapter> = try {
         val adapter = runtime.requestAdapter(options, compatibleSurface)
         Result.success(DawnAdapter(runtime, adapter, options?.forceFallbackAdapter == true))
