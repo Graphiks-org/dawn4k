@@ -12,7 +12,7 @@ import platform.CoreFoundation.CFRetain
 import platform.CoreFoundation.CFRelease
 import platform.QuartzCore.CAMetalLayer
 
-/** Retains the caller's layer on the Apple main thread for each GPU surface attachment. */
+/** Retains the caller's layer for each GPU surface attachment, on the supplied [owner] (Apple main thread by default). */
 fun metalLayerTarget(
     layer: CAMetalLayer, states: StateFlow<DawnTargetState>, owner: DawnPlatformOwner = DawnPlatformOwners.appleMain(),
     retention: DawnTargetRetention = EmptyTargetRetention,

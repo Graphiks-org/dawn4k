@@ -41,7 +41,7 @@ class CountingTargetRetention : DawnTargetRetention {
         outstanding.first { it == 0 }
     }
 
-    /** Starts retirement and requires every lease to have acknowledged retirement. */
+    /** Starts retirement and requires every lease to have acknowledged retirement. Seals the retention even when this throws — every later retain fails. */
     fun requireRetired() {
         synchronized(lock) {
             retiring = true
