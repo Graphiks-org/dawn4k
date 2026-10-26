@@ -60,6 +60,10 @@ def verify_runtime_archives(root, version):
         # instead of restating the name list a fourth time here.
         manifest = dict(line.split("=", 1) for line in jar.read("dawn4k/windows-runtime.properties").decode().splitlines() if line)
         staged = {name.split("/")[-1] for name in jar.namelist() if name.startswith("win32-x86-64/") and name.endswith(".dll")}
+        if "webgpu_dawn.dll" not in staged:
+            # The Dawn library itself is excluded from the manifest, so only this
+            # guard keeps a jar that stopped staging it from verifying clean.
+            raise VerificationError("Missing Windows x64 runtime: webgpu_dawn.dll")
         if set(manifest) != staged - {"webgpu_dawn.dll"}:
             raise VerificationError(f"Windows runtime manifest does not match the staged DLLs: {sorted(manifest)} vs {sorted(staged)}")
         for name in sorted(staged):

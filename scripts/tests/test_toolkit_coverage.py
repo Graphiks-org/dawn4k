@@ -117,7 +117,7 @@ class WindowsRuntimeArchives(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "maven"
 
-    def stage_jvm_jar(self, dependencies, digests=None, unmatched_manifest_names=(), unmanifested_dlls=()):
+    def stage_jvm_jar(self, dependencies, digests=None, unmatched_manifest_names=(), unmanifested_dlls=(), dawn_dll=True):
         path = self.root / "org/graphiks/dawn4k-native-jvm" / self.version / f"dawn4k-native-jvm-{self.version}.jar"
         path.parent.mkdir(parents=True)
         contents = {
@@ -125,7 +125,10 @@ class WindowsRuntimeArchives(unittest.TestCase):
             "linux-aarch64/libwebgpu_dawn.so": elf(183),
             "darwin-aarch64/libwebgpu_dawn.dylib": macos_dylib(),
         }
-        for name in ("webgpu_dawn.dll", *dependencies, *unmanifested_dlls):
+        windows = (*dependencies, *unmanifested_dlls)
+        if dawn_dll:
+            windows = ("webgpu_dawn.dll", *windows)
+        for name in windows:
             contents[f"win32-x86-64/{name}"] = pe_image()
         manifest = []
         for name in dependencies:
@@ -146,8 +149,8 @@ class WindowsRuntimeArchives(unittest.TestCase):
                 aar.writestr(f"jni/{abi}/lib{library}.so", elf(machine))
             aar.writestr("proguard-rules.pro", rules)
 
-    def stage_all(self, dependencies, digests=None, unmatched_manifest_names=(), unmanifested_dlls=()):
-        self.stage_jvm_jar(dependencies, digests, unmatched_manifest_names, unmanifested_dlls)
+    def stage_all(self, dependencies, digests=None, unmatched_manifest_names=(), unmanifested_dlls=(), dawn_dll=True):
+        self.stage_jvm_jar(dependencies, digests, unmatched_manifest_names, unmanifested_dlls, dawn_dll)
         self.stage_aar("dawn4k-native-android", "webgpu_dawn",
                        "org.graphiks.dawn4k.native.*Trampoline\npublic static void dispatch(...);\n")
         self.stage_aar("dawn4k-toolkit-surface-android", "dawn4k_toolkit_window",
@@ -156,6 +159,11 @@ class WindowsRuntimeArchives(unittest.TestCase):
     def test_consistent_archives_verify(self):
         self.stage_all(("vcruntime140.dll", "msvcp140_atomic_wait.dll"))
         verify.verify_runtime_archives(self.root, self.version)
+
+    def test_missing_windows_dawn_runtime_is_rejected(self):
+        self.stage_all(("vcruntime140.dll", "msvcp140_atomic_wait.dll"), dawn_dll=False)
+        with self.assertRaisesRegex(verify.VerificationError, "Missing Windows x64 runtime: webgpu_dawn.dll"):
+            verify.verify_runtime_archives(self.root, self.version)
 
     def test_staged_dll_missing_from_the_manifest_is_rejected(self):
         self.stage_all(("vcruntime140.dll", "msvcp140_atomic_wait.dll"), unmanifested_dlls=("msvcp140.dll",))
