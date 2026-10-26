@@ -67,12 +67,8 @@ suspend fun <T> withDawnSurface(
     block: suspend CoroutineScope.(DawnSession, DawnPresentation) -> T,
 ): T {
     val presented = openDawnSurface(target, sessionOptions, presentationOptions)
-    var failure: Throwable? = null
-    try { return presented.gpu.run { block(it, presented.presentation) } }
-    catch (caught: Throwable) { failure = caught; throw caught }
-    finally {
-        presented.gpu.manualProgress?.stop()
-        try { presented.shutdown() }
-        catch (cleanup: Throwable) { if (failure == null) throw cleanup else failure.addSuppressed(cleanup) }
-    }
+    return withToolkitShutdown(
+        stopProgress = { presented.gpu.manualProgress?.stop() },
+        shutdown = { presented.shutdown() },
+    ) { presented.gpu.run { block(it, presented.presentation) } }
 }

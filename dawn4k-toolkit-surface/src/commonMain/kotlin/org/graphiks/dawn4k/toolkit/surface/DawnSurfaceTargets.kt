@@ -2,17 +2,10 @@ package org.graphiks.dawn4k.toolkit.surface
 
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnSurfaceReference
+import org.graphiks.dawn4k.toolkit.SharedRetirement
 import org.graphiks.dawn4k.toolkit.surface.internal.NativeSurfaceSource
 
 internal enum class SurfacePlatform { Apple, Windows, Linux, Android }
@@ -80,25 +73,15 @@ private class PlatformTargetLease(
     private val retention: DawnTargetRetention,
     private val generation: Long,
 ) : DawnTargetLease {
-    private val mutex = Mutex()
     private val retired = kotlinx.atomicfu.atomic(false)
-    private val retirementScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var retirementAttempt: Deferred<Unit>? = null
+    private val retirement = SharedRetirement {
+        owner.onOwner { retention.retire() }
+        retired.value = true
+    }
     override fun createSurface(context: DawnContext): DawnSurfaceReference {
         val current = state.value
         check(!retired.value && current.available && current.generation == generation) { "retained presentation target is unavailable" }
         return source.createSurface(context)
     }
-    override suspend fun retire() {
-        val shared = mutex.withLock {
-            if (retired.value) return
-            retirementAttempt?.takeUnless { it.isCompleted }
-                ?: retirementScope.async(start = CoroutineStart.LAZY) {
-                    owner.onOwner { retention.retire() }
-                    retired.value = true
-                }.also { retirementAttempt = it; it.start() }
-        }
-        // Cancelling this wait leaves the native retirement and its owner alive.
-        shared.await()
-    }
+    override suspend fun retire() = retirement.retireOnce()
 }

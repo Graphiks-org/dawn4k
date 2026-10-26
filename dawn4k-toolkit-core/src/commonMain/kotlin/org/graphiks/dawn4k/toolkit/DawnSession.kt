@@ -110,12 +110,8 @@ suspend fun <T> withDawnSession(
     block: suspend CoroutineScope.(DawnSession) -> T,
 ): T {
     val session = openDawnSession(options)
-    var failure: Throwable? = null
-    try { return session.run(block) }
-    catch (caught: Throwable) { failure = caught; throw caught }
-    finally {
-        session.manualProgress?.stop()
-        try { session.shutdown() }
-        catch (cleanup: Throwable) { if (failure == null) throw cleanup else failure.addSuppressed(cleanup) }
-    }
+    return withToolkitShutdown(
+        stopProgress = { session.manualProgress?.stop() },
+        shutdown = { session.shutdown() },
+    ) { session.run(block) }
 }

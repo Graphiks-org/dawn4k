@@ -102,6 +102,9 @@ internal class NativeWindowLease(
 
     fun requireLive() { check(!destroyed.value) { "window has been destroyed" } }
 
+    // Inline mutex guard rather than SharedRetirement: this body must keep running inside the
+    // caller's platform-owner admission (GlfwBackend entry points stay on the process main
+    // thread), and a failed attempt resumes from [destroyed] instead of restarting the body.
     suspend fun retire() = mutex.withLock {
         if (!retired) {
             if (!destroyed.value) {
@@ -178,12 +181,8 @@ suspend fun <T> withDawnWindow(
     block: suspend CoroutineScope.(DawnSession, DawnWindow, DawnPresentation) -> T,
 ): T = DawnMainThreadLoop.run { main ->
     val window = openDawnWindow(windowOptions, sessionOptions, presentationOptions, main)
-    var failure: Throwable? = null
-    try { window.gpu.run { block(it, window, window.presentation) } }
-    catch (caught: Throwable) { failure = caught; throw caught }
-    finally {
-        window.gpu.manualProgress?.stop()
-        try { window.shutdown() }
-        catch (cleanup: Throwable) { if (failure == null) throw cleanup else failure.addSuppressed(cleanup) }
-    }
+    withToolkitShutdown(
+        stopProgress = { window.gpu.manualProgress?.stop() },
+        shutdown = { window.shutdown() },
+    ) { window.gpu.run { block(it, window, window.presentation) } }
 }
