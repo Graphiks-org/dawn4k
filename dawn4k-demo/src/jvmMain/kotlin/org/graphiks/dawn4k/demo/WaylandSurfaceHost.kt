@@ -109,11 +109,11 @@ internal class WaylandSurfaceHost private constructor(
         }
     }
 
-    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget = onOwner {
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget = onOwner {
         check(!closed.get())
         failure?.let { throw it }
         DawnSurfaceTargets.wayland(WaylandNative.display(native).address(), WaylandNative.surface(native).address(),
-            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, BorrowedDemoHostRetention)
+            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, retention)
     }
 
     override fun close() {

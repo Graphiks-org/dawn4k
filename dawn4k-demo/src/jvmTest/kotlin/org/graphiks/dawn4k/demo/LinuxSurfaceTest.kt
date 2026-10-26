@@ -29,8 +29,8 @@ class LinuxSurfaceTest {
         val owner = org.graphiks.dawn4k.toolkit.surface.DawnPlatformOwners.awt()
         val states = kotlinx.coroutines.flow.MutableStateFlow(org.graphiks.dawn4k.toolkit.surface.DawnTargetState(1,
             org.graphiks.dawn4k.toolkit.surface.PixelExtent(16, 16), true))
-        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(0L, 1uL, owner, states, BorrowedDemoHostRetention) }
-        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(1L, 0uL, owner, states, BorrowedDemoHostRetention) }
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(0L, 1uL, owner, states, CountingTargetRetention()) }
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(1L, 0uL, owner, states, CountingTargetRetention()) }
     }
 
     @Test fun linuxNegotiatesAndPresentsOnAnXlibSurface() = runBlocking {
@@ -61,14 +61,15 @@ class LinuxSurfaceTest {
                 java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { dispatcher ->
                     val states = kotlinx.coroutines.flow.MutableStateFlow(DawnTargetState(1,
                         org.graphiks.dawn4k.toolkit.surface.PixelExtent(128, 96), true))
-                    val target = RetiringDemoTarget(DawnSurfaceTargets.x11(display.address(), window.toULong(),
-                        DawnPlatformOwner.fromDispatcher(dispatcher), states, BorrowedDemoHostRetention))
+                    val retention = CountingTargetRetention()
+                    val target = DawnSurfaceTargets.x11(display.address(), window.toULong(),
+                        DawnPlatformOwner.fromDispatcher(dispatcher), states, retention)
                     try {
                         withDawnSurface(target, DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan), startupTimeout = 60.seconds)) { gpu, presentation ->
                             assertEquals(states.value.extent, presentation.configuration.value?.extent)
                             assertTrue(presentDemoTestFrame(gpu, presentation))
                         }
-                    } finally { withContext(NonCancellable) { target.awaitRetirement() } }
+                    } finally { withContext(NonCancellable) { retention.awaitRetirement() } }
                 }
             } finally {
                 destroy.invokeWithArguments(display, window)

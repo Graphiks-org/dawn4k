@@ -15,8 +15,8 @@ class WaylandSurfaceTest {
     @Test fun rejectsNullDisplayOrSurfaceBeforeCallingNativeCode() {
         val owner = DawnPlatformOwners.awt()
         val states = MutableStateFlow(DawnTargetState(1, org.graphiks.dawn4k.toolkit.surface.PixelExtent(16, 16), true))
-        assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(0L, 1L, owner, states, BorrowedDemoHostRetention) }
-        assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(1L, 0L, owner, states, BorrowedDemoHostRetention) }
+        assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(0L, 1L, owner, states, CountingTargetRetention()) }
+        assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(1L, 0L, owner, states, CountingTargetRetention()) }
     }
 
     @Test fun negotiatesPresentsAndResizesARealNativeSurface(): Unit = runBlocking {

@@ -58,8 +58,8 @@ internal class WindowsSurfaceHost private constructor(
         }
     }
 
-    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget =
-        DawnSurfaceTargets.win32(hwnd, hinstance, DawnPlatformOwners.awt(), states, BorrowedDemoHostRetention)
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget =
+        DawnSurfaceTargets.win32(hwnd, hinstance, DawnPlatformOwners.awt(), states, retention)
 
     /** Compose layout coordinates and GetClientRect are both physical pixels. */
     override fun pixelSize(): Pair<Int, Int> = onWindowsEdt {

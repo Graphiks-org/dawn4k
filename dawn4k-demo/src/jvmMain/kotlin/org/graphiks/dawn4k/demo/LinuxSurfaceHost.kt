@@ -115,12 +115,12 @@ internal class LinuxSurfaceHost private constructor(
         }
     }
 
-    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget = onOwner {
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget = onOwner {
         check(!isClosed)
         failure?.let { throw it }
         processEvents()
         DawnSurfaceTargets.x11(display.address(), child.toULong(),
-            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, BorrowedDemoHostRetention)
+            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, retention)
     }
 
     override fun close() {

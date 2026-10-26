@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.demo
 
 import org.graphiks.dawn4k.DawnBackend
 import kotlinx.coroutines.flow.StateFlow
+import org.graphiks.dawn4k.toolkit.surface.DawnTargetRetention
 import org.graphiks.dawn4k.toolkit.surface.DawnTargetState
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 
@@ -9,5 +10,5 @@ import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 internal interface SurfaceHost : AutoCloseable {
     val backend: DawnBackend
     fun pixelSize(): Pair<Int, Int>
-    fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget
+    fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget
 }

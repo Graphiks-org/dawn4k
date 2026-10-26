@@ -40,11 +40,12 @@ internal class MetalLayerHost private constructor(
     /** Pixel dimensions, refreshed on AppKit so resize and monitor DPI changes are observed. */
     override val backend: DawnBackend get() = DawnBackend.Metal
 
-    override fun createTarget(states: StateFlow<DawnTargetState>): DawnSurfaceTarget =
-        DawnSurfaceTargets.metalLayer(MemorySegment.ofAddress(layerPtr),
+    /** The host keeps the layer alive until close; the counting retention tracks its toolkit leases. */
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget =
+        DawnSurfaceTargets.metalLayer(layerPtr,
             DawnPlatformOwner.fromDispatcher(object : CoroutineDispatcher() {
                 override fun dispatch(context: CoroutineContext, block: Runnable) = onAppKitThread { block.run() }
-            }), states)
+            }), states, retention)
 
     override fun pixelSize(): Pair<Int, Int> = onAppKitThread {
         check(!closed) { "the Metal layer host is closed" }

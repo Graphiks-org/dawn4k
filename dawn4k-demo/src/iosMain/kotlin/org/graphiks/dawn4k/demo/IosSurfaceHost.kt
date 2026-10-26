@@ -19,9 +19,10 @@ internal class IosSurfaceHost(
     private val dimensions = MutableStateFlow(extent)
     private val states = MutableStateFlow(DawnTargetState(generation,
         org.graphiks.dawn4k.toolkit.surface.PixelExtent(extent.width, extent.height), true))
-    private val retainedTarget = RetiringDemoTarget(metalLayerTarget(layer, states))
+    private val retention = CountingTargetRetention()
+    private val retainedTarget = metalLayerTarget(layer, states, retention = retention)
     override val target: DawnSurfaceTarget get() = retainedTarget
-    override suspend fun awaitRetirement() = retainedTarget.awaitRetirement()
+    override suspend fun awaitRetirement() = retention.awaitRetirement()
     val layerPointer: Long get() = retainedLayer.value?.objcPtr()?.toLong() ?: 0L
     override val backend = DawnBackend.Metal
     override val valid get() = alive.value && retainedLayer.value != null
@@ -32,7 +33,7 @@ internal class IosSurfaceHost(
     fun invalidate() { alive.value = false; states.value = states.value.copy(available = false) }
     override fun pixelExtent() = dimensions.value
     override fun close() {
-        retainedTarget.requireRetired()
+        retention.requireRetired()
         invalidate()
         retainedLayer.value = null
     }

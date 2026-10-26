@@ -14,9 +14,10 @@ internal class AndroidSurfaceHost(
     private val dimensions = MutableStateFlow(extent)
     private val states = MutableStateFlow(DawnTargetState(generation,
         org.graphiks.dawn4k.toolkit.surface.PixelExtent(extent.width, extent.height), true))
-    private val retainedTarget = RetiringDemoTarget(androidSurfaceTarget(surface, DawnPlatformOwners.androidMain(), states))
+    private val retention = CountingTargetRetention()
+    private val retainedTarget = androidSurfaceTarget(surface, DawnPlatformOwners.androidMain(), states, retention)
     override val target: DawnSurfaceTarget get() = retainedTarget
-    override suspend fun awaitRetirement() = retainedTarget.awaitRetirement()
+    override suspend fun awaitRetirement() = retention.awaitRetirement()
     init { require(surface.isValid) { "Android surface is invalid" } }
     override val backend = DawnBackend.Vulkan
     override val valid get() = alive.value
@@ -27,7 +28,7 @@ internal class AndroidSurfaceHost(
     }
     override fun pixelExtent() = dimensions.value
     override fun close() {
-        retainedTarget.requireRetired()
+        retention.requireRetired()
         invalidate()
     }
 }
