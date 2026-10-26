@@ -3,7 +3,6 @@ package org.graphiks.dawn4k.toolkit.examples
 
 import kotlinx.coroutines.*
 import kotlinx.cinterop.useContents
-import org.graphiks.dawn4k.toolkit.withDawnSession
 import org.graphiks.dawn4k.toolkit.surface.DawnMetalView
 import platform.CoreGraphics.CGRectMake
 import platform.UIKit.*
@@ -36,19 +35,7 @@ fun ToolkitExampleViewController(): UIViewController = object : UIViewController
         super.viewDidAppear(animated)
         if (rendering != null) return
         status.text = "Starting compute…"
-        val previousCleanup = cleanup
-        rendering = scope.launch {
-            try {
-                previousCleanup?.join()
-                val values = withDawnSession { runComputeExample(it) }
-                check(values.contentEquals(intArrayOf(2, 4, 6, 8)))
-                status.text = "Compute: ${values.contentToString()}"
-                runSurfaceTriangleExample(metal.target) {
-                    scope.launch { status.text = "Compute: ${values.contentToString()} · triangle presented" }
-                }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Throwable) { status.text = "Failed: ${failure.message}" }
-        }
+        rendering = scope.launchToolkitSample({ metal.target }, cleanup) { status.text = it }
     }
 
     override fun viewDidDisappear(animated: Boolean) {

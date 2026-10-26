@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlinx.coroutines.*
-import org.graphiks.dawn4k.toolkit.withDawnSession
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceView
 import org.graphiks.dawn4k.toolkit.examples.*
 
@@ -37,19 +36,7 @@ class SampleActivity : Activity() {
     override fun onStart() {
         super.onStart()
         status.text = "Starting compute…"
-        val previousCleanup = cleanup
-        rendering = scope.launch {
-            try {
-                previousCleanup?.join()
-                val values = withDawnSession { runComputeExample(it) }
-                check(values.contentEquals(intArrayOf(2, 4, 6, 8)))
-                status.text = "Compute: ${values.contentToString()}"
-                runSurfaceTriangleExample(surface.target) {
-                    scope.launch { status.text = "Compute: ${values.contentToString()} · triangle presented" }
-                }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Throwable) { status.text = "Failed: ${failure.message}" }
-        }
+        rendering = scope.launchToolkitSample({ surface.target }, cleanup) { status.text = it }
     }
 
     override fun onStop() {
