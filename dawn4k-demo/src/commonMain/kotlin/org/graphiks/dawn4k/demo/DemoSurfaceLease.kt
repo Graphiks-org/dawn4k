@@ -22,12 +22,16 @@ internal class DesktopSurfaceLease(
     override val generation: Long,
     private val host: SurfaceHost,
 ) : DemoSurfaceLease {
-    private val alive = MutableStateFlow(true)
-    private val states = MutableStateFlow(DawnTargetState(generation, ToolkitPixelExtent(0, 0), true))
+    // Seeded at construction: every desktop host's pixelSize is a plain query marshalled
+    // to its owner thread, so no post-construction call is needed to obtain the extent.
+    private val states = MutableStateFlow(
+        host.pixelSize().let { (width, height) ->
+            DawnTargetState(generation, ToolkitPixelExtent(width.coerceAtLeast(0), height.coerceAtLeast(0)), true)
+        })
     private val retention = CountingTargetRetention()
     override val target: DawnSurfaceTarget = host.createTarget(states, retention)
     override val backend get() = host.backend
-    override val valid get() = alive.value
+    override val valid get() = states.value.available
     override fun pixelExtent(): PixelExtent {
         check(valid) { "the viewport lease is invalid" }
         val (width, height) = host.pixelSize()
@@ -36,7 +40,7 @@ internal class DesktopSurfaceLease(
     }
     override fun close() {
         retention.requireRetired()
-        if (alive.compareAndSet(true, false)) {
+        if (states.value.available) {
             states.value = states.value.copy(available = false)
             host.close()
         }

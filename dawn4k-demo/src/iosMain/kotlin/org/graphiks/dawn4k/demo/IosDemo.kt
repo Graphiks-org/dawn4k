@@ -12,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
 import androidx.compose.ui.window.ComposeUIViewController
 import kotlinx.coroutines.*
+import org.graphiks.dawn4k.DawnBackend
+import org.graphiks.dawn4k.toolkit.surface.DawnMetalView
+import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSNotificationCenter
@@ -24,7 +27,6 @@ import platform.UIKit.UIApplicationDidBecomeActiveNotification
 import platform.UIKit.UIApplicationState
 import platform.UIKit.UIApplicationWillResignActiveNotification
 import platform.UIKit.UIViewController
-import platform.QuartzCore.CAMetalLayer
 
 /** Packaging entry point; Swift contains neither controls nor simulation. */
 fun DemoViewController(): UIViewController = ComposeUIViewController {
@@ -37,7 +39,6 @@ fun DemoViewController(): UIViewController = ComposeUIViewController {
 private fun IosDemo(controller: DemoSessionController) {
     val state by controller.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var nextGeneration by remember { mutableStateOf(0L) }
     DisposableEffect(controller) {
         val center = NSNotificationCenter.defaultCenter
         val active = center.addObserverForName(UIApplicationDidBecomeActiveNotification, null, null) {
@@ -59,32 +60,17 @@ private fun IosDemo(controller: DemoSessionController) {
         }
     }, {}, { modifier ->
         key(state.id) {
-            var lease: IosSurfaceHost? = null
-            fun retire() {
-                val old = lease ?: return
-                lease = null
-                old.invalidate()
-                // Never block UIKit. The lease retains its layer through native cleanup.
-                CoroutineScope(Dispatchers.Default).launch {
-                    try { controller.detach(old.generation) }
-                    finally { withContext(NonCancellable) { old.awaitRetirement(); old.close() } }
-                }
-            }
+            val viewport = remember { mutableStateOf<DawnMetalView?>(null) }
             UIKitView(
-                factory = {
-                    IosMetalView({ view, extent ->
-                        val current = lease
-                        if (current != null) current.resize(extent)
-                        else {
-                            val created = IosSurfaceHost(++nextGeneration, view.layer as CAMetalLayer, extent)
-                            lease = created
-                            controller.attach(created)
-                        }
-                    }, ::retire)
-                },
+                factory = { DawnMetalView(CGRectMake(0.0, 0.0, 0.0, 0.0)).also { viewport.value = it } },
                 modifier = modifier,
-                onRelease = { it.retire() },
             )
+            // The toolkit view owns its layer lifecycle; the bridge only adapts it to the
+            // session controller. Retirement detaches off UIKit's main queue.
+            LaunchedEffect(viewport.value) {
+                val view = viewport.value ?: return@LaunchedEffect
+                bridgeToolkitView(controller, DawnBackend.Metal, view.target, view::awaitRetirement)
+            }
         }
     })
     LaunchedEffect(controller) {

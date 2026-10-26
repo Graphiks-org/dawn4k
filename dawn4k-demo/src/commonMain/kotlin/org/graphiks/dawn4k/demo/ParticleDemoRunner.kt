@@ -15,7 +15,6 @@ import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
 /** Borrows its caller-owned native host until all presentation leases retire. */
 internal suspend fun runParticleDemo(host: SurfaceHost, controls: ParticleControls) {
     val lease = DesktopSurfaceLease(1, host)
-    lease.pixelExtent()
     var failure: Throwable? = null
     try {
         withDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(host.backend)), demoPresentationOptions()) { gpu, presentation ->

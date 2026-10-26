@@ -48,16 +48,20 @@ internal fun DemoApp(
     }, { modifier -> Box(modifier) }, onControlBounds)
 
     LaunchedEffect(window, controller) {
+        var attached: SurfaceHost? = null
         try {
             val host = when (platform) {
                 DemoPlatform.MacOS -> awaitMetalLayerHost(window, viewport)
                 DemoPlatform.Windows -> awaitWindowsSurfaceHost(window, viewport)
                 DemoPlatform.Linux -> awaitLinuxSurfaceHost(window, viewport)
             }
+            attached = host
             controller.attach(DesktopSurfaceLease(1, host))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
+            // The lease owns the host once constructed; close it only when construction failed.
+            attached?.close()
             failure.printStackTrace()
             controller.failed(controller.state.value.id, failure.message ?: failure.toString())
         }
