@@ -34,7 +34,13 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
             try {
                 while (true) {
                     try { retire(); break }
-                    catch (_: Throwable) { currentCoroutineContext().ensureActive(); delay(100) }
+                    catch (failure: Throwable) {
+                        // Unbounded retry is deliberate (transient platform states) — but never silent.
+                        writeGlfwStandardError(
+                            "GLFW: failed startup cleanup, retrying in 100 ms:\n${failure.stackTraceToString()}\n",
+                        )
+                        currentCoroutineContext().ensureActive(); delay(100)
+                    }
                 }
             } finally { partialCleanup.remove(currentCoroutineContext().job) }
         }

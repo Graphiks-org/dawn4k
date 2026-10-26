@@ -22,6 +22,7 @@ internal class RecordingBackend : GlfwBackend {
     override fun terminate() { beforeTermination(); initialized = false; terminations++ }
     override fun createWindow(options: DawnWindowOptions): Long { creates++; return creates.toLong() }
     override fun destroyWindow(handle: Long) { destroys++ }
+    // Real backends invalidate + set the should-close flag without emitting; DawnWindow.requestClose is the sole emitter.
     override fun requestClose(handle: Long) { closeRequests++ }
     override fun resizeWindow(handle: Long, width: Int, height: Int) { resizeRequests++ }
     override fun pollEvents() {}

@@ -12,6 +12,15 @@ internal fun glfwPlatform(value: Int): GlfwPlatform = when (value) {
     else -> throw UnsupportedOperationException("unsupported GLFW platform: $value")
 }
 
+/**
+ * A platform GLFW binding. All entry points run on the process main thread.
+ *
+ * Close contract: [requestClose] marks the window's target unavailable and sets the platform
+ * should-close flag, but never emits [DawnWindowEvent.CloseRequested]. The window-close button
+ * callback still emits it (via `GlfwWindowTarget.onClose`); `DawnWindow.requestClose` is the
+ * sole emitter on the programmatic path. The `WindowSurfaceState` terminal guard then drops
+ * every later event.
+ */
 internal interface GlfwBackend {
     fun initialize()
     fun requireInitialized()
@@ -23,6 +32,7 @@ internal interface GlfwBackend {
     fun pixelExtent(handle: Long): PixelExtent
     fun surfaceTarget(handle: Long): DawnSurfaceTarget
     fun setEventSink(handle: Long, sink: (DawnWindowEvent) -> Unit) {}
+    /** Invalidates the target and sets the platform should-close flag; does not emit [DawnWindowEvent.CloseRequested]. */
     fun requestClose(handle: Long) {}
     suspend fun awaitTargetRetirement(handle: Long) {}
 }
@@ -30,3 +40,4 @@ internal interface GlfwBackend {
 internal expect fun createGlfwBackend(main: DawnMainThreadLoop): GlfwBackend
 internal expect fun requireGlfwMainThread()
 internal expect fun pauseGlfwMainThread()
+internal expect fun writeGlfwStandardError(message: String)

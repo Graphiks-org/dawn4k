@@ -49,6 +49,9 @@ class DawnWindow internal constructor(
         check(!closed.value) { "window is closed" }
         native.requireLive()
         main.backend.requestClose(native.handle)
+        // Sole emitter of the terminal event: the backend only invalidates + sets the
+        // should-close flag (see GlfwBackend.requestClose); the close button reaches this
+        // same state guard through the backend's window-close callback.
         native.state.event(DawnWindowEvent.CloseRequested)
     }
 

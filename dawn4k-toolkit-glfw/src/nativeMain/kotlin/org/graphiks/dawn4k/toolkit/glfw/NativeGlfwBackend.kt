@@ -4,12 +4,22 @@ package org.graphiks.dawn4k.toolkit.glfw.internal
 import cnames.structs.GLFWwindow
 import kotlinx.cinterop.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import org.graphiks.dawn4k.toolkit.glfw.*
 import org.graphiks.dawn4k.toolkit.glfw.c.*
 import org.graphiks.dawn4k.toolkit.surface.*
+import platform.posix.fflush
+import platform.posix.fwrite
+import platform.posix.stderr
 
 internal actual fun createGlfwBackend(main: DawnMainThreadLoop): GlfwBackend = NativeGlfwBackend(main)
+
+internal actual fun writeGlfwStandardError(message: String) {
+    val bytes = message.encodeToByteArray()
+    if (bytes.isNotEmpty()) bytes.usePinned {
+        fwrite(it.addressOf(0), 1u, bytes.size.toULong(), stderr)
+        fflush(stderr)
+    }
+}
 
 internal class NativeGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBackend {
     private val windows = mutableMapOf<Long, StableRef<NativeGlfwTarget>>()
@@ -42,25 +52,22 @@ internal class NativeGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBac
             glfwSetWindowUserPointer(window, reference.asCPointer())
             windows[handle] = reference
             glfwSetFramebufferSizeCallback(window, staticCFunction { pointer, width, height ->
-                callbackTarget(pointer)?.let { target ->
-                    val extent = PixelExtent(width.coerceAtLeast(0), height.coerceAtLeast(0))
-                    target.resize(extent); target.event(DawnWindowEvent.Resized(extent))
-                }
+                callbackTarget(pointer)?.onResized(width, height)
             })
             glfwSetWindowCloseCallback(window, staticCFunction { pointer ->
-                callbackTarget(pointer)?.let { it.invalidate(); it.event(DawnWindowEvent.CloseRequested) }
+                callbackTarget(pointer)?.onClose()
             })
             glfwSetKeyCallback(window, staticCFunction { pointer, key, scan, action, modifiers ->
-                callbackTarget(pointer)?.event(DawnWindowEvent.Key(key, scan, action, modifiers))
+                callbackTarget(pointer)?.onKey(key, scan, action, modifiers)
             })
             glfwSetCursorPosCallback(window, staticCFunction { pointer, x, y ->
-                callbackTarget(pointer)?.event(DawnWindowEvent.PointerMoved(x, y))
+                callbackTarget(pointer)?.onPointerMoved(x, y)
             })
             glfwSetMouseButtonCallback(window, staticCFunction { pointer, button, action, modifiers ->
-                callbackTarget(pointer)?.event(DawnWindowEvent.PointerButton(button, action, modifiers))
+                callbackTarget(pointer)?.onPointerButton(button, action, modifiers)
             })
             glfwSetScrollCallback(window, staticCFunction { pointer, x, y ->
-                callbackTarget(pointer)?.event(DawnWindowEvent.Scroll(x, y))
+                callbackTarget(pointer)?.onScroll(x, y)
             })
             return handle
         } catch (failure: Throwable) {
@@ -94,8 +101,8 @@ internal class NativeGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBac
     override fun setEventSink(handle: Long, sink: (DawnWindowEvent) -> Unit) { checkNotNull(windows[handle]).get().sink = sink }
     override fun requestClose(handle: Long) {
         val target = checkNotNull(windows[handle]).get()
-        target.invalidate(); glfwSetWindowShouldClose(pointer(handle), GLFW_TRUE)
-        target.event(DawnWindowEvent.CloseRequested)
+        target.invalidate()
+        glfwSetWindowShouldClose(pointer(handle), GLFW_TRUE)
     }
     override suspend fun awaitTargetRetirement(handle: Long) { windows[handle]?.get()?.awaitRetirement() }
 
@@ -117,19 +124,13 @@ private fun clearCallbacks(window: CPointer<GLFWwindow>) {
     glfwSetWindowUserPointer(window, null)
 }
 
-private class NativeGlfwTarget(window: CPointer<GLFWwindow>, main: DawnMainThreadLoop, extent: PixelExtent) {
-    private val states = MutableStateFlow(DawnTargetState.fresh(extent, true))
-    private val references = MutableStateFlow(0)
+/** Adds the native platform surface-target construction to the shared [GlfwWindowTarget] machinery. */
+private class NativeGlfwTarget(
+    window: CPointer<GLFWwindow>,
+    main: DawnMainThreadLoop,
+    extent: PixelExtent,
+) : GlfwWindowTarget(extent) {
     val platform = glfwPlatform(dawn_glfw_platform())
-    var sink: (DawnWindowEvent) -> Unit = {}
-    fun event(event: DawnWindowEvent) = sink(event)
-    fun resize(extent: PixelExtent) { states.value = states.value.copy(extent = extent) }
-    fun invalidate() { states.value = states.value.copy(available = false) }
-    suspend fun awaitRetirement() { invalidate(); references.first { it == 0 } }
-    private val retention = object : DawnTargetRetention {
-        override suspend fun retain() { references.value++ }
-        override suspend fun retire() { check(references.value > 0); references.value-- }
-    }
     val target: DawnSurfaceTarget by lazy { nativeSurfaceTarget(window, platform, main, states, retention) }
 }
 

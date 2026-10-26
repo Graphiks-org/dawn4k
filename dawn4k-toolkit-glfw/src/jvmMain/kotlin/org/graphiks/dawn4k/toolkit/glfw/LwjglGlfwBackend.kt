@@ -9,6 +9,8 @@ import org.lwjgl.system.MemoryUtil
 
 internal actual fun createGlfwBackend(main: DawnMainThreadLoop): GlfwBackend = LwjglGlfwBackend(main)
 
+internal actual fun writeGlfwStandardError(message: String) { System.err.print(message) }
+
 internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBackend {
     private val windows = mutableMapOf<Long, JvmGlfwTarget>()
 
@@ -33,20 +35,12 @@ internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBack
         try {
             val target = JvmGlfwTarget(handle, main, pixelExtent(handle))
             windows[handle] = target
-            glfwSetFramebufferSizeCallback(handle) { _, width, height ->
-                val extent = PixelExtent(width.coerceAtLeast(0), height.coerceAtLeast(0))
-                target.resize(extent)
-                target.event(DawnWindowEvent.Resized(extent))
-            }
-            glfwSetWindowCloseCallback(handle) { _ -> target.invalidate(); target.event(DawnWindowEvent.CloseRequested) }
-            glfwSetKeyCallback(handle) { _, key, scan, action, modifiers ->
-                target.event(DawnWindowEvent.Key(key, scan, action, modifiers))
-            }
-            glfwSetCursorPosCallback(handle) { _, x, y -> target.event(DawnWindowEvent.PointerMoved(x, y)) }
-            glfwSetMouseButtonCallback(handle) { _, button, action, modifiers ->
-                target.event(DawnWindowEvent.PointerButton(button, action, modifiers))
-            }
-            glfwSetScrollCallback(handle) { _, x, y -> target.event(DawnWindowEvent.Scroll(x, y)) }
+            glfwSetFramebufferSizeCallback(handle) { _, width, height -> target.onResized(width, height) }
+            glfwSetWindowCloseCallback(handle) { _ -> target.onClose() }
+            glfwSetKeyCallback(handle) { _, key, scan, action, modifiers -> target.onKey(key, scan, action, modifiers) }
+            glfwSetCursorPosCallback(handle) { _, x, y -> target.onPointerMoved(x, y) }
+            glfwSetMouseButtonCallback(handle) { _, button, action, modifiers -> target.onPointerButton(button, action, modifiers) }
+            glfwSetScrollCallback(handle) { _, x, y -> target.onScroll(x, y) }
             return handle
         } catch (failure: Throwable) {
             windows.remove(handle)
@@ -79,7 +73,6 @@ internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBack
         val target = checkNotNull(windows[handle])
         target.invalidate()
         glfwSetWindowShouldClose(handle, true)
-        target.event(DawnWindowEvent.CloseRequested)
     }
     override suspend fun awaitTargetRetirement(handle: Long) { windows[handle]?.awaitRetirement() }
 

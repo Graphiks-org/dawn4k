@@ -4,8 +4,6 @@ import java.lang.foreign.Arena
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SymbolLookup
 import java.lang.foreign.ValueLayout
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import org.graphiks.dawn4k.toolkit.glfw.*
 import org.graphiks.dawn4k.toolkit.surface.*
 import org.graphiks.kffi.objc.CALayer
@@ -23,46 +21,45 @@ import org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window
 import org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandDisplay
 import org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandWindow
 
-internal class JvmGlfwTarget(
+/** Adds the JVM platform surface-target construction to the shared [GlfwWindowTarget] machinery. */
+internal class JvmGlfwTarget private constructor(
     private val handle: Long,
     private val main: DawnMainThreadLoop,
     extent: PixelExtent,
+    private val cocoa: CocoaLayerReference,
+) : GlfwWindowTarget(
+    extent,
+    // The retention hooks mirror the platform targets: only Cocoa carries an object reference.
+    onRetain = cocoa::retain,
+    onRetire = cocoa::release,
 ) {
-    private val states = MutableStateFlow(DawnTargetState.fresh(extent, true))
-    private val references = MutableStateFlow(0)
-    var sink: (DawnWindowEvent) -> Unit = {}
-    fun event(event: DawnWindowEvent) = sink(event)
-    fun resize(extent: PixelExtent) { states.value = states.value.copy(extent = extent) }
-    fun invalidate() { states.value = states.value.copy(available = false) }
-    suspend fun awaitRetirement() { invalidate(); references.first { it == 0 } }
+    internal constructor(handle: Long, main: DawnMainThreadLoop, extent: PixelExtent) :
+        this(handle, main, extent, CocoaLayerReference())
 
     val target: DawnSurfaceTarget by lazy {
         when (glfwPlatform(glfwGetPlatform())) {
             GlfwPlatform.Cocoa -> {
                 val layer = installMetalLayer(glfwGetCocoaWindow(handle))
-                DawnSurfaceTargets.metalLayer(layer.address(), main.owner, states, retention(layer))
+                cocoa.layer = layer
+                DawnSurfaceTargets.metalLayer(layer.address(), main.owner, states, retention)
             }
             GlfwPlatform.Win32 -> {
                 init()
                 val instance = GetModuleHandleW(MemorySegment.NULL).address()
-                DawnSurfaceTargets.win32(glfwGetWin32Window(handle), instance, main.owner, states, retention())
+                DawnSurfaceTargets.win32(glfwGetWin32Window(handle), instance, main.owner, states, retention)
             }
-            GlfwPlatform.X11 -> DawnSurfaceTargets.x11(glfwGetX11Display(), glfwGetX11Window(handle).toULong(), main.owner, states, retention())
-            GlfwPlatform.Wayland -> DawnSurfaceTargets.wayland(glfwGetWaylandDisplay(), glfwGetWaylandWindow(handle), main.owner, states, retention())
+            GlfwPlatform.X11 -> DawnSurfaceTargets.x11(glfwGetX11Display(), glfwGetX11Window(handle).toULong(), main.owner, states, retention)
+            GlfwPlatform.Wayland -> DawnSurfaceTargets.wayland(glfwGetWaylandDisplay(), glfwGetWaylandWindow(handle), main.owner, states, retention)
         }
     }
+}
 
-    private fun retention(layer: MemorySegment? = null) = object : DawnTargetRetention {
-        override suspend fun retain() {
-            layer?.let { ObjCRuntime.msgSend(null, it, ObjCRuntime.sel("retain")) }
-            references.value++
-        }
-        override suspend fun retire() {
-            check(references.value > 0)
-            layer?.let { ObjCRuntime.msgSend(null, it, ObjCRuntime.sel("release")) }
-            references.value--
-        }
-    }
+/** Holds the JVM Cocoa backing layer so the shared retention hooks can keep it alive. */
+private class CocoaLayerReference {
+    /** Installed when the Cocoa target builds its backing CAMetalLayer. */
+    var layer: MemorySegment? = null
+    fun retain() { layer?.let { ObjCRuntime.msgSend(null, it, ObjCRuntime.sel("retain")) } }
+    fun release() { layer?.let { ObjCRuntime.msgSend(null, it, ObjCRuntime.sel("release")) } }
 }
 
 /** This is a toolkit-owned NSView; its backing layer lives until its GLFW window is destroyed. */
