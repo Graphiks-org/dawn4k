@@ -11,8 +11,9 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
-import sys
 import tomllib
+
+import toolkit_ci
 
 BUILD = r'''
 @file:OptIn(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi::class)
@@ -164,14 +165,8 @@ include(":consumer", ":androidApp")
             elif not args.compile_only:
                 environment = os.environ.copy()
                 environment["DAWN_EXAMPLE_FRAMES"] = "60"
-                executed = subprocess.run([str(files[0])], capture_output=True, text=True, env=environment, timeout=180)
-                print(executed.stdout, flush=True)
-                if executed.returncode:
-                    print(executed.stderr, flush=True)
-                executed.check_returncode()
-                expected = "[2, 4, 6, 8]" if binary == "compute" else "TOOLKIT_SAMPLE frames=60"
-                if expected not in executed.stdout:
-                    raise RuntimeError(f"Missing actual {target}/{binary} result")
+                marker = toolkit_ci.COMPUTE_RESULT if binary == "compute" else toolkit_ci.SAMPLE_FRAMES_MARKER
+                toolkit_ci.run_and_require(files[0], marker, environment)
     apk = android / "build/outputs/apk/release/androidApp-release.apk"
     if not apk.is_file():
         raise RuntimeError("Missing minified, signed consumer APK")

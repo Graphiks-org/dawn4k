@@ -5,10 +5,10 @@ import os
 from pathlib import Path
 import platform
 import subprocess
-import tempfile
-import time
 
-MODULES = ["dawn4k-toolkit-core", "dawn4k-toolkit-surface", "dawn4k-toolkit-glfw"]
+import toolkit_ci
+
+MODULES = toolkit_ci.MODULES
 
 
 def main():
@@ -56,42 +56,12 @@ def main():
             execute([MODULES[0]], suite, "headless")
             execute(MODULES[1:], suite, "win32" if "mingw" in args.target else "metal")
             return
-        servers = []
-        with tempfile.TemporaryDirectory(prefix="dawn-toolkit-display-") as temporary:
-            runtime = Path(temporary)
-            runtime.chmod(0o700)
-            env.update(DISPLAY=":91", XDG_RUNTIME_DIR=temporary, LIBGL_ALWAYS_SOFTWARE="1", LP_NUM_THREADS="2")
-
-            def start(command, name, socket):
-                log = (runtime / name).open("w+")
-                process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT)
-                servers.append((process, log))
-                deadline = time.monotonic() + 30
-                while not socket.exists():
-                    if process.poll() is not None or time.monotonic() > deadline:
-                        log.flush(); log.seek(0)
-                        raise RuntimeError(log.read())
-                    time.sleep(0.05)
-
-            try:
-                start(["Xvfb", ":91", "-screen", "0", "800x600x24", "-nolisten", "tcp", "-ac"], "x11.log", Path("/tmp/.X11-unix/X91"))
-                env.update(XDG_SESSION_TYPE="x11", DAWN_WAYLAND_TESTS="0")
-                env.pop("WAYLAND_DISPLAY", None)
-                execute([MODULES[0]], suite, "headless")
-                execute(MODULES[1:], suite, "x11")
-                env.update(WAYLAND_DISPLAY="dawn-toolkit-wayland", XDG_SESSION_TYPE="wayland", DAWN_WAYLAND_TESTS="1")
-                start(["weston", "--backend=headless-backend.so", "--renderer=pixman", "--idle-time=0", "--socket=dawn-toolkit-wayland", "--width=800", "--height=600"], "wayland.log", runtime / "dawn-toolkit-wayland")
-                execute(MODULES[1:], suite, "wayland")
-            finally:
-                for process, log in reversed(servers):
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill(); process.wait()
-                    log.flush(); log.seek(0)
-                    print(log.read(), flush=True)
-                    log.close()
+        env.update(LIBGL_ALWAYS_SOFTWARE="1", LP_NUM_THREADS="2")
+        with toolkit_ci.headless_display(env, socket="dawn-toolkit-wayland") as wayland:
+            execute([MODULES[0]], suite, "headless")
+            execute(MODULES[1:], suite, "x11")
+            wayland()
+            execute(MODULES[1:], suite, "wayland")
 
 
 if __name__ == "__main__":

@@ -47,12 +47,7 @@ def main():
     spec = importlib.util.spec_from_file_location("coverage", Path(__file__).with_name("verify-toolkit-coverage.py"))
     verifier = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
-    resolved = []
-    for record in records:
-        converted = dict(record)
-        for key in ("junit", "stdout", "evidence"):
-            converted[key] = [str(args.output / path) for path in record.get(key, [])]
-        resolved.append(converted)
+    resolved = [verifier.resolve_report_paths(record, args.output) for record in records]
     verifier.verify_coverage(resolved, [(r["module"], r["target"], r["presentation"], r["kind"]) for r in records])
     print(f"Verified {len(records)} execution suites: {manifest}")
 

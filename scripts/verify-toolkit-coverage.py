@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Check real GPU execution separately from compilation and publication variants."""
 import argparse
-import json
 import hashlib
+import importlib.util
+import json
 import re
-import subprocess
 import sys
 from pathlib import Path
-import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
 
-MODULES = ("dawn4k-toolkit-core", "dawn4k-toolkit-surface", "dawn4k-toolkit-glfw")
+import toolkit_ci
+
+MODULES = toolkit_ci.MODULES
 COMMON_TARGETS = {"jvm", "android", "macosArm64", "linuxX64", "iosArm64", "iosSimulatorArm64", "iosX64", "tvosArm64", "tvosSimulatorArm64"}
 DECLARED = {MODULES[0]: COMMON_TARGETS, MODULES[1]: COMMON_TARGETS, MODULES[2]: {"jvm", "macosArm64", "linuxX64"}}
 NATIVE_NAMES = {"macos_arm64": "macosArm64", "linux_x64": "linuxX64", "ios_arm64": "iosArm64", "ios_simulator_arm64": "iosSimulatorArm64", "ios_x64": "iosX64", "tvos_arm64": "tvosArm64", "tvos_simulator_arm64": "tvosSimulatorArm64"}
@@ -53,11 +54,15 @@ def verify_runtime_archives(root, version):
         apple = jar.read("darwin-aarch64/libwebgpu_dawn.dylib")
         if apple[:4] != b"\xcf\xfa\xed\xfe" or int.from_bytes(apple[4:8], "little") != 0x100000c:
             raise VerificationError("Missing macOS ARM64 Dawn runtime")
-        dependencies = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_atomic_wait.dll")
+        # The published manifest is the single source for the Windows runtime dependency
+        # set (Task 10): the build fails unless its names cover every staged DLL besides
+        # the Dawn library itself. Verify that same invariant against the published jar
+        # instead of restating the name list a fourth time here.
         manifest = dict(line.split("=", 1) for line in jar.read("dawn4k/windows-runtime.properties").decode().splitlines() if line)
-        if set(manifest) != set(dependencies):
-            raise VerificationError("Missing Windows runtime dependency identities")
-        for name in (*dependencies, "webgpu_dawn.dll"):
+        staged = {name.split("/")[-1] for name in jar.namelist() if name.startswith("win32-x86-64/") and name.endswith(".dll")}
+        if set(manifest) != staged - {"webgpu_dawn.dll"}:
+            raise VerificationError(f"Windows runtime manifest does not match the staged DLLs: {sorted(manifest)} vs {sorted(staged)}")
+        for name in sorted(staged):
             windows = jar.read(f"win32-x86-64/{name}")
             pe = int.from_bytes(windows[60:64], "little")
             if windows[:2] != b"MZ" or windows[pe:pe+4] != b"PE\x00\x00" or int.from_bytes(windows[pe+4:pe+6], "little") != 0x8664:
@@ -143,6 +148,14 @@ def verify_coverage(records, required):
         if module != MODULES[0] and not any(f"TOOLKIT_PRESENTATION kind={presentation}" in line for text in output for line in text.splitlines()):
             raise VerificationError(f"{module}/{target}: missing actual {presentation} presentation witness")
 
+def resolve_report_paths(record, base):
+    """Normalize one record's evidence paths against its report manifest location."""
+    record = dict(record)
+    for key in ("junit", "stdout", "evidence"):
+        portable = [item.replace("\\", "/") for item in record.get(key, [])]
+        record[key] = [str((base / item).resolve()) if not Path(item).is_absolute() else item for item in portable]
+    return record
+
 def required_suites():
     requirements = []
     desktop = ["jvm-macosArm64", "jvm-linuxX64", "jvm-linuxArm64", "jvm-mingwX64", "macosArm64", "linuxX64"]
@@ -158,82 +171,15 @@ def required_suites():
             requirements += [(module, target, "none", "compile") for target in ["iosArm64", "tvosArm64"]]
     return requirements
 
-class CoverageFixtures(unittest.TestCase):
-    def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.directory = Path(self.temporary.name)
-        self.required = [(MODULES[0], "tvosSimulatorArm64", "headless", "gpu")]
-        self.junit = self.directory / "TEST-core.xml"
-        self.stdout = self.directory / "execution.log"
-        suite = ET.Element("testsuite", tests="2", failures="0", errors="0", skipped="0")
-        for name in sorted(GPU_TESTS[MODULES[0]]): ET.SubElement(suite, "testcase", name=name)
-        ET.ElementTree(suite).write(self.junit)
-        self.stdout.write_text("TOOLKIT_GPU target=tvosSimulatorArm64 backend=Metal required=1 device=real-test-fixture\n")
-        self.record = {"module": MODULES[0], "target": "tvosSimulatorArm64", "presentation": "headless", "kind": "gpu", "backend": "Metal", "adapterRequired": True, "junit": [str(self.junit)], "stdout": [str(self.stdout)]}
-
-    def test_rejectsMissingTarget(self):
-        with self.assertRaises(VerificationError): verify_coverage([], self.required)
-        verify_coverage([self.record], self.required)
-
-    def test_rejectsJavaKeywordInAndroidManifestPackage(self):
-        with self.assertRaises(VerificationError):
-            verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.native"/>')
-        verify_android_manifest_package(b'<manifest package="org.graphiks.dawn4k.bindings"/>')
-
-    def test_windowsReportPathsArePortableAcrossHosts(self):
-        nested = self.directory / "windows-module"
-        nested.mkdir()
-        self.junit.replace(nested / self.junit.name)
-        self.stdout.replace(nested / self.stdout.name)
-        (nested / self.stdout.name).write_text("TOOLKIT_GPU backend=D3D12 required=1\n")
-        report = self.directory / "summary.json"
-        record = dict(self.record, target="jvm-mingwX64", backend="D3D12",
-                      junit=["windows-module\\TEST-core.xml"], stdout=["windows-module\\execution.log"])
-        report.write_text(json.dumps({"schema": 1, "results": [record]}))
-        result = subprocess.run([sys.executable, __file__, "--report", str(report), "--require",
-                                 f"{MODULES[0]}:jvm-mingwX64:headless:gpu"], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_rejectsSkippedRequiredGpuSuite(self):
-        tree = ET.parse(self.junit)
-        ET.SubElement(tree.getroot().find("testcase"), "skipped")
-        tree.getroot().set("skipped", "1")
-        tree.write(self.junit)
-        with self.assertRaises(VerificationError): verify_coverage([self.record], self.required)
-
-    def test_distinguishesDeviceCompileFromGpuExecution(self):
-        record = dict(self.record, target="tvosArm64", kind="compile", presentation="none")
-        with self.assertRaises(VerificationError): verify_coverage([record], self.required)
-        with self.assertRaises(VerificationError): verify_coverage([record], [(MODULES[0], "tvosArm64", "none", "gpu")])
-
-    def test_rejectsX11FallbackReportedAsWayland(self):
-        suite = ET.Element("testsuite", tests="3", failures="0", errors="0", skipped="0")
-        for name in sorted(GPU_TESTS[MODULES[1]]): ET.SubElement(suite, "testcase", name=name)
-        ET.ElementTree(suite).write(self.junit)
-        self.stdout.write_text("TOOLKIT_GPU backend=Vulkan required=1\nTOOLKIT_PRESENTATION kind=x11\n")
-        record = dict(self.record, module=MODULES[1], target="jvm-linuxX64", presentation="wayland", backend="Vulkan")
-        with self.assertRaises(VerificationError):
-            verify_coverage([record], [(MODULES[1], "jvm-linuxX64", "wayland", "gpu")])
-        self.stdout.write_text("TOOLKIT_GPU backend=Vulkan required=1\nTOOLKIT_PRESENTATION kind=wayland\n")
-        verify_coverage([record], [(MODULES[1], "jvm-linuxX64", "wayland", "gpu")])
-
-    def test_publishedMetadataContainsOnlyDeclaredVariants(self):
-        def metadata(targets):
-            reverse = {v: k for k, v in NATIVE_NAMES.items()}
-            variants = [{"attributes": {"org.jetbrains.kotlin.platform.type": "common"}}]
-            for target in targets:
-                attributes = {"org.jetbrains.kotlin.platform.type": "androidJvm" if target == "android" else "jvm" if target == "jvm" else "native"}
-                if target in reverse: attributes["org.jetbrains.kotlin.native.target"] = reverse[target]
-                variants.append({"attributes": attributes})
-            return {"variants": variants}
-        documents = {name: metadata(targets) for name, targets in DECLARED.items()}
-        verify_metadata(documents)
-        documents[MODULES[2]] = metadata(COMMON_TARGETS)
-        with self.assertRaises(VerificationError): verify_metadata(documents)
-        documents[MODULES[2]] = metadata(DECLARED[MODULES[2]])
-        documents[MODULES[0]] = metadata(COMMON_TARGETS - {"tvosSimulatorArm64"})
-        with self.assertRaises(VerificationError): verify_metadata(documents)
+def self_test():
+    """Relay --self-test to the fixtures moved into scripts/tests/; CI still calls this."""
+    path = Path(__file__).with_name("tests") / "test_toolkit_coverage.py"
+    spec = importlib.util.spec_from_file_location("test_toolkit_coverage", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    sys.exit(0 if result.wasSuccessful() else 1)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -244,8 +190,7 @@ def main():
     parser.add_argument("--version", default="1.0.0-SNAPSHOT")
     args = parser.parse_args()
     if args.self_test:
-        unittest.main(argv=[__file__], verbosity=2)
-        return
+        self_test()
     if args.metadata_root:
         documents = {}
         for module in MODULES:
@@ -253,7 +198,8 @@ def main():
             documents[module] = json.loads(path.read_text())
         verify_metadata(documents)
         verify_runtime_archives(args.metadata_root, args.version)
-        print("Published Kotlin variants: core=9 surface=9 glfw=3")
+        counts = " ".join(f"{module.rsplit('-', 1)[-1]}={len(targets)}" for module, targets in DECLARED.items())
+        print(f"Published Kotlin variants: {counts}")
         print("Verified four JVM runtimes, both Android ABIs and JNI consumer keep rules")
     if args.report:
         records = []
@@ -261,11 +207,7 @@ def main():
             manifest = json.loads(path.read_text())
             if manifest.get("schema") != 1: raise VerificationError(f"unsupported coverage schema: {path}")
             for record in manifest["results"]:
-                record = dict(record)
-                for key in ("junit", "stdout", "evidence"):
-                    portable = [item.replace("\\", "/") for item in record.get(key, [])]
-                    record[key] = [str((path.parent / item).resolve()) if not Path(item).is_absolute() else item for item in portable]
-                records.append(record)
+                records.append(resolve_report_paths(record, path.parent))
         required = [tuple(value.split(":")) for value in args.require] or required_suites()
         verify_coverage(records, required)
         print(f"Verified {len(required)} required execution/compile suites")
