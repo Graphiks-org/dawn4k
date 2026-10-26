@@ -94,6 +94,8 @@ val prepareLinuxDawnCarrier = tasks.register<Exec>("prepareLinuxDawnCarrier") {
  * Stage the verified shared libraries under the platform directories the generated
  * JVM bootstrap expects (`darwin-aarch64`, `linux-x86-64`), using their original names.
  */
+val dawnWindowsLibrary = "webgpu_dawn.dll"
+
 val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     group = "dawn"
     description = "Stage the verified Dawn shared libraries for the generated JVM bootstrap."
@@ -118,14 +120,26 @@ val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     doLast {
         val windows = destinationDir.resolve("win32-x86-64")
         if (windows.isDirectory) {
+            // Canonical PE import order: runtime DLLs before their dependents. The loader and
+            // the tests enumerate the manifest keys in file order, so this list is the single
+            // source for the Windows runtime dependency set.
+            val runtimeDependencies = listOf("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_atomic_wait.dll")
             val manifest = destinationDir.resolve("dawn4k/windows-runtime.properties")
             manifest.parentFile.mkdirs()
-            manifest.writeText(listOf("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_atomic_wait.dll")
-                .joinToString("\n", postfix = "\n") { name ->
-                    val digest = MessageDigest.getInstance("SHA-256").digest(windows.resolve(name).readBytes())
-                        .joinToString("") { "%02x".format(it.toInt() and 255) }
-                    "$name=$digest"
-                })
+            manifest.writeText(runtimeDependencies.joinToString("\n", postfix = "\n") { name ->
+                val digest = MessageDigest.getInstance("SHA-256").digest(windows.resolve(name).readBytes())
+                    .joinToString("") { "%02x".format(it.toInt() and 255) }
+                "$name=$digest"
+            })
+            // webgpu_dawn.dll shares the staged directory for the generated JVM bootstrap; it
+            // is the Dawn library itself, not a runtime dependency entry. Any other staged DLL
+            // missing from the list above now fails the build instead of failing only at
+            // runtime, only on Windows.
+            val keys = manifest.readLines().filter { it.isNotEmpty() }.map { it.substringBefore('=') }
+            val staged = windows.listFiles { file -> file.isFile && file.name.endsWith(".dll") }.orEmpty().map { it.name }
+            check(keys.size == keys.distinct().size && keys.toSet() == (staged - dawnWindowsLibrary).toSet()) {
+                "Dawn Windows runtime dependency manifest does not match the staged DLLs: manifest=$keys staged=$staged"
+            }
         }
     }
 }

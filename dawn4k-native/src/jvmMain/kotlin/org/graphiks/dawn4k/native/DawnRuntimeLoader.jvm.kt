@@ -1,5 +1,6 @@
 package org.graphiks.dawn4k.native
 
+import java.io.InputStream
 import java.nio.channels.FileChannel
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -7,7 +8,6 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption.*
 import java.nio.file.StandardOpenOption.*
 import java.security.MessageDigest
-import java.util.Properties
 
 public actual fun prepareDawnRuntime() {
     if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
@@ -17,18 +17,15 @@ public actual fun prepareDawnRuntime() {
 
 /** Explicit PE import order; System.load uses plain LoadLibrary on JDK 25. */
 internal object WindowsRuntimeDependencies {
-    private val names = listOf("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_atomic_wait.dll")
     private var loaded = false
 
     @Synchronized fun loadOnce() {
         if (loaded) return
-        val properties = Properties().apply {
-            checkNotNull(WindowsRuntimeDependencies::class.java.getResourceAsStream("/dawn4k/windows-runtime.properties")) {
-                "Dawn Windows runtime dependency manifest is missing"
-            }.use(::load)
-        }
-        val checksums = properties.stringPropertyNames().associateWith(properties::getProperty)
-        val identity = sha256(names.joinToString("\n") { checksums.getValue(it) }.toByteArray())
+        val checksums = readManifest(checkNotNull(
+            WindowsRuntimeDependencies::class.java.getResourceAsStream("/dawn4k/windows-runtime.properties")
+        ) { "Dawn Windows runtime dependency manifest is missing" })
+        // Manifest keys iterate in file order, the import order the build writes them in.
+        val identity = sha256(checksums.values.joinToString("\n").toByteArray())
         val cache = Path.of(System.getProperty("java.io.tmpdir"), "dawn4k-msvc", identity)
         prepare(cache, checksums, { name ->
             checkNotNull(WindowsRuntimeDependencies::class.java.getResourceAsStream("/win32-x86-64/$name")) {
@@ -38,13 +35,25 @@ internal object WindowsRuntimeDependencies {
         loaded = true
     }
 
+    /** The manifest is the single source for the runtime dependency set; keys keep file order. */
+    internal fun readManifest(stream: InputStream): Map<String, String> = stream.use { content ->
+        content.bufferedReader(Charsets.ISO_8859_1).readLines()
+            .filter { it.isNotEmpty() }
+            .associateTo(LinkedHashMap()) { line ->
+                check('=' in line) { "Invalid Dawn Windows runtime manifest entry: $line" }
+                line.substringBefore('=').trim() to line.substringAfter('=').trim()
+            }
+    }
+
     fun prepare(
         directory: Path,
         checksums: Map<String, String>,
         readResource: (String) -> ByteArray,
         loadLibrary: (Path) -> Unit,
     ) {
-        require(checksums.keys == names.toSet()) { "Dawn Windows runtime dependency identities are incomplete" }
+        val names = checksums.keys.toList()
+        require(names.isNotEmpty()) { "Dawn Windows runtime dependency identities are incomplete" }
+        require(names.all { it.matches(Regex("[A-Za-z0-9_.-]+")) }) { "Invalid Dawn Windows runtime dependency name" }
         require(checksums.values.all { it.matches(Regex("[a-f0-9]{64}")) }) { "Invalid Dawn Windows runtime checksum" }
         // Validate every input before any native side effect, including on a cache hit.
         val resources = names.associateWith { name ->
