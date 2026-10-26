@@ -38,6 +38,21 @@ internal suspend fun bridgeToolkitView(
     backend: DawnBackend,
     target: DawnSurfaceTarget,
     awaitViewRetirement: suspend () -> Unit,
+) = bridgeTargetInto(controller::attach, controller::detach, backend, target, awaitViewRetirement)
+
+/**
+ * The bridge core over the controller's two operations, so the collector's decisions are
+ * drivable without a GPU session. A fresh target generation is allocated per availability
+ * cycle, and StateFlow conflation can fold a remove+re-add into a single available state
+ * that hides the invalidation — so a lease from a superseded generation retires as well,
+ * in the same emission that attaches its replacement.
+ */
+internal suspend fun bridgeTargetInto(
+    attach: (ToolkitViewLease) -> Unit,
+    detach: suspend (Long) -> Unit,
+    backend: DawnBackend,
+    target: DawnSurfaceTarget,
+    awaitViewRetirement: suspend () -> Unit,
 ) {
     var lease: ToolkitViewLease? = null
     fun retireOutstanding() {
@@ -45,17 +60,17 @@ internal suspend fun bridgeToolkitView(
         lease = null
         // Never block the UI thread; the controller retires under the frame lock.
         CoroutineScope(Dispatchers.Default).launch {
-            try { controller.detach(outstanding.generation) }
+            try { detach(outstanding.generation) }
             finally { withContext(NonCancellable) { outstanding.awaitRetirement(); outstanding.close() } }
         }
     }
     try {
         target.state.collect { state ->
-            if (!state.available) retireOutstanding()
-            else if (state.extent.isPositive && lease == null) {
+            if (!state.available || lease?.let { it.generation != state.generation } == true) retireOutstanding()
+            if (state.available && state.extent.isPositive && lease == null) {
                 val created = ToolkitViewLease(target, backend, awaitViewRetirement)
                 lease = created
-                controller.attach(created)
+                attach(created)
             }
         }
     } finally { retireOutstanding() }

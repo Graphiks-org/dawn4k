@@ -1,7 +1,10 @@
 package org.graphiks.dawn4k.demo
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
@@ -36,5 +39,31 @@ class ToolkitViewLeaseTest {
             assertEquals(1, retirements)
         }
         lease.close()
+    }
+
+    @Test fun conflatedRemoveAndReAddStillDetachesTheSupersededLease(): Unit = runBlocking {
+        val states = MutableStateFlow(DawnTargetState(5, ToolkitPixelExtent(320, 240), true))
+        val attached = MutableStateFlow<List<DemoSurfaceLease>>(emptyList())
+        val detached = MutableStateFlow<List<Long>>(emptyList())
+        val collector = launch {
+            bridgeTargetInto({ attached.value = attached.value + it }, { detached.value = detached.value + it },
+                DawnBackend.Metal, ViewTarget(states)) { }
+        }
+        try {
+            withTimeout(5_000) { attached.first { it.isNotEmpty() } }
+            assertEquals(5L, attached.value.single().generation)
+            // Both assignments land in one dispatch window, so the collector never sees
+            // the (gen5, false) invalidation — only the re-added generation 6.
+            states.value = states.value.copy(available = false)
+            states.value = DawnTargetState(6, ToolkitPixelExtent(640, 480), true)
+            withTimeout(5_000) { attached.first { it.size == 2 } }
+            assertEquals(listOf(5L, 6L), attached.value.map { it.generation }, "the superseded lease must be replaced")
+            withTimeout(5_000) { detached.first { it.count { generation -> generation == 5L } == 1 } }
+        } finally {
+            // Cancelling the collector must retire whatever lease is still outstanding.
+            collector.cancel()
+        }
+        withTimeout(5_000) { detached.first { it.count { generation -> generation == 6L } == 1 } }
+        assertEquals(setOf(5L, 6L), detached.value.toSet())
     }
 }
