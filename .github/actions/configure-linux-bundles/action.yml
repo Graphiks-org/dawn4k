@@ -1,0 +1,74 @@
+# Configures a runner to consume the verified Linux publication bundles built by
+# .github/workflows/toolkit-native-bundles.yml:
+#
+# 1. downloads the bundle artifact (input `artifact`, e.g. `toolkit-linux-native-bundles`
+#    or the `native-bundle-artifact` input forwarded by a calling reusable workflow)
+#    into `build/publication-bundles`;
+# 2. appends the `dawn.nativeBundle.linuxX64` / `glfw.nativeBundle.linuxX64` pointers to
+#    `$GRADLE_USER_HOME/gradle.properties` (default `~/.gradle`), honouring the
+#    GRADLE_USER_HOME environment variable. The ci.yml Python heredoc that used to be
+#    copied across the workflows is the reference implementation; the former bash copies
+#    wrote the same two property lines into `$HOME/.gradle`, which equals the
+#    GRADLE_USER_HOME default on GitHub runners.
+# 3. `vulkan` ('true'/'false', default true): also installs the lavapipe CPU Vulkan driver and
+#    exports `VK_DRIVER_FILES` for its ICD, so a Linux runner can exercise the bundles.
+#    This folds in the Vulkan/ICD block formerly repeated in ci.yml and
+#    toolkit-platforms.yml. A caller that must not set the Vulkan environment — every
+#    current caller: all bundle consumers run on macOS/Windows — passes `vulkan: false`.
+#    Runners needing Xvfb/Weston or build toolchains keep installing those in their own
+#    workflow steps, as their Linux jobs already do.
+
+name: Configure Linux native bundles
+description: >-
+  Download the verified Linux publication bundles and point Gradle at them via
+  $GRADLE_USER_HOME/gradle.properties; optionally set up the lavapipe Vulkan/ICD
+  environment for Linux runners.
+
+inputs:
+  artifact:
+    description: >-
+      Name of the bundle artifact uploaded by toolkit-native-bundles.yml
+      (toolkit-linux-native-bundles).
+    required: true
+  vulkan:
+    description: >-
+      Also install the CPU Vulkan driver and export VK_DRIVER_FILES for its ICD.
+      Pass false on non-Linux runners or when the caller must not set the
+      Vulkan environment.
+    required: false
+    default: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download verified Linux publication bundles
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact }}
+        path: build/publication-bundles
+
+    - name: Point Gradle at the verified Linux bundles
+      shell: bash
+      run: |
+        python3 - <<'PYTHON'
+        import os
+        from pathlib import Path
+        root = Path('build/publication-bundles').resolve()
+        gradle_home = Path(os.environ.get('GRADLE_USER_HOME', Path.home() / '.gradle'))
+        gradle_home.mkdir(parents=True, exist_ok=True)
+        with (gradle_home / 'gradle.properties').open('a', encoding='utf-8') as output:
+            dawn = (root / 'dawn4k-native/build/dawnCarrier/linuxX64').as_posix()
+            glfw = (root / 'dawn4k-toolkit-glfw/build/glfw/linuxX64').as_posix()
+            output.write(f'\ndawn.nativeBundle.linuxX64={dawn}\n')
+            output.write(f'glfw.nativeBundle.linuxX64={glfw}\n')
+        PYTHON
+
+    - name: Select CPU Vulkan adapter
+      if: inputs.vulkan == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
+        icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
+        test -n "$icd"
+        echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"

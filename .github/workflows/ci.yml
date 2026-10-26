@@ -82,27 +82,12 @@ jobs:
       - name: Verify foreign native bundle handling
         run: python3 scripts/tests/test_dawn_linux_bundle_host.py
 
-      - uses: actions/download-artifact@v4
-        if: runner.os != 'Linux'
-        with:
-          name: toolkit-linux-native-bundles
-          path: build/publication-bundles
-
       - name: Configure verified foreign native bundles
         if: runner.os != 'Linux'
-        run: |
-          python3 - <<'PYTHON'
-          import os
-          from pathlib import Path
-          root = Path('build/publication-bundles').resolve()
-          gradle_home = Path(os.environ.get('GRADLE_USER_HOME', Path.home() / '.gradle'))
-          gradle_home.mkdir(parents=True, exist_ok=True)
-          with (gradle_home / 'gradle.properties').open('a', encoding='utf-8') as output:
-              dawn = (root / 'dawn4k-native/build/dawnCarrier/linuxX64').as_posix()
-              glfw = (root / 'dawn4k-toolkit-glfw/build/glfw/linuxX64').as_posix()
-              output.write(f'\ndawn.nativeBundle.linuxX64={dawn}\n')
-              output.write(f'glfw.nativeBundle.linuxX64={glfw}\n')
-          PYTHON
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
+          vulkan: false
 
       - name: Install and select CPU Vulkan adapter
         if: runner.os == 'Linux'

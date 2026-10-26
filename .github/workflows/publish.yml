@@ -41,15 +41,11 @@ jobs:
           packages: 'cmdline-tools;23.0 platform-tools'
       - name: Install Android platform and NDK
         run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
-      - uses: actions/download-artifact@v4
-        with:
-          name: toolkit-linux-native-bundles
-          path: build/publication-bundles
       - name: Configure verified Linux publication bundles
-        run: |
-          mkdir -p "$HOME/.gradle"
-          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
-          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
+          vulkan: false
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Set snapshot version
@@ -86,15 +82,11 @@ jobs:
           packages: 'cmdline-tools;23.0 platform-tools'
       - name: Install Android platform and NDK
         run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
-      - uses: actions/download-artifact@v4
-        with:
-          name: toolkit-linux-native-bundles
-          path: build/publication-bundles
       - name: Configure verified Linux publication bundles
-        run: |
-          mkdir -p "$HOME/.gradle"
-          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
-          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
+          vulkan: false
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Extract version from tag

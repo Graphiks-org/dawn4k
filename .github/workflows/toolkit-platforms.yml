@@ -106,15 +106,11 @@ jobs:
           packages: 'cmdline-tools;23.0 platform-tools'
       - name: Install Android platform and NDK
         run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
-      - uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.native-bundle-artifact }}
-          path: build/publication-bundles
       - name: Configure verified foreign bundles
-        run: |
-          mkdir -p "$HOME/.gradle"
-          echo "dawn.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-native/build/dawnCarrier/linuxX64" >> "$HOME/.gradle/gradle.properties"
-          echo "glfw.nativeBundle.linuxX64=$PWD/build/publication-bundles/dawn4k-toolkit-glfw/build/glfw/linuxX64" >> "$HOME/.gradle/gradle.properties"
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: ${{ inputs.native-bundle-artifact }}
+          vulkan: false
       - name: Boot ARM64 Metal simulators
         if: matrix.arch == 'arm64'
         run: python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
