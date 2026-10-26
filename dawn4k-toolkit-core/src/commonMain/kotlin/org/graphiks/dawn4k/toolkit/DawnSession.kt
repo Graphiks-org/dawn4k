@@ -12,12 +12,12 @@ class DawnSession internal constructor(
     val adapter: DawnAdapter,
     val device: DawnDevice,
     internal val owner: DawnExecutionOwner,
-    private val ownsOwner: Boolean,
-    private val options: DawnSessionOptions,
+    ownsOwner: Boolean,
+    options: DawnSessionOptions,
     private val progress: EventProgress,
-    private val initialization: DawnPreparedInitialization?,
+    initialization: DawnPreparedInitialization?,
 ) {
-    val queue: DawnQueue get() = device.queue as DawnQueue
+    val queue: DawnQueue = device.queue as DawnQueue
     /** Borrowed owner for platform integrations with their own admission protocol; never close it while the session lives. */
     val executionOwner: DawnExecutionOwner get() = owner
     private val admission = SessionAdmission()
@@ -54,7 +54,9 @@ class DawnSession internal constructor(
             lifecycle.uncapturedError(it)
             if (state.value is DawnSessionState.Failed) scheduleCleanup()
         }
-        progress.onFailure = { lifecycle.fail(it); scheduleCleanup() }
+        // Composed with the handler installed during bootstrap instead of replacing it: bootstrap cancellation first, then the lifecycle failure.
+        val bootstrap = progress.onFailure
+        progress.onFailure = { failure -> bootstrap(failure); lifecycle.fail(failure); scheduleCleanup() }
     }
 
     /** Called without another suspension after the last cancellable dispatcher return. */

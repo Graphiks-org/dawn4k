@@ -8,8 +8,11 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 sealed interface DawnExecutionMode {
-    data class Managed(val owner: DawnExecutionOwner? = null) : DawnExecutionMode
-    data class Manual(val owner: DawnExecutionOwner) : DawnExecutionMode
+    /** Drives event progression for the session; `null` (only [Managed]) makes the session create a dedicated owner. */
+    val owner: DawnExecutionOwner?
+
+    data class Managed(override val owner: DawnExecutionOwner? = null) : DawnExecutionMode
+    data class Manual(override val owner: DawnExecutionOwner) : DawnExecutionMode
 }
 
 data class DawnSessionOptions(

@@ -5,6 +5,23 @@ import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.toolkit.DawnExecutionOwner
 import kotlin.time.Duration
 
+/**
+ * The one drain loop: pumps [processEvents] until [hasPending] reports nothing left,
+ * waiting [interval] between attempts. Callers bound it with their own deadline
+ * (e.g. `withTimeout`), as [EventProgress.drain] and the [SessionShutdown] stages do.
+ */
+internal suspend fun drainUntilIdle(
+    interval: Duration,
+    processEvents: () -> Unit,
+    hasPending: () -> Boolean,
+) {
+    while (true) {
+        processEvents()
+        if (!hasPending()) return
+        delay(interval)
+    }
+}
+
 internal class EventProgress(
     private val owner: DawnExecutionOwner,
     private val interval: Duration,
@@ -31,13 +48,7 @@ internal class EventProgress(
             catch (caught: Throwable) { failure = caught; onFailure(caught) }
         }
     }
-    suspend fun drain() {
-        while (true) {
-            processEvents()
-            if (!pending()) return
-            delay(interval)
-        }
-    }
+    suspend fun drain() = drainUntilIdle(interval, ::processEvents, pending)
     suspend fun pause() { job?.cancelAndJoin(); job = null }
     fun finish() { scope.cancel() }
     suspend fun stop() { pause(); finish() }

@@ -10,10 +10,7 @@ internal suspend fun bootstrapSession(
     options: DawnSessionOptions,
     initialization: DawnSessionInitialization?,
 ): DawnSession {
-    val supplied = when (val execution = options.execution) {
-        is DawnExecutionMode.Managed -> execution.owner
-        is DawnExecutionMode.Manual -> execution.owner
-    }
+    val supplied = options.execution.owner
     val owner = supplied ?: DawnExecutionOwner.dedicated()
     val transaction = BootstrapTransaction()
     val events = atomic<EventProgress?>(null)

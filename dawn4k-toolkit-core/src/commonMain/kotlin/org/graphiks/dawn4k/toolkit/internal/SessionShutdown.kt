@@ -89,11 +89,5 @@ internal class SessionShutdown(
         shared.await()
     }
 
-    private suspend fun drain() {
-        while (true) {
-            driver.processEvents()
-            if (!driver.hasPendingOperations()) return
-            delay(interval)
-        }
-    }
+    private suspend fun drain() = drainUntilIdle(interval, driver::processEvents, driver::hasPendingOperations)
 }
