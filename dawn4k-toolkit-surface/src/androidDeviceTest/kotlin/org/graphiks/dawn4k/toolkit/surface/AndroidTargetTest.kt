@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import org.graphiks.dawn4k.toolkit.surface.internal.HandleLease
 import org.graphiks.dawn4k.toolkit.surface.internal.TargetLifecycle
 import kotlin.test.*
 
@@ -33,14 +34,14 @@ class AndroidTargetTest {
         var lease: DawnTargetLease? = null
         try {
             lease = androidSurfaceTarget(surface, DawnPlatformOwners.androidMain(), states()).retain()
-            val nativeLease = lease as AndroidTargetLease
-            assertNotEquals(0L, nativeLease.nativeWindow)
+            val nativeLease = lease as HandleLease
+            assertNotEquals(0L, nativeLease.retainedHandle)
             surface.release()
-            assertTrue(AndroidNativeWindow.width(nativeLease.nativeWindow) > 0)
-            assertNotEquals(0L, nativeLease.nativeWindow)
+            assertTrue(AndroidNativeWindow.width(nativeLease.retainedHandle) > 0)
+            assertNotEquals(0L, nativeLease.retainedHandle)
             lease.retire()
             lease.retire()
-            assertEquals(0L, nativeLease.nativeWindow)
+            assertEquals(0L, nativeLease.retainedHandle)
         } finally { lease?.retire(); surface.release(); texture.release() }
     }
 

@@ -17,7 +17,7 @@ class DawnSurfaceView @JvmOverloads constructor(context: Context, attrs: Attribu
         override val state = lifecycle.state
         override suspend fun retain(): DawnTargetLease {
             val currentSurface = owner.onOwner { holder.surface }
-            return androidSurfaceTarget(currentSurface, owner, state, retirement).retain()
+            return androidSurfaceTarget(currentSurface, owner, state, retirement = retirement).retain()
         }
     }
 

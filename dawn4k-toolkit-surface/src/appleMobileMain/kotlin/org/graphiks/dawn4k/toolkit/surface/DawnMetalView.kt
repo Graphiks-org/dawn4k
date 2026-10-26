@@ -35,7 +35,7 @@ class DawnMetalView(frame: CValue<CGRect>) : UIView(frame = checkedMainFrame(fra
         override val state = lifecycle.state
         override suspend fun retain(): DawnTargetLease {
             val metal = owner.onOwner { layer as CAMetalLayer }
-            return metalLayerTarget(metal, state, retirement).retain()
+            return metalLayerTarget(metal, state, retirement = retirement).retain()
         }
     }
 

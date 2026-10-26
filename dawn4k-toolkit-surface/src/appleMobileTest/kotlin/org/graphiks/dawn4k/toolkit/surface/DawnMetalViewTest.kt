@@ -3,6 +3,7 @@ package org.graphiks.dawn4k.toolkit.surface
 
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.graphiks.dawn4k.toolkit.surface.internal.HandleLease
 import org.graphiks.dawn4k.toolkit.surface.internal.TargetLifecycle
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSThread
@@ -26,14 +27,14 @@ class DawnMetalViewTest {
         val view = owner.onOwner { DawnMetalView(CGRectMake(0.0, 0.0, 16.0, 16.0)) }
         val layer = owner.onOwner { view.layer as CAMetalLayer }
         val states = MutableStateFlow(DawnTargetState(1, PixelExtent(16, 16), true))
-        val lease = metalLayerTarget(layer, states).retain() as AppleTargetLease
-        assertNotEquals(0L, lease.retainedLayerAddress)
+        val lease = metalLayerTarget(layer, states).retain() as HandleLease
+        assertNotEquals(0L, lease.retainedHandle)
         owner.onOwner { view.removeFromSuperview() }
         states.value = states.value.copy(available = false)
-        assertNotEquals(0L, lease.retainedLayerAddress)
+        assertNotEquals(0L, lease.retainedHandle)
         lease.retire()
         lease.retire()
-        assertEquals(0L, lease.retainedLayerAddress)
+        assertEquals(0L, lease.retainedHandle)
     }
     @Test fun delayedOldDetachLeavesReplacementAlive() {
         val lifecycle = TargetLifecycle()
