@@ -66,21 +66,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
+        uses: ./.github/actions/configure-android-sdk
         with:
-          # setup-android cannot download the architecture-suffixed macOS 23 archive.
-          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
           cmdline-tools-version: ${{ matrix.android-tools }}
-          packages: 'cmdline-tools;23.0 platform-tools'
-
-      - name: Install Android platform
-        if: runner.os != 'Windows'
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
-
-      - name: Install Android platform on Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: '& "$env:ANDROID_HOME\cmdline-tools\23.0\bin\sdkmanager.bat" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+          install-ndk: true
 
       - name: Verify foreign native bundle handling
         run: python3 scripts/tests/test_dawn_linux_bundle_host.py
@@ -90,7 +79,6 @@ jobs:
         uses: ./.github/actions/configure-linux-bundles
         with:
           artifact: toolkit-linux-native-bundles
-          vulkan: false
 
       - name: Install and select CPU Vulkan adapter
         if: runner.os == 'Linux'

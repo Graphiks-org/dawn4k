@@ -32,20 +32,14 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
-          # setup-android cannot download the architecture-suffixed macOS 23 archive.
-          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
-          cmdline-tools-version: '15641748'
-          packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform and NDK
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+          install-ndk: true
       - name: Configure verified Linux publication bundles
         uses: ./.github/actions/configure-linux-bundles
         with:
           artifact: toolkit-linux-native-bundles
-          vulkan: false
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Set snapshot version
@@ -73,20 +67,14 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
-          # setup-android cannot download the architecture-suffixed macOS 23 archive.
-          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
-          cmdline-tools-version: '15641748'
-          packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform and NDK
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+          install-ndk: true
       - name: Configure verified Linux publication bundles
         uses: ./.github/actions/configure-linux-bundles
         with:
           artifact: toolkit-linux-native-bundles
-          vulkan: false
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Extract version from tag

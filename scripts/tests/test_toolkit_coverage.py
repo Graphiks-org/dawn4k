@@ -66,6 +66,18 @@ class CoverageFixtures(unittest.TestCase):
                                  "--require", f"{verify.MODULES[0]}:jvm-mingwX64:headless:gpu"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_reportDirCollectsNestedSummaries(self):
+        nested = self.directory / "coverage" / "job"
+        nested.mkdir(parents=True)
+        report = nested / "summary.json"
+        report.write_text(json.dumps({"schema": 1, "results": [self.record]}))
+        command = [sys.executable, str(SCRIPTS / "verify-toolkit-coverage.py"), "--report-dir", str(self.directory / "coverage"),
+                   "--require", f"{verify.MODULES[0]}:tvosSimulatorArm64:headless:gpu"]
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        missing = subprocess.run(command[:-1] + [f"{verify.MODULES[0]}:jvm-mingwX64:win32:gpu"], capture_output=True, text=True)
+        self.assertNotEqual(missing.returncode, 0, "a requirement absent from the directory must fail")
+
     def test_rejectsSkippedRequiredGpuSuite(self):
         tree = ET.parse(self.junit)
         ET.SubElement(tree.getroot().find("testcase"), "skipped")

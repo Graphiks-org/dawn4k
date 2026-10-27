@@ -49,19 +49,15 @@ jobs:
         with:
           python-version: '3.x'
 
-      - uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
-          cmdline-tools-version: '15641748'
-          packages: 'cmdline-tools;23.0 platform-tools'
-
-      - name: Install Android platform and NDK
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.2.13676358"'
+          install-ndk: true
 
       - name: Configure verified foreign native bundles
         uses: ./.github/actions/configure-linux-bundles
         with:
           artifact: toolkit-linux-native-bundles
-          vulkan: false
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew

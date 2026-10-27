@@ -1,0 +1,61 @@
+# Installs the Android SDK packages every dawn4k build needs, on any runner OS:
+#
+# 1. android-actions/setup-android bootstraps the cmdline-tools (input `cmdline-tools-version`).
+#    setup-android cannot download the architecture-suffixed macOS 23 archive, so every
+#    macOS caller bootstraps with 21 (15641748) and then installs cmdline-tools 23.0 from
+#    the catalog — except ARM64 Linux runners, where Android CLI 23's Linux binary is
+#    x86_64-only: those keep using the bootstrapped sdkmanager (input `bootstrapped-sdkmanager`).
+# 2. the platform, build-tools and (input `install-ndk`) NDK packages are installed through
+#    sdkmanager, with the Windows-specific .bat invocation handled here.
+#
+# Linux runners that also need a graphical Vulkan environment keep configuring it in their
+# own workflow steps; see .github/workflows/ci.yml and toolkit-platforms.yml.
+
+name: Configure Android SDK
+description: >-
+  Bootstrap the Android cmdline-tools and install the platform, build-tools and optional
+  NDK packages shared by every dawn4k CI job, across bash and pwsh runners.
+
+inputs:
+  cmdline-tools-version:
+    description: Version android-actions/setup-android bootstraps (15641748 on macOS/ARM64).
+    required: false
+    default: '15641748'
+  install-ndk:
+    description: Also install the Android NDK (ndk;28.2.13676358).
+    required: false
+    default: false
+  bootstrapped-sdkmanager:
+    description: >-
+      Use the bootstrapped cmdline-tools sdkmanager instead of 23.0 — required on ARM64
+      Linux, whose catalog cannot install the x86_64-only CLI 23 binary.
+    required: false
+    default: false
+
+runs:
+  using: composite
+  steps:
+    - uses: android-actions/setup-android@v3
+      with:
+        cmdline-tools-version: ${{ inputs.cmdline-tools-version }}
+        packages: ${{ inputs.bootstrapped-sdkmanager == 'true' && 'platform-tools' || 'cmdline-tools;23.0 platform-tools' }}
+
+    - name: Install Android platform packages
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        tools='23.0'
+        if [ '${{ inputs.bootstrapped-sdkmanager }}' = 'true' ]; then tools='${{ inputs.cmdline-tools-version }}'; fi
+        packages=('"platforms;android-37.0"' '"build-tools;37.0.0"')
+        if [ '${{ inputs.install-ndk }}' = 'true' ]; then packages+=('"ndk;28.2.13676358"'); fi
+        "$ANDROID_HOME/cmdline-tools/$tools/bin/sdkmanager" "${packages[@]}"
+
+    - name: Install Android platform packages (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $tools = '23.0'
+        if ('${{ inputs.bootstrapped-sdkmanager }}' -eq 'true') { $tools = '${{ inputs.cmdline-tools-version }}' }
+        $packages = @('platforms;android-37.0', 'build-tools;37.0.0')
+        if ('${{ inputs.install-ndk }}' -eq 'true') { $packages += 'ndk;28.2.13676358' }
+        & "$env:ANDROID_HOME\cmdline-tools\$tools\bin\sdkmanager.bat" @packages

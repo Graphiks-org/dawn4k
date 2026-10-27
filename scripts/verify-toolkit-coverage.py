@@ -189,6 +189,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--report", action="append", type=Path, default=[])
+    parser.add_argument("--report-dir", type=Path,
+                        help="collect every summary.json under this directory (e.g. build/toolkit-coverage)")
     parser.add_argument("--require", action="append", default=[], help="module:target:presentation:gpu|compile; defaults to the full CI matrix")
     parser.add_argument("--metadata-root", type=Path)
     parser.add_argument("--version", default="1.0.0-SNAPSHOT")
@@ -205,9 +207,12 @@ def main():
         counts = " ".join(f"{module.rsplit('-', 1)[-1]}={len(targets)}" for module, targets in DECLARED.items())
         print(f"Published Kotlin variants: {counts}")
         print("Verified four JVM runtimes, both Android ABIs and JNI consumer keep rules")
-    if args.report:
+    reports = list(args.report)
+    if args.report_dir:
+        reports += sorted(args.report_dir.rglob("summary.json"))
+    if reports:
         records = []
-        for path in args.report:
+        for path in reports:
             manifest = json.loads(path.read_text())
             if manifest.get("schema") != 1: raise VerificationError(f"unsupported coverage schema: {path}")
             for record in manifest["results"]:
@@ -216,7 +221,7 @@ def main():
         verify_coverage(records, required)
         print(f"Verified {len(required)} required execution/compile suites")
     elif not args.metadata_root:
-        parser.error("provide --report, --metadata-root or --self-test")
+        parser.error("provide --report, --report-dir, --metadata-root or --self-test")
 
 if __name__ == "__main__":
     main()

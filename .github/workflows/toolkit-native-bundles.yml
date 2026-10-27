@@ -13,10 +13,10 @@ jobs:
           distribution: zulu
           java-version: '25'
           cache: gradle
-      - uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
           cmdline-tools-version: '16111833'
-          packages: 'platforms;android-37.0 build-tools;37.0.0'
       - name: Install native build dependencies
         run: |
           sudo apt-get update

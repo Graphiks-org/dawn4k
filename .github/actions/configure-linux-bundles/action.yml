@@ -10,19 +10,15 @@
 #    copied across the workflows is the reference implementation; the former bash copies
 #    wrote the same two property lines into `$HOME/.gradle`, which equals the
 #    GRADLE_USER_HOME default on GitHub runners.
-# 3. `vulkan` ('true'/'false', default true): also installs the lavapipe CPU Vulkan driver and
-#    exports `VK_DRIVER_FILES` for its ICD, so a Linux runner can exercise the bundles.
-#    This folds in the Vulkan/ICD block formerly repeated in ci.yml and
-#    toolkit-platforms.yml. A caller that must not set the Vulkan environment — every
-#    current caller: all bundle consumers run on macOS/Windows — passes `vulkan: false`.
-#    Runners needing Xvfb/Weston or build toolchains keep installing those in their own
-#    workflow steps, as their Linux jobs already do.
+#
+# Linux runners configure their own graphical Vulkan environment (lavapipe ICD, Xvfb,
+# Weston, build toolchain) in their own workflow steps, because each Linux job needs a
+# different companion package set; see ci.yml and toolkit-platforms.yml.
 
 name: Configure Linux native bundles
 description: >-
   Download the verified Linux publication bundles and point Gradle at them via
-  $GRADLE_USER_HOME/gradle.properties; optionally set up the lavapipe Vulkan/ICD
-  environment for Linux runners.
+  $GRADLE_USER_HOME/gradle.properties.
 
 inputs:
   artifact:
@@ -30,13 +26,6 @@ inputs:
       Name of the bundle artifact uploaded by toolkit-native-bundles.yml
       (toolkit-linux-native-bundles).
     required: true
-  vulkan:
-    description: >-
-      Also install the CPU Vulkan driver and export VK_DRIVER_FILES for its ICD.
-      Pass false on non-Linux runners or when the caller must not set the
-      Vulkan environment.
-    required: false
-    default: true
 
 runs:
   using: composite
@@ -62,13 +51,3 @@ runs:
             output.write(f'\ndawn.nativeBundle.linuxX64={dawn}\n')
             output.write(f'glfw.nativeBundle.linuxX64={glfw}\n')
         PYTHON
-
-    - name: Select CPU Vulkan adapter
-      if: inputs.vulkan == 'true'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libvulkan1 mesa-vulkan-drivers
-        icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-        test -n "$icd"
-        echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"

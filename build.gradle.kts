@@ -24,11 +24,8 @@ tasks.register<Exec>("verifyToolkitCoverage") {
     val subset = providers.gradleProperty("toolkit.coverage.require")
     inputs.dir(reportDirectory)
     doFirst {
-        val reports = fileTree(reportDirectory.get()) { include("**/summary.json") }.files.sorted()
-        check(reports.isNotEmpty()) { "No toolkit execution summaries in ${reportDirectory.get()}" }
         commandLine(buildList {
-            addAll(listOf("python3", "scripts/verify-toolkit-coverage.py"))
-            reports.forEach { addAll(listOf("--report", it.absolutePath)) }
+            addAll(listOf("python3", "scripts/verify-toolkit-coverage.py", "--report-dir", reportDirectory.get()))
             subset.orNull?.split(',')?.filter(String::isNotBlank)?.forEach { addAll(listOf("--require", it)) }
         })
     }
