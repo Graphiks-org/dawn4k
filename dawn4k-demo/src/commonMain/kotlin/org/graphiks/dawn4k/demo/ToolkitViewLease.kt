@@ -47,6 +47,16 @@ internal suspend fun bridgeToolkitView(
  * that hides the invalidation — so a lease from a superseded generation retires as well,
  * in the same emission that attaches its replacement.
  */
+/**
+ * Retires one detached lease in the background: the controller's detach already failed the
+ * session state before rethrowing, so a failure here must stay confined there instead of
+ * crashing an unhandled coroutine scope — while the view's own retirement is still awaited.
+ */
+internal suspend fun retireDetachedLease(lease: ToolkitViewLease, detach: suspend (Long) -> Unit) {
+    runCatching { detach(lease.generation) }
+    withContext(NonCancellable) { lease.awaitRetirement(); lease.close() }
+}
+
 internal suspend fun bridgeTargetInto(
     attach: (ToolkitViewLease) -> Unit,
     detach: suspend (Long) -> Unit,
@@ -59,10 +69,7 @@ internal suspend fun bridgeTargetInto(
         val outstanding = lease ?: return
         lease = null
         // Never block the UI thread; the controller retires under the frame lock.
-        CoroutineScope(Dispatchers.Default).launch {
-            try { detach(outstanding.generation) }
-            finally { withContext(NonCancellable) { outstanding.awaitRetirement(); outstanding.close() } }
-        }
+        CoroutineScope(Dispatchers.Default).launch { retireDetachedLease(outstanding, detach) }
     }
     try {
         target.state.collect { state ->

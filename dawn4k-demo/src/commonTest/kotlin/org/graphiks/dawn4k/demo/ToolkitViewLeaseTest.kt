@@ -41,6 +41,16 @@ class ToolkitViewLeaseTest {
         lease.close()
     }
 
+    @Test fun detachFailureStaysConfinedToTheSessionState(): Unit = runBlocking {
+        val states = MutableStateFlow(DawnTargetState(3, ToolkitPixelExtent(320, 240), true))
+        var retirements = 0
+        val lease = ToolkitViewLease(ViewTarget(states), DawnBackend.Metal) { retirements++ }
+        // The controller rethrows the failure that already failed the session; a detached
+        // fire-and-forget retirement must swallow it instead of crashing an unhandled scope.
+        retireDetachedLease(lease) { throw IllegalStateException("detach already failed the session") }
+        assertEquals(1, retirements, "the view's own retirement must still be awaited")
+    }
+
     @Test fun conflatedRemoveAndReAddStillDetachesTheSupersededLease(): Unit = runBlocking {
         val states = MutableStateFlow(DawnTargetState(5, ToolkitPixelExtent(320, 240), true))
         val attached = MutableStateFlow<List<DemoSurfaceLease>>(emptyList())

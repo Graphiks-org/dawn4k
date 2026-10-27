@@ -27,6 +27,66 @@ internal suspend fun runParticleDemo(host: SurfaceHost, controls: ParticleContro
     finally { demoCleanup(failure, { lease.awaitRetirement() }) }
 }
 
+/** One opened surface attempt: the session plus what the caller must record about its lease. */
+private class OpenedPresentation(val session: DawnPresentedSession, val backend: DawnBackend, val generation: Long)
+
+/** Tracks the live particle scene against the controls state: replaces it when the requested
+ *  particle count changes and resets it when a new reset generation arrives. */
+private class ParticleSceneBook(
+    private val gpu: DawnSession,
+    val format: GPUTextureFormat,
+    count: Int,
+    initialResetGeneration: Long = 0L,
+) {
+    var scene: ParticleScene = ParticleScene.create(gpu.device, format, initialParticles(count)); private set
+    var resetGeneration: Long = initialResetGeneration; private set
+
+    /** Reconciles the scene with [requested] and returns the scene to render. */
+    suspend fun reconcile(requested: ParticleControlState): ParticleScene {
+        if (requested.count != scene.count) {
+            gpu.queue.onSubmittedWorkDone().getOrThrow()
+            val replacement = ParticleScene.create(gpu.device, format, initialParticles(requested.count))
+            val previous = scene
+            scene = replacement
+            previous.close()
+            println("[demo] scene changed (${scene.count} particles)")
+        }
+        if (requested.resetGeneration != resetGeneration) {
+            scene.reset(initialParticles(scene.count))
+            resetGeneration = requested.resetGeneration
+            println("[demo] scene reset (${scene.count} particles)")
+        }
+        return scene
+    }
+
+    fun close() = scene.close()
+}
+
+/** One submitted frame's outcome: whether it was presented, and at which extent. */
+private class RenderedFrame(val presented: Boolean, val extent: PixelExtent)
+
+/** Encodes, submits and presents one frame of [scene]; null when no frame slot was acquired.
+ *  [shouldPresent] runs after submission and decides whether the frame may still present. */
+private suspend fun renderFrame(
+    gpu: DawnSession,
+    presentation: DawnPresentation,
+    scene: ParticleScene,
+    delta: Float,
+    shouldPresent: suspend () -> Boolean,
+): RenderedFrame? {
+    var outcome: RenderedFrame? = null
+    val rendered = presentation.withFrame { frame ->
+        gpu.device.createCommandEncoder().use { encoder ->
+            scene.encodeFrame(encoder, frame.view, frame.extent.width, frame.extent.height, delta)
+            encoder.finish().use { gpu.queue.submit(listOf(it)) }
+        }
+        val presented = shouldPresent()
+        if (presented) frame.present()
+        outcome = RenderedFrame(presented, PixelExtent(frame.extent.width, frame.extent.height))
+    }
+    return if (rendered) outcome else null
+}
+
 /** One admitted application lifetime keeps particle resources alive through device-loss cleanup. */
 internal suspend fun runParticleDemo(controller: DemoSessionController, sessionId: Long) {
     val clock = controller.frameClock
@@ -49,22 +109,12 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
 
     try {
         while (presented == null) {
-            controller.surface.first { it?.valid == true }
-            controller.withSurface { lease ->
-                if (lease == null || !lease.valid) return@withSurface
-                lease.pixelExtent()
-                try {
-                    val opened = openDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(lease.backend)), demoPresentationOptions())
-                    presented = opened
-                    backend = lease.backend
-                    generation = lease.generation
-                    surfaceCreations++
-                    controller.sessionOpened(opened.gpu)
-                    registerRetirement(opened)
-                } catch (caught: Throwable) {
-                    // A disappearing view is normal; its rollback still owns any retained target.
-                    if (lease.valid || caught is CancellationException) throw caught
-                }
+            openPresentedSession(controller) { opened ->
+                presented = opened.session
+                backend = opened.backend
+                generation = opened.generation
+                surfaceCreations++
+                registerRetirement(opened.session)
             }
         }
         val active = checkNotNull(presented)
@@ -73,9 +123,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
         gpu.run {
             val info = gpu.adapter.info
             println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
-            var scene: ParticleScene? = null
-            var format: GPUTextureFormat? = null
-            var resetGeneration = 0L
+            var book: ParticleSceneBook? = null
             var frameCount = 0L
             var lastExtent: PixelExtent? = null
             var applicationFailure: Throwable? = null
@@ -90,63 +138,42 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                         if (extent.width <= 0 || extent.height <= 0) { clock.suspend(); return@withSurface }
                         if (generation != lease.generation) {
                             check(lease.backend == backend) { "replacement viewport requires a different backend" }
-                            presentation.replaceTarget(lease.target, demoPresentationOptions(format))
+                            presentation.replaceTarget(lease.target, demoPresentationOptions(book?.format))
                             generation = lease.generation
                             surfaceCreations++
                             registerRetirement(active)
                             lastExtent = null
                         }
                         val selected = presentation.configuration.value ?: return@withSurface
-                        check(scene == null || format == selected.format) {
+                        var sceneBook = book
+                        check(sceneBook == null || sceneBook.format == selected.format) {
                             "replacement surface cannot preserve the simulation texture format"
                         }
-                        if (scene == null) {
-                            format = selected.format
+                        if (sceneBook == null) {
                             controller.controls.initialize(maxParticleCount(gpu.device.limits), sessionId)
-                            scene = ParticleScene.create(gpu.device, selected.format,
-                                initialParticles(controller.controls.state.value.count))
+                            sceneBook = ParticleSceneBook(gpu, selected.format, controller.controls.state.value.count)
+                            book = sceneBook
                             controller.ready(sessionId)
                         }
-                        var current = checkNotNull(scene)
                         val requested = controller.controls.state.value
-                        if (requested.count != current.count) {
-                            gpu.queue.onSubmittedWorkDone().getOrThrow()
-                            val replacement = ParticleScene.create(gpu.device, selected.format, initialParticles(requested.count))
-                            scene = replacement
-                            current.close()
-                            current = replacement
-                            println("[demo] scene changed (${current.count} particles)")
-                        }
-                        if (requested.resetGeneration != resetGeneration) {
-                            current.reset(initialParticles(current.count))
-                            resetGeneration = requested.resetGeneration
-                            println("[demo] scene reset (${current.count} particles)")
-                        }
+                        val current = checkNotNull(sceneBook).reconcile(requested)
                         val delta = clock.advance(requested, controller.nowNanos())
                         if (lastExtent != extent) {
                             println("[demo] configuring surface ${extent.width}x${extent.height}")
                             lastExtent = extent
                         }
                         if (!lease.valid) { clock.suspend(); return@withSurface }
-                        var renderedExtent = extent
-                        val rendered = presentation.withFrame { frame ->
-                            gpu.device.createCommandEncoder().use { encoder ->
-                                current.encodeFrame(encoder, frame.view, frame.extent.width, frame.extent.height, delta)
-                                encoder.finish().use { gpu.queue.submit(listOf(it)) }
-                            }
-                            renderedExtent = PixelExtent(frame.extent.width, frame.extent.height)
-                            if (lease.valid) frame.present()
-                        }
-                        if (!rendered || !lease.valid) { clock.suspend(); return@withSurface }
+                        val frame = renderFrame(gpu, presentation, current, delta) { lease.valid }
+                        if (frame == null || !lease.valid) { clock.suspend(); return@withSurface }
                         frameCount++
                         if (frameCount == 1L || frameCount % 120L == 0L)
-                            println("[demo] frame $frameCount rendered (${renderedExtent.width}x${renderedExtent.height}, particles=${current.count}, paused=${requested.paused}, delta=${delta}s)")
+                            println("[demo] frame $frameCount rendered (${frame.extent.width}x${frame.extent.height}, particles=${current.count}, paused=${requested.paused}, delta=${delta}s)")
                         val fingerprint = if (controller.evidence.wantsFingerprint) particleFingerprint(gpu.device, current) else null
                         controller.evidence.publish(DemoEvidenceSnapshot(
                             sessionId = sessionId, phase = controller.state.value.phase,
                             backend = checkNotNull(backend).name, adapter = info.description,
-                            count = current.count, paused = requested.paused, resetGeneration = resetGeneration,
-                            physicalExtent = renderedExtent, surfaceGeneration = generation,
+                            count = current.count, paused = requested.paused, resetGeneration = sceneBook.resetGeneration,
+                            physicalExtent = frame.extent, surfaceGeneration = generation,
                             frameCount = frameCount, simulationFingerprint = fingerprint,
                             deviceCreations = 1, surfaceCreations = surfaceCreations,
                         ))
@@ -159,7 +186,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                     controller.withSurface {
                         demoCleanup(null,
                             { controller.releasePresentation?.invoke() },
-                            { controller.releasePresentation = null; scene?.close() },
+                            { controller.releasePresentation = null; book?.close() },
                         )
                     }
                 })
@@ -175,13 +202,34 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
     }
 }
 
+/** Tries once, under the frame lock, to open the presented surface for the current lease;
+ *  [onOpened] records the session where retirement must be registered before any queued
+ *  command can observe it. A vanished view leaves the result unset so the caller retries. */
+private suspend fun openPresentedSession(
+    controller: DemoSessionController,
+    onOpened: (OpenedPresentation) -> Unit,
+) {
+    controller.surface.first { it?.valid == true }
+    controller.withSurface { lease ->
+        if (lease == null || !lease.valid) return@withSurface
+        lease.pixelExtent()
+        try {
+            val opened = openDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(lease.backend)), demoPresentationOptions())
+            controller.sessionOpened(opened.gpu)
+            onOpened(OpenedPresentation(opened, lease.backend, lease.generation))
+        } catch (caught: Throwable) {
+            // A disappearing view is normal; its rollback still owns any retained target.
+            if (lease.valid || caught is CancellationException) throw caught
+        }
+    }
+}
+
 private suspend fun renderLoop(gpu: DawnSession, presentation: DawnPresentation,
     lease: DemoSurfaceLease, controls: ParticleControls) {
     val format = checkNotNull(presentation.configuration.value).format
-    var scene = ParticleScene.create(gpu.device, format, initialParticles(controls.state.value.count))
+    val book = ParticleSceneBook(gpu, format, controls.state.value.count, controls.state.value.resetGeneration)
     println("[demo] scene ready — starting render loop")
     val clock = ParticleFrameClock()
-    var resetGeneration = controls.state.value.resetGeneration
     var frameCount = 0L
     var previousExtent: PixelExtent? = null
     var failure: Throwable? = null
@@ -189,19 +237,7 @@ private suspend fun renderLoop(gpu: DawnSession, presentation: DawnPresentation,
         while (coroutineContext.isActive) {
             requireDemoReady(gpu)
             val requested = controls.state.value
-            if (requested.count != scene.count) {
-                gpu.queue.onSubmittedWorkDone().getOrThrow()
-                val replacement = ParticleScene.create(gpu.device, format, initialParticles(requested.count))
-                val previous = scene
-                scene = replacement
-                previous.close()
-                println("[demo] scene changed (${scene.count} particles)")
-            }
-            if (requested.resetGeneration != resetGeneration) {
-                scene.reset(initialParticles(scene.count))
-                resetGeneration = requested.resetGeneration
-                println("[demo] scene reset (${scene.count} particles)")
-            }
+            val scene = book.reconcile(requested)
             val extent = lease.pixelExtent()
             if (extent.width <= 0 || extent.height <= 0) { clock.suspend(); delay(16); continue }
             val delta = clock.advance(requested, demoMonotonicNanos())
@@ -209,23 +245,15 @@ private suspend fun renderLoop(gpu: DawnSession, presentation: DawnPresentation,
                 println("[demo] configuring surface ${extent.width}x${extent.height}")
                 previousExtent = extent
             }
-            val rendered = presentation.withFrame { frame ->
-                gpu.device.createCommandEncoder().use { encoder ->
-                    scene.encodeFrame(encoder, frame.view, frame.extent.width, frame.extent.height, delta)
-                    encoder.finish().use { gpu.queue.submit(listOf(it)) }
-                }
-                coroutineContext.ensureActive()
-                frame.present()
-            }
-            if (rendered) {
-                frameCount++
-                if (frameCount == 1L || frameCount % 120L == 0L)
-                    println("[demo] frame $frameCount rendered (${extent.width}x${extent.height}, particles=${scene.count}, paused=${requested.paused}, delta=${delta}s)")
-            } else clock.suspend()
+            val frame = renderFrame(gpu, presentation, scene, delta) { coroutineContext.ensureActive(); true }
+            if (frame == null) { clock.suspend(); delay(16); continue }
+            frameCount++
+            if (frameCount == 1L || frameCount % 120L == 0L)
+                println("[demo] frame $frameCount rendered (${extent.width}x${extent.height}, particles=${scene.count}, paused=${requested.paused}, delta=${delta}s)")
             delay(1)
         }
     } catch (caught: Throwable) { failure = caught; throw caught }
-    finally { demoCleanup(failure, { gpu.queue.onSubmittedWorkDone().getOrThrow() }, { scene.close() }) }
+    finally { demoCleanup(failure, { gpu.queue.onSubmittedWorkDone().getOrThrow() }, { book.close() }) }
 }
 
 private fun demoPresentationOptions(format: GPUTextureFormat? = null) =
