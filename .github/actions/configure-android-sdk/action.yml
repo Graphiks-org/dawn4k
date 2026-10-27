@@ -46,8 +46,8 @@ runs:
       run: |
         tools='23.0'
         if [ '${{ inputs.bootstrapped-sdkmanager }}' = 'true' ]; then tools='${{ inputs.cmdline-tools-version }}'; fi
-        packages=('"platforms;android-37.0"' '"build-tools;37.0.0"')
-        if [ '${{ inputs.install-ndk }}' = 'true' ]; then packages+=('"ndk;28.2.13676358"'); fi
+        packages=('platforms;android-37.0' 'build-tools;37.0.0')
+        if [ '${{ inputs.install-ndk }}' = 'true' ]; then packages+=('ndk;28.2.13676358'); fi
         "$ANDROID_HOME/cmdline-tools/$tools/bin/sdkmanager" "${packages[@]}"
 
     - name: Install Android platform packages (Windows)
