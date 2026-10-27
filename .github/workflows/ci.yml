@@ -31,8 +31,11 @@ jobs:
           - os: macos-26
             backend: Metal
             android-tools: '15641748'
-            # Cold native/Compose builds plus simulator startup exceed one hour.
-            timeout: 90
+            # Cold native/Compose builds of every module across the JVM, Android-host
+            # and all Apple simulator targets plus simulator booting exceeded 90 minutes
+            # once the toolkit modules joined `check`; the run was still progressing
+            # (writing fresh JUnit XML) when the 90-minute budget cancelled it.
+            timeout: 150
           - os: ubuntu-24.04
             backend: Vulkan
             android-tools: '16111833'
