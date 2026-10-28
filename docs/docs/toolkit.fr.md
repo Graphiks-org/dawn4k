@@ -97,12 +97,11 @@ préserve le GPU compatible. Sa politique optionnelle peut imposer le format du
 pipeline existant. Un remplacement échoué conserve la politique précédente.
 `detachTarget(generation)` ignore les demandes d’une ancienne génération.
 
-Publier les dimensions physiques et une nouvelle génération lorsque le handle
-change. Une taille nulle ou `available = false` interdit l’acquisition. Arrêter
-les utilisateurs et attendre l’accusé de libération avant de détruire les handles
-externes. Les appels UI restent sur leur propriétaire UI ; l’encodage GPU reste
-dans `gpu.run`. `gpu.executionOwner` est emprunté et réservé aux intégrations
-avancées qui disposent de leur propre protocole d’admission.
+Le protocole complet d’une cible — générations, rétention, suspension
+d’acquisition et libération — figure dans la section Cycle de vie. Les appels UI
+restent sur leur propriétaire UI ; l’encodage GPU reste dans `gpu.run`.
+`gpu.executionOwner` est emprunté et réservé aux intégrations avancées qui
+disposent de leur propre protocole d’admission.
 
 ## Android, iOS et tvOS
 
@@ -115,6 +114,47 @@ la destruction de l’hôte. Ne jamais bloquer le thread UI en attendant un thre
 GPU qui a besoin de l’UI pour libérer les références natives. Apple conserve de
 vraies références Core Foundation ; Android conserve une référence native-window
 indépendante du wrapper Java. Les hôtes d’exemple montrent ce nettoyage asynchrone.
+
+## Cycle de vie
+
+`gpu.state` publie un `StateFlow<DawnSessionState>` ; les états sont des valeurs
+distinctes, un observateur sait donc toujours dans quelle phase se trouve une
+session.
+
+| État | Signification | Utilisable dans cet état |
+| --- | --- | --- |
+| `Ready` | Démarrage réussi | `gpu.run`, présentation, arrêt |
+| `ShuttingDown` | Une tentative d’arrêt est en cours | Rien de nouveau ; le travail admis se termine d’abord |
+| `ShutdownTimedOut` | La tentative a dépassé `shutdownTimeout` ; les handles restent vivants | Nouvel appel à `shutdown()` ; le nettoyage continue |
+| `Lost` | Le device a signalé une perte | Nettoyage seul ; créer une nouvelle session pour redémarrer |
+| `Failed` | Une erreur fatale ou une tentative d’arrêt échouée a arrêté la session | Nettoyage seul ; créer une nouvelle session pour redémarrer |
+| `Closed` | Tous les handles natifs sont fermés | Rien ; final et idempotent |
+
+Les transitions : une tentative d’arrêt fait passer `Ready` → `ShuttingDown`, et
+une tentative réussie se termine en `Closed`. Une tentative dépassée ou échouée
+publie `ShutdownTimedOut` ou `Failed` en gardant vivants les handles non
+fermés ;
+l’application peut rappeler `shutdown()`, et le nettoyage en arrière-plan
+réessaie aussi. La perte du device et les erreurs fatales n’interrompent qu’une
+session `Ready`, annulent son travail admis et n’y retournent jamais.
+
+Une cible surface externe suit son propre protocole, et le toolkit ne touche ses
+handles natifs qu’à l’intérieur :
+
+1. la cible publie `DawnTargetState(generation, extent, available)` en pixels
+   physiques, avec une génération neuve chaque fois que le handle natif change
+   d’identité ;
+2. `retain()` retient le handle dans un bail ; le toolkit revérifie la
+   génération après le `retain` suspendu et annule l’acquisition en cas
+   d’écart ;
+3. les capacités sont négociées et la surface configurée ; une taille nulle ou
+   `available = false` suspend l’acquisition des frames au lieu de l’échouer ;
+4. chaque `withFrame` acquiert une texture, présente au plus une fois et la
+   libère ;
+5. `replaceTarget` échange les cibles entre les frames en préservant le GPU
+   compatible ; `detachTarget(generation)` ignore les générations obsolètes ;
+6. `retire()` accuse la libération : Dawn ne référence plus le handle ; détruire
+   l’hôte possédé par l’application seulement après cet acquittement.
 
 ## Progression, perte du device et arrêt
 
@@ -132,7 +172,8 @@ les suspensions du travail GPU. L’annuler et le rejoindre, appeler
 persistant refuse un driver actif ; les helpers à portée définie le révoquent
 lorsqu’ils terminent.
 
-Observer `gpu.state` ou `awaitLost()`. La perte du device et le manque de mémoire
+Observer `gpu.state` (la section Cycle de vie liste tous les états) ou
+`awaitLost()`. La perte du device et le manque de mémoire
 arrêtent les nouvelles admissions et déclenchent le nettoyage. Les ressources ne
 sont pas rejouées automatiquement. Annuler et rejoindre les producteurs de
 l’application et fermer leurs ressources dans le bloc GPU admis, puis créer

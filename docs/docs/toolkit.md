@@ -93,12 +93,11 @@ GPU when compatible. Its optional new presentation policy can require the
 existing pipeline format. A failed replacement preserves the previous policy.
 `detachTarget(generation)` ignores obsolete generation requests.
 
-Publish dimensions in physical pixels and a fresh generation when the native
-handle changes. Zero dimensions and `available = false` prevent acquisition.
-Stop users and await target retirement before destroying caller-owned native
-handles. Native UI calls stay on the supplied UI owner; GPU encoding stays in
-`gpu.run`. `gpu.executionOwner` is borrowed and intended for advanced platform
-integrations with their own admission protocol.
+The full target protocol — generations, retention, acquisition suspension and
+retirement — is listed in the lifecycle section. Native UI calls stay on the
+supplied UI owner; GPU encoding stays in `gpu.run`. `gpu.executionOwner` is
+borrowed and intended for advanced platform integrations with their own
+admission protocol.
 
 ## Android, iOS and tvOS
 
@@ -111,6 +110,46 @@ Never block the UI thread waiting for a GPU owner that needs that UI thread for
 native release. Apple layer retention uses actual Core Foundation references;
 Android retention uses a native-window reference independent of the Java wrapper.
 The sample hosts demonstrate asynchronous view teardown.
+
+## Lifecycle
+
+`gpu.state` publishes a `StateFlow<DawnSessionState>`; the states are distinct
+values, so an observer always knows which phase a session is in.
+
+| State | Meaning | Usable in this state |
+| --- | --- | --- |
+| `Ready` | Startup succeeded | `gpu.run`, presentation, shutdown |
+| `ShuttingDown` | A shutdown attempt is in flight | Nothing new; admitted work finishes first |
+| `ShutdownTimedOut` | The attempt exceeded `shutdownTimeout`; handles stay alive | `shutdown()` retry; cleanup continues |
+| `Lost` | The device reported loss | Cleanup only; create a new session to restart |
+| `Failed` | A fatal error or a failed shutdown attempt stopped the session | Cleanup only; create a new session to restart |
+| `Closed` | Every native handle is closed | Nothing; final and idempotent |
+
+Transitions: a shutdown attempt moves `Ready` → `ShuttingDown`, and a successful
+attempt ends in `Closed`. A timed-out or failed attempt publishes
+`ShutdownTimedOut` or `Failed` with the not-yet-closed handles still alive; the
+application may
+call `shutdown()` again, and background cleanup keeps retrying as well. Device
+loss and fatal errors interrupt only a `Ready` session, cancel its admitted work
+and never return it to `Ready`.
+
+An external surface target follows its own protocol, and the toolkit touches its
+native handles only inside it:
+
+1. the target publishes `DawnTargetState(generation, extent, available)` with
+   dimensions in physical pixels, using a fresh generation whenever the native
+   handle changes identity;
+2. `retain()` pins the handle into a lease; the toolkit re-checks the
+   generation after the suspending `retain` and rolls the acquisition back on a
+   mismatch;
+3. capabilities are negotiated and the surface configured; zero extents or
+   `available = false` suspend frame acquisition instead of failing it;
+4. each `withFrame` acquires a texture, presents at most once and releases it;
+5. `replaceTarget` swaps targets between frames, keeping the GPU when the
+   replacement is compatible; `detachTarget(generation)` ignores stale
+   generations;
+6. `retire()` acknowledges that Dawn no longer references the handle; destroy the
+   caller-owned host only after that acknowledgment.
 
 ## Progress, loss and shutdown
 
@@ -126,7 +165,8 @@ Run that driver alongside suspended GPU work. Cancel/join the driver, call
 `manualProgress.stop()`, then invoke shutdown outside `gpu.run`. A persistent
 shutdown rejects an active manual driver; scoped helpers revoke it on scope exit.
 
-Observe `gpu.state` or `awaitLost()`. Device loss and out-of-memory stop new
+Observe `gpu.state` (the lifecycle section lists every state) or `awaitLost()`.
+Device loss and out-of-memory stop new
 admissions and trigger cleanup; buffers and pipelines are not replayed. Cancel
 and join application producers and close their resources inside the admitted GPU
 scope, then create a new session deliberately if the application wants to restart.

@@ -121,6 +121,61 @@ l'interface vers son wrapper Dawn pour le fermer. `DawnComputePassEncoder` et
 une exception, sans appeler end implicitement. Les vues temporaires de la passe
 de rendu sont libérées sur end comme sur close.
 
+## Mécanique de session du toolkit
+
+Chaque composant du cycle de vie du toolkit garantit un invariant qu'un simple
+ordonnancement ne peut pas assurer. Un contributeur modifiant `dawn4k-toolkit-core`
+ou `dawn4k-toolkit-surface` doit savoir à quoi sert chaque pièce ; les règles
+publiques vivent dans [Dawn4k toolkit](toolkit.fr.md).
+
+**Propriétaire d'exécution fixé à un thread.** Le dispatcher d'une session est
+fixé à un thread du système et retient le premier thread vu : un changement de
+thread échoue immédiatement au lieu de corrompre les scopes d'erreur Dawn,
+locaux au thread OS. `limitedParallelism(1)` est sériel sans être fixé, donc un
+dispatcher emprunté doit fournir lui-même cette garantie. Le propriétaire refuse
+aussi la progression réentrante : les opérations de session ne s'exécutent pas
+dans une pompe d'événements, et une pompe ne s'exécute pas dans elle-même.
+
+**Admission.** `gpu.run` associe un mutex non réentrant à un marqueur de contexte
+coroutine. Un `run` imbriqué voit le marqueur et rejoint l'admission externe au
+lieu de s'interbloquer ; un arrêt attend cette même admission comme barrière de
+drain du travail applicatif. `run` enregistre aussi son job auprès du cycle de vie :
+c'est ainsi que la perte du device et les erreurs fatales annulent exactement le
+travail admis.
+
+**Bootstrap transactionnel.** Le démarrage acquiert les handles natifs dans
+l'ordre — contexte, rétention, adapter, device, présentation — et chaque étape
+est couverte par une action de rollback dans une transaction ; la rétention
+enregistre la sienne avant l'acquisition, couvrant ainsi une annulation pendant
+l'acquire. L'annulation de l'appelant n'exécute jamais ce rollback en place : il
+appartient à un scope `NonCancellable`, borné par `shutdownTimeout` par
+tentative, et rejoué jusqu'à transaction vide. L'échéance de démarrage
+s'exécute sur l'horloge GPU réelle, pas sur le scheduler — potentiellement
+virtuel — de l'appelant.
+
+**Arrêt par étapes.** Un arrêt libère la présentation, puis ferme device, adapter
+et contexte avec un drain entre chaque étape, en n'avançant son compteur d'étape
+qu'après succès : une tentative rejouée reprend là où la précédente s'était
+arrêtée. Les appelants concurrents partagent une seule tentative en vol ; un
+timeout ou un échec préserve les handles non fermés, publie l'état et planifie
+une
+nouvelle tentative en arrière-plan sur le propriétaire, tandis que
+l'application reste libre de rappeler `shutdown()`.
+
+**Générations de cible.** L'identité native d'une cible est un compteur de
+génération. Le watcher asynchrone de la présentation et un `replaceTarget` en
+vol peuvent courir ensemble ; un `detachTarget` dont la génération ne correspond
+plus à l'attachement actif ne fait rien, donc un detach tardif ne peut jamais
+tuer la nouvelle cible. La rétention revérifie la génération après son `retain`
+suspendu, car le handle peut changer d'identité pendant la constitution du bail.
+
+**Acquittement de libération.** Dawn garde des références natives vers une
+surface après que l'application a cessé de l'utiliser : un hôte ne doit donc pas
+détruire sa fenêtre ou sa vue de son propre chef. Le `retire()` d'un bail
+s'exécute sur le propriétaire de plateforme et ne revient qu'une fois toutes les
+références de surface disparues ; une libération échouée ou interrompue reste
+enregistrée et rejouable au lieu d'être présumée acquittée.
+
 ## La limitation de la `ArrayBuffer` empruntée
 
 `GPUBuffer.getMappedRange` renvoie une `ArrayBuffer` qui **enveloppe la mémoire

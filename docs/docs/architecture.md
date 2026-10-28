@@ -116,6 +116,57 @@ to its Dawn wrapper to close it. Concrete `DawnComputePassEncoder` and
 an abandoned pass without implicitly calling native end. Render-pass temporary
 attachment views are released on both end and close.
 
+## Toolkit session machinery
+
+Each toolkit lifecycle component enforces one invariant that plain sequencing
+cannot. A contributor changing `dawn4k-toolkit-core` or
+`dawn4k-toolkit-surface` should know what each piece is for; the public rules
+live in [Dawn4k toolkit](toolkit.md).
+
+**Pinned execution owner.** A session's dispatcher is pinned to one OS thread
+and remembers the thread it first saw, so a thread jump fails fast instead of
+corrupting Dawn's OS-thread-local error scopes. `limitedParallelism(1)` is
+serial without being pinned, so a borrowed dispatcher must provide the pinning
+itself. The owner also refuses reentrant progression: session operations cannot
+run inside an event pump, and a pump cannot run inside itself.
+
+**Admission.** `gpu.run` pairs a non-reentrant mutex with a coroutine-context
+marker. A nested `run` sees the marker and joins the outer admission instead of
+deadlocking; a shutdown waits for that same admission as its application-work
+drain barrier. `run` also registers its job with the lifecycle, which is how
+device loss and fatal errors cancel exactly the admitted work.
+
+**Transactional bootstrap.** Startup acquires native handles in order —
+context, retention, adapter, device, presentation — and every step is covered by
+a rollback action on a transaction; retention registers its rollback before
+acquiring, so a cancellation during the acquire is covered too. Caller
+cancellation never runs the
+rollback inline: the retirement is owned by a `NonCancellable` scope, bounded by
+`shutdownTimeout` per attempt, and retried until the transaction is empty. The
+startup deadline runs on the real GPU clock, not the caller's — possibly
+virtual — scheduler.
+
+**Staged shutdown.** A shutdown retires the presentation, then closes device,
+adapter and context with a drain between each stage, advancing a stage counter
+only after success, so a retried attempt resumes where the previous one stopped.
+Concurrent callers share one in-flight attempt; a timeout or failure preserves
+the handles it has not closed yet, publishes the state and schedules a
+background retry on the owner
+while the application stays free to call `shutdown()` again.
+
+**Target generations.** A target's native identity is a generation counter. The
+presentation's async watcher and an in-flight `replaceTarget` can race; a
+`detachTarget` whose generation no longer matches the active attachment is a
+no-op, so a late detach can never kill the new target. Retention re-checks the
+generation after its suspending `retain`, because the handle may change
+identity while the lease is being pinned.
+
+**Retirement acknowledgement.** Dawn keeps native references to a surface after
+the application stops using it, so a host must not destroy its window or view
+on its own schedule. A lease's `retire()` runs on the platform owner and returns
+only once every surface reference is gone; a failed or interrupted retirement
+stays registered and retryable instead of being assumed complete.
+
 ## The borrowed `ArrayBuffer` limitation
 
 `GPUBuffer.getMappedRange` returns an `ArrayBuffer` that **wraps the actual

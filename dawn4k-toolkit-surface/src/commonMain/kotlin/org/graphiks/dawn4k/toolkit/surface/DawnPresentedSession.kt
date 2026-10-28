@@ -5,10 +5,23 @@ import org.graphiks.dawn4k.*
 import org.graphiks.dawn4k.toolkit.*
 import org.graphiks.dawn4k.toolkit.surface.internal.*
 
+/**
+ * A GPU session presenting to one external target: [gpu] owns the Dawn handles and
+ * [presentation] owns its surface lease, while the application keeps owning the
+ * native window or view behind the target.
+ */
 class DawnPresentedSession internal constructor(val gpu: DawnSession, val presentation: DawnPresentation) {
+    /** Shuts the session down; retiring the presentation's surface and lease is the shutdown's first stage. */
     suspend fun shutdown() = gpu.shutdown()
 }
 
+/**
+ * Opens a session presenting to [target]: retains the target, requests an adapter
+ * compatible with the retained surface, binds device and queue, then negotiates
+ * the surface configuration. Failure — including caller cancellation — rolls the
+ * acquisition back and retires what was retained, bounded by
+ * [DawnSessionOptions.shutdownTimeout].
+ */
 suspend fun openDawnSurface(
     target: DawnSurfaceTarget,
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
@@ -60,6 +73,11 @@ internal suspend fun openDawnSurface(
     return DawnPresentedSession(session, checkNotNull(presentation))
 }
 
+/**
+ * The scoped form of [openDawnSurface]: every exit stops manual progress first
+ * and then shuts down, so neither the presentation nor the session outlives
+ * [block].
+ */
 suspend fun <T> withDawnSurface(
     target: DawnSurfaceTarget,
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
