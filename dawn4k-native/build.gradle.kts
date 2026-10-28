@@ -6,17 +6,31 @@ import org.graphiks.dawn4k.build.GenerateDawnBindingsTask
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import java.security.MessageDigest
 
 plugins {
     id("ygdrasil.conventions.kmp-library")
     id("ygdrasil.conventions.dawn-jvm-runtime")
     id("ygdrasil.conventions.kmp-publish")
+    id("ygdrasil.conventions.kmp-dokka")
+    alias(libs.plugins.dokka.mkdocs)
+}
+
+dokka {
+    // Document the portable binding API rather than backend-specific generated storage helpers.
+    dokkaSourceSets.configureEach {
+        if (name != "commonMain") suppress.set(true)
+    }
 }
 
 extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
     finalizeDsl(
         org.gradle.api.Action<KotlinMultiplatformAndroidLibraryExtension> {
-            namespace = "org.graphiks.dawn4k.native"
+            namespace = "org.graphiks.dawn4k.bindings"
+            optimization.consumerKeepRules.apply {
+                publish = true
+                file("consumer-rules.pro")
+            }
         },
     )
 }
@@ -54,10 +68,34 @@ val prepareDawn = tasks.register<DownloadDawnTask>("prepareDawn") {
     outputDir.set(nativeDir)
 }
 
+val prepareLinuxDawnCarrier = tasks.register<Exec>("prepareLinuxDawnCarrier") {
+    group = "dawn"
+    description = "Build or verify the relocatable Linux Dawn cinterop carrier."
+    dependsOn(prepareDawn)
+    val script = rootProject.file("scripts/build-dawn-linux-bundle.py")
+    val prepared = layout.buildDirectory.dir("native/linuxX64/shared")
+    val output = layout.buildDirectory.dir("dawnCarrier/linuxX64")
+    val bundle = providers.gradleProperty("dawn.nativeBundle.linuxX64")
+    inputs.file(script)
+    inputs.file(dawnLockFile)
+    inputs.dir(prepared)
+    bundle.orNull?.let { inputs.dir(it) }
+    outputs.dir(output)
+    doFirst {
+        commandLine(buildList {
+            addAll(listOf("python3", script.absolutePath, "--prepared", prepared.get().asFile.absolutePath,
+                "--lock", dawnLockFile.asFile.absolutePath, "--output", output.get().asFile.absolutePath))
+            bundle.orNull?.let { addAll(listOf("--bundle", file(it).absolutePath)) }
+        })
+    }
+}
+
 /**
  * Stage the verified shared libraries under the platform directories the generated
  * JVM bootstrap expects (`darwin-aarch64`, `linux-x86-64`), using their original names.
  */
+val dawnWindowsLibrary = "webgpu_dawn.dll"
+
 val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     group = "dawn"
     description = "Stage the verified Dawn shared libraries for the generated JVM bootstrap."
@@ -74,6 +112,35 @@ val stageJvmNativeResources = tasks.register<Sync>("stageJvmNativeResources") {
     from(layout.buildDirectory.dir("native/linuxArm64/shared/lib")) {
         include("libwebgpu_dawn.so")
         into("linux-aarch64")
+    }
+    from(layout.buildDirectory.dir("native/mingwX64/shared/bin")) {
+        include("*.dll")
+        into("win32-x86-64")
+    }
+    doLast {
+        val windows = destinationDir.resolve("win32-x86-64")
+        if (windows.isDirectory) {
+            // Canonical PE import order: runtime DLLs before their dependents. The loader and
+            // the tests enumerate the manifest keys in file order, so this list is the single
+            // source for the Windows runtime dependency set.
+            val runtimeDependencies = listOf("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_atomic_wait.dll")
+            val manifest = destinationDir.resolve("dawn4k/windows-runtime.properties")
+            manifest.parentFile.mkdirs()
+            manifest.writeText(runtimeDependencies.joinToString("\n", postfix = "\n") { name ->
+                val digest = MessageDigest.getInstance("SHA-256").digest(windows.resolve(name).readBytes())
+                    .joinToString("") { "%02x".format(it.toInt() and 255) }
+                "$name=$digest"
+            })
+            // webgpu_dawn.dll shares the staged directory for the generated JVM bootstrap; it
+            // is the Dawn library itself, not a runtime dependency entry. Any other staged DLL
+            // missing from the list above now fails the build instead of failing only at
+            // runtime, only on Windows.
+            val keys = manifest.readLines().filter { it.isNotEmpty() }.map { it.substringBefore('=') }
+            val staged = windows.listFiles { file -> file.isFile && file.name.endsWith(".dll") }.orEmpty().map { it.name }
+            check(keys.size == keys.distinct().size && keys.toSet() == (staged - dawnWindowsLibrary).toSet()) {
+                "Dawn Windows runtime dependency manifest does not match the staged DLLs: manifest=$keys staged=$staged"
+            }
+        }
     }
 }
 
@@ -171,39 +238,33 @@ kotlin {
         (targets.getByName(appleTarget) as KotlinNativeTarget).apply {
             compilations.getByName("main").cinterops.create("dawn") {
                 defFile(project.file("src/nativeInterop/cinterop/dawn.def"))
-                includeDirs(includeDir(appleTarget))
-            }
-            binaries.all {
-                linkerOpts("-L${libDir(appleTarget).get().asFile.absolutePath}", "-lwebgpu_dawn")
-                linkerOpts(
-                    "-framework", "Metal",
-                    "-framework", "Foundation",
-                    "-framework", "CoreGraphics",
-                    "-framework", "QuartzCore",
-                    "-framework", "IOKit",
-                    "-framework", "IOSurface",
-                )
+                includeDirs(includeDir(appleTarget), project.file("src/nativeInterop/cinterop"))
+                extraOpts("-libraryPath", libDir(appleTarget).get().asFile.absolutePath)
+            }.also { interop ->
+                tasks.named(interop.interopProcessingTaskName) {
+                    inputs.file(libDir(appleTarget).map { it.file("libwebgpu_dawn.a") })
+                        .withPropertyName("embeddedDawnArchive").withPathSensitivity(PathSensitivity.RELATIVE)
+                }
             }
         }
     }
 
-    linuxX64 {
+    if (ygdrasil.conventions.linuxX64TargetEnabled(providers)) linuxX64 {
         compilations.getByName("main").cinterops.create("dawn") {
             defFile(project.file("src/nativeInterop/cinterop/dawn.def"))
-            includeDirs(includeDir("linuxX64"))
-        }
-        binaries.all {
-            // The static archive requires newer C/C++ symbols than Kotlin/Native's
-            // sysroot provides. Use the shared library, as the public binding does.
-            val sharedLibDir = layout.buildDirectory.dir("native/linuxX64/shared/lib").get().asFile.absolutePath
-            linkerOpts("-L$sharedLibDir", "-lwebgpu_dawn", "-rpath", sharedLibDir)
-            linkerOpts("-lpthread", "-ldl", "-lm")
+            includeDirs(layout.buildDirectory.dir("native/linuxX64/shared/include"), project.file("src/nativeInterop/cinterop"))
+            extraOpts("-libraryPath", layout.buildDirectory.dir("dawnCarrier/linuxX64").get().asFile.absolutePath)
         }
     }
 }
 
 tasks.matching { it.name.startsWith("cinteropDawn") }.configureEach {
     dependsOn(prepareDawn)
+}
+tasks.matching { it.name == "cinteropDawnLinuxX64" }.configureEach {
+    dependsOn(prepareLinuxDawnCarrier)
+    inputs.dir(prepareLinuxDawnCarrier.map { layout.buildDirectory.dir("dawnCarrier/linuxX64").get() })
+        .withPropertyName("embeddedDawnCarrier").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 tasks.named("jvmProcessResources") {
@@ -212,12 +273,4 @@ tasks.named("jvmProcessResources") {
 
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
-}
-
-// The Dawn Linux archives are built against a newer glibc/libstdc++ than the
-// Kotlin/Native macOS sysroot, so the Linux test binary can only be linked on a
-// Linux host. The Linux klib is still compiled everywhere.
-if (!abiHost.startsWith("linux")) {
-    tasks.matching { it.name == "linkDebugTestLinuxX64" || it.name == "linuxX64Test" }
-        .configureEach { enabled = false }
 }

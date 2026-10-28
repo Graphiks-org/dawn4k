@@ -15,6 +15,7 @@ docs/docs/api/
 /dawn4k-native/src/androidMain/jniLibs/
 # buildSrc sources live in package org/graphiks/dawn4k/build/, which the `build/` rule would otherwise ignore
 !buildSrc/src/main/kotlin/org/graphiks/dawn4k/build/
+!buildSrc/src/test/kotlin/org/graphiks/dawn4k/build/
 # Planning artifacts (superpowers plans/specs, cadrage) stay out of the repository
 docs/superpowers/
 docs/planning/
@@ -28,5 +29,6 @@ docs/planning/
 /dawn4k-demo/iosApp/Dawn4kDemo.xcodeproj/xcuserdata/
 # Generated demo JNI libraries, Python caches and local qualification runner.
 /dawn4k-demo/src/androidMain/jniLibs/
+/dawn4k-toolkit-surface/src/androidMain/jniLibs/
 __pycache__/
 /scripts/test-demo-mobile.py

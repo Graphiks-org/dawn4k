@@ -1,0 +1,5 @@
+# Normalized checkouts on every host: identity digests (Dawn carrier bundles)
+# and cross-platform scripts must hash identically on Linux, macOS and Windows.
+*.py text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf

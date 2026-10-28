@@ -1,0 +1,7 @@
+headers = GLFW/glfw3.h glfw_native_handles.h
+headerFilter = GLFW/glfw3.h glfw_native_handles.h
+package = org.graphiks.dawn4k.toolkit.glfw.c
+compilerOpts = -DGLFW_INCLUDE_NONE
+staticLibraries = libdawn_glfw_handles.a libglfw3.a
+linkerOpts.macos_arm64 = -framework Cocoa -framework IOKit -framework CoreFoundation -framework QuartzCore -lobjc
+linkerOpts.linux_x64 = -ldl -lpthread -lm -lrt

@@ -57,9 +57,9 @@ private object KextractNativeBootstrap {
 
     private val bundles: kotlin.collections.Map<kotlin.String, Bundle> = kotlin.collections.mapOf(
         "darwin-aarch64" to Bundle(
-            key = "9ea52c86e533caaf35bd5237ce0009d691049485d7d2024b5eebf50833427055",
+            key = "20d4dd3d8245bf7be40ed41041a28278db5df3e45dab47808b23edfe6f92e4d0",
             resources = kotlin.collections.listOf(
-                Resource("libwebgpu_dawn.dylib", "1894cc28c24596682af2e1b9b7ba37e0cb5c93640f7b46bdf27b409acbd18d70"),
+                Resource("libwebgpu_dawn.dylib", "d1cc8d4ce38bcf60787826704f56c4673a0df0e1cb0c96e2f7f8767ecd14c509"),
             ),
             libraryPaths = kotlin.collections.mapOf(
                 "webgpu_dawn" to "libwebgpu_dawn.dylib",
@@ -81,6 +81,19 @@ private object KextractNativeBootstrap {
             ),
             libraryPaths = kotlin.collections.mapOf(
                 "webgpu_dawn" to "libwebgpu_dawn.so",
+            ),
+        ),
+        "win32-x86-64" to Bundle(
+            key = "71d26aacec7e26f014363807ceb70083fa5048edd51eea1b1c1463eb01a6a8c3",
+            resources = kotlin.collections.listOf(
+                Resource("msvcp140.dll", "0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9"),
+                Resource("msvcp140_atomic_wait.dll", "640b2aefced484d0368eea5bdd06addd0658a3a70a49256e560d6923b404a479"),
+                Resource("vcruntime140.dll", "d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066"),
+                Resource("vcruntime140_1.dll", "1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f"),
+                Resource("webgpu_dawn.dll", "f6057a520850b6691fe9a84ad95ca7dd133f6929074ee52a4ab3950156eb4001"),
+            ),
+            libraryPaths = kotlin.collections.mapOf(
+                "webgpu_dawn" to "webgpu_dawn.dll",
             ),
         ),
     )
@@ -17871,3 +17884,4 @@ private val __kffiJvmStructLayouts: Unit = run {
     __kffiJvmRegisterStructLayout194()
     __kffiJvmRegisterStructLayout195()
 }
+

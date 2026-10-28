@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.assertSame
 
 class DemoSurfaceReplacementTest {
     @Test fun lifecycleResumeAfterLongGapDoesNotAdvanceRealParticleBuffer() = runBlocking {
@@ -45,7 +46,7 @@ class DemoSurfaceReplacementTest {
         }
     }
 
-    @Test fun pausedGpuBufferSurvivesReplacementAndStaleDetachWithoutNewDevice() = runBlocking {
+    @Test fun replacementViewportPreservesGpuResources() = runBlocking {
         if (!System.getProperty("os.name").lowercase().contains("mac")) return@runBlocking
         val windows = mutableListOf<ComposeWindow>()
         val controller = DemoSessionController(this)
@@ -70,6 +71,7 @@ class DemoSurfaceReplacementTest {
                 s.paused && s.count == 256 && s.resetGeneration == 1L && s.simulationFingerprint != null
             }
             val before = controller.evidence.snapshot()
+            val gpu = assertNotNull(controller.gpuSession.value)
             assertNotNull(before.simulationFingerprint)
             controller.detach(1)
             assertFalse(first.valid)
@@ -83,6 +85,7 @@ class DemoSurfaceReplacementTest {
             assertEquals(before.count, after.count)
             assertEquals(before.resetGeneration, after.resetGeneration)
             assertEquals(1L, after.deviceCreations)
+            assertSame(gpu, controller.gpuSession.value)
             assertEquals(2L, after.surfaceCreations)
             assertEquals(before.sessionId, after.sessionId)
             assertEquals(null, after.firstError)

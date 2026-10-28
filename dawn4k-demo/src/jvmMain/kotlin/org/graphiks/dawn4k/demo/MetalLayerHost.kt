@@ -14,7 +14,10 @@ import org.graphiks.kffi.objc.CGRect
 import org.graphiks.kffi.objc.CGPoint
 import org.graphiks.kffi.objc.CGSize
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.toolkit.surface.*
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.StateFlow
+import kotlin.coroutines.CoroutineContext
 
 /** Owns the particle layer below Compose, not its backing layer. Outlives the Dawn surface. */
 @OptIn(PlatformAvailability::class)
@@ -37,8 +40,12 @@ internal class MetalLayerHost private constructor(
     /** Pixel dimensions, refreshed on AppKit so resize and monitor DPI changes are observed. */
     override val backend: DawnBackend get() = DawnBackend.Metal
 
-    override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface =
-        MetalSurface.create(bridge, deviceHandle, layerPtr)
+    /** The host keeps the layer alive until close; the counting retention tracks its toolkit leases. */
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget =
+        DawnSurfaceTargets.metalLayer(layerPtr,
+            DawnPlatformOwner.fromDispatcher(object : CoroutineDispatcher() {
+                override fun dispatch(context: CoroutineContext, block: Runnable) = onAppKitThread { block.run() }
+            }), states, retention)
 
     override fun pixelSize(): Pair<Int, Int> = onAppKitThread {
         check(!closed) { "the Metal layer host is closed" }

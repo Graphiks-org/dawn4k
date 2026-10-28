@@ -1,5 +1,6 @@
 package org.graphiks.dawn4k.demo
 
+import kotlin.time.Duration.Companion.seconds
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -14,7 +15,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.*
+import org.graphiks.dawn4k.toolkit.*
+import org.graphiks.dawn4k.toolkit.surface.*
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
@@ -30,39 +39,19 @@ internal class WaylandLifecycleFixture(private val checkpoint: WaylandCheckpoint
     private val reached = CountDownLatch(1)
     private val release = CountDownLatch(1)
     private val closeReceived = CountDownLatch(1)
-    private val armed = AtomicBoolean()
-    private val created = AtomicReference<PresentationSurface?>()
+    private val created = AtomicReference<DawnSurfaceReference?>()
     private val renderFailure = AtomicReference<Throwable?>()
     private val host = WaylandSurfaceHost.open(controls) {
         scope.cancel()
         closeReceived.countDown()
     }
-    private val observedHost = object : SurfaceHost by host {
-        override fun createSurface(bridge: NativeBridge, deviceHandle: Long): PresentationSurface {
-            val surface = host.createSurface(bridge, deviceHandle)
-            val observedSurface = object : PresentationSurface by surface {
-                override fun configureForAdapter(adapterHandle: Long, requiredFormat: org.graphiks.webgpu.GPUTextureFormat?): SurfaceConfiguration {
-                    val result = surface.configureForAdapter(adapterHandle, requiredFormat)
-                    if (armed.get() && checkpoint == WaylandCheckpoint.Capabilities) awaitRelease()
-                    return result
-                }
-                override fun present(texture: BorrowedSurfaceTexture) {
-                    if (armed.get() && checkpoint == WaylandCheckpoint.Presentation) awaitRelease()
-                    surface.present(texture)
-                }
-            }
-            try {
-                // Map the actual native window so Sway can deliver a real close
-                // while setup is still pending, before controls.initialize().
-                val size = host.pixelSize()
-                surface.configure(size.first, size.second)
-                surface.acquireFrame().use { surface.present(it) }
-                created.set(observedSurface)
-                armed.set(true)
-                return observedSurface
-            } catch (failure: Throwable) {
-                surface.close()
-                throw failure
+    private val lease = DesktopSurfaceLease(1, host)
+    private val observedTarget = object : DawnSurfaceTarget by lease.target {
+        override suspend fun retain(): DawnTargetLease {
+            val retained = lease.target.retain()
+            return object : DawnTargetLease by retained {
+                override fun createSurface(context: DawnContext): DawnSurfaceReference =
+                    retained.createSurface(context).also(created::set)
             }
         }
     }
@@ -73,17 +62,28 @@ internal class WaylandLifecycleFixture(private val checkpoint: WaylandCheckpoint
     private val rendering = scope.launch {
         try {
             withTimeout(10_000) { while (host.pixelSize().first <= 0) kotlinx.coroutines.delay(10) }
-            runParticleDemo(observedHost, controls, true)
+            lease.pixelExtent()
+            withDawnSurface(observedTarget, DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan), startupTimeout = 60.seconds)) { gpu, presentation ->
+                // Map the actual surface before the gate, leaving controls uninitialized
+                // for the post-capabilities cancellation/connection-loss scenario.
+                assertTrue(presentDemoTestFrame(gpu, presentation))
+                if (checkpoint == WaylandCheckpoint.Capabilities) { awaitRelease(); currentCoroutineContext().ensureActive() }
+                controls.initialize(maxParticleCount(gpu.device.limits))
+                assertTrue(presentDemoTestFrame(gpu, presentation) {
+                    if (checkpoint == WaylandCheckpoint.Presentation) awaitRelease()
+                })
+                while (currentCoroutineContext().isActive) kotlinx.coroutines.delay(10)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             renderFailure.set(failure)
             throw failure
-        }
+        } finally { withContext(NonCancellable) { lease.awaitRetirement() } }
     }
 
     fun awaitCheckpoint() {
-        assertTrue(reached.await(10, TimeUnit.SECONDS), "real Dawn $checkpoint checkpoint not reached: ${renderFailure.get()}")
+        assertTrue(reached.await(90, TimeUnit.SECONDS), "real Dawn $checkpoint checkpoint not reached: ${renderFailure.get()}")
         assertNotNull(created.get(), "must own an actual Dawn/Vulkan surface")
         if (checkpoint == WaylandCheckpoint.Capabilities) assertFalse(controls.state.value.ready)
         println("[test] Wayland $checkpoint checkpoint reached; real native surface, ready=${controls.state.value.ready}")
@@ -104,14 +104,14 @@ internal class WaylandLifecycleFixture(private val checkpoint: WaylandCheckpoint
         runBlocking { withTimeout(10_000) { rendering.join() } }
         assertTrue(renderFailure.get() == null, "unexpected renderer failure: ${renderFailure.get()}")
         // This must reject before touching the now-dead native handles.
-        assertFailsWith<IllegalStateException> { assertNotNull(created.get()).configure(1, 1) }
+        assertFailsWith<IllegalStateException> { assertNotNull(created.get()).nativeHandle() }
     }
 
     override fun close() {
         release.countDown()
         scope.cancel()
         try { runBlocking { withTimeout(10_000) { rendering.join() } } }
-        finally { host.close() }
+        finally { runBlocking { lease.awaitRetirement() }; host.close() }
         assertTrue(Thread.getAllStackTraces().keys.none { it.isAlive && it.name.startsWith("dawn-wayland-owner-") })
     }
 }

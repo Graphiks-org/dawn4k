@@ -12,7 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.NativeBridge
+import org.graphiks.dawn4k.toolkit.surface.*
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.StateFlow
 
 /** Owns an X11 connection/child beside Compose; never borrows AWT's display. */
 internal class LinuxSurfaceHost private constructor(
@@ -113,15 +115,12 @@ internal class LinuxSurfaceHost private constructor(
         }
     }
 
-    override fun createSurface(bridge: NativeBridge, deviceHandle: Long): DawnSurface {
-        check(!isClosed) { "the Linux surface host is closed" }
-        onOwner {
-            failure?.let { throw it }
-            processEvents()
-            Xlib.sync(display)
-        }
-        // XInitThreads permits the Vulkan WSI worker to use this owned display.
-        return DawnSurface.createXlib(bridge, deviceHandle, display.address(), child)
+    override fun createTarget(states: StateFlow<DawnTargetState>, retention: DawnTargetRetention): DawnSurfaceTarget = onOwner {
+        check(!isClosed)
+        failure?.let { throw it }
+        processEvents()
+        DawnSurfaceTargets.x11(display.address(), child.toULong(),
+            DawnPlatformOwner.fromDispatcher(owner.asCoroutineDispatcher()), states, retention)
     }
 
     override fun close() {

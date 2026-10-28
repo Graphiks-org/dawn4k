@@ -1,8 +1,5 @@
 package org.graphiks.dawn4k.demo
 
-import android.content.Context
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -10,7 +7,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.*
-import java.util.concurrent.atomic.AtomicLong
+import org.graphiks.dawn4k.DawnBackend
+import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceView
 
 /** Packaging activity delegates here; simulation and controls stay in the KMP module. */
 @Composable
@@ -26,7 +24,6 @@ internal fun AndroidDemo(controller: DemoSessionController) {
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
-    val generations = remember { AtomicLong() }
     DisposableEffect(lifecycle, controller) {
         val observer = LifecycleEventObserver { _, _ ->
             controller.lifecycle(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
@@ -42,9 +39,17 @@ internal fun AndroidDemo(controller: DemoSessionController) {
         }
     }, {}, { modifier ->
         key(state.id) {
-            AndroidView(factory = { ctx ->
-                ParticleSurfaceView(ctx, controller, generations)
-            }, modifier = modifier)
+            val viewport = remember { mutableStateOf<DawnSurfaceView?>(null) }
+            AndroidView(
+                factory = { ctx -> DawnSurfaceView(ctx).also { viewport.value = it } },
+                modifier = modifier,
+            )
+            // The toolkit view owns its surface lifecycle; the bridge only adapts it to the
+            // session controller, attaching while available and detaching on invalidation.
+            LaunchedEffect(viewport.value) {
+                val view = viewport.value ?: return@LaunchedEffect
+                bridgeToolkitView(controller, DawnBackend.Vulkan, view.target, view::awaitRetirement)
+            }
         }
     })
     // Private app sandbox evidence for qualification; no exported IPC or server.
@@ -53,38 +58,6 @@ internal fun AndroidDemo(controller: DemoSessionController) {
             val evidence = controller.evidence.snapshot()
             context.filesDir.resolve("demo-evidence.json").writeText(evidence.toJson())
             delay(100)
-        }
-    }
-}
-
-private class ParticleSurfaceView(
-    context: Context,
-    private val controller: DemoSessionController,
-    private val generations: AtomicLong,
-) : SurfaceView(context), SurfaceHolder.Callback {
-    private var lease: AndroidSurfaceHost? = null
-    init { holder.addCallback(this) }
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        try {
-            val created = AndroidSurfaceHost(generations.incrementAndGet(), holder.surface,
-                PixelExtent(width, height))
-            lease = created
-            controller.attach(created)
-        } catch (failure: Throwable) {
-            controller.failed(controller.state.value.id, failure.message ?: failure.toString())
-        }
-    }
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        lease?.resize(width, height)
-    }
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        val retired = lease ?: return
-        lease = null
-        retired.invalidate()
-        // Never block Android's main thread; controller retires under frame lock.
-        CoroutineScope(Dispatchers.Default).launch {
-            try { controller.detach(retired.generation) }
-            finally { retired.close() }
         }
     }
 }

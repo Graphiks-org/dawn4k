@@ -26,6 +26,17 @@ Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 ./gradlew :dawn4k-native:compileKotlinIosArm64  # la cible iOS compile
 ```
 
+## Sessions gérées et présentation
+
+Pour confier au toolkit le bootstrap, un thread GPU, la progression et l’arrêt,
+ajouter `org.graphiks:dawn4k-toolkit-core` à la même version que le backend.
+Ajouter `dawn4k-toolkit-surface` pour une vue native existante ou
+`dawn4k-toolkit-glfw` pour une fenêtre desktop possédée par le toolkit. Utiliser
+`withDawnSession { ... }` depuis une coroutine. Le [guide toolkit](toolkit.fr.md)
+fournit les exemples compute/triangle, les hôtes Android/Apple, la progression
+manuelle et les règles de délai et d’accusé de libération. L’exemple de backend
+ci-dessous reste destiné aux intégrations possédées par l’appelant.
+
 ## Utiliser le backend WebGPU
 
 `:dawn4k` implémente `org.graphiks.webgpu` sans scheduler ni pompe implicite.

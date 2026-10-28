@@ -11,6 +11,7 @@ import java.lang.invoke.MethodType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -40,7 +41,25 @@ class MetalLayerHostTest {
     fun nativeUiWorkContinuesDuringMouseTracking() {
         if (!isMac()) return
         Toolkit.getDefaultToolkit()
+        assertNativeUiWorkDuringMode(NSEventTrackingRunLoopMode)
+    }
+
+    @Test
+    fun nativeUiWorkContinuesDuringAwtNestedRunLoop() {
+        if (!isMac()) return
+        Toolkit.getDefaultToolkit()
+        val utilities = ObjCRuntime.getClass("ThreadUtilities")
+        assertTrue(utilities != MemorySegment.NULL)
+        val mode = ObjCRuntime.msgSend(
+            ValueLayout.ADDRESS, utilities, ObjCRuntime.sel("javaRunLoopMode")
+        ) as MemorySegment
+        assertTrue(mode != MemorySegment.NULL)
+        assertNativeUiWorkDuringMode(mode)
+    }
+
+    private fun assertNativeUiWorkDuringMode(mode: MemorySegment) {
         val enteredTracking = CountDownLatch(1)
+        val insideMode = AtomicBoolean()
         val executor = Executors.newSingleThreadExecutor()
         val tracking = executor.submit {
             onAppKitThread {
@@ -59,12 +78,14 @@ class MetalLayerHostTest {
                         MemorySegment.NULL, 0L, context
                     )
                     val loop = CFRunLoopGetMain()
-                    CFRunLoopAddSource(loop, source, NSEventTrackingRunLoopMode)
+                    CFRunLoopAddSource(loop, source, mode)
                     try {
+                        insideMode.set(true)
                         enteredTracking.countDown()
-                        CFRunLoopRunInMode(NSEventTrackingRunLoopMode, 1.5, 0)
+                        CFRunLoopRunInMode(mode, 1.5, 0)
                     } finally {
-                        CFRunLoopRemoveSource(loop, source, NSEventTrackingRunLoopMode)
+                        insideMode.set(false)
+                        CFRunLoopRemoveSource(loop, source, mode)
                         CFRelease(source)
                     }
                 }
@@ -72,10 +93,8 @@ class MetalLayerHostTest {
         }
         try {
             assertTrue(enteredTracking.await(5, TimeUnit.SECONDS))
-            val started = System.nanoTime()
-            assertTrue(onAppKitThread { NSThread.isMainThread() })
-            val millis = (System.nanoTime() - started) / 1_000_000
-            assertTrue(millis < 750, "native UI work stalled until tracking ended (${millis}ms)")
+            assertTrue(onAppKitThread { NSThread.isMainThread() && insideMode.get() },
+                "native UI work stalled until the nested run loop ended")
         } finally {
             tracking.get(5, TimeUnit.SECONDS)
             executor.shutdownNow()

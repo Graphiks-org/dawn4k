@@ -21,7 +21,7 @@ kotlin {
     iosX64()
     tvosArm64()
     tvosSimulatorArm64()
-    linuxX64()
+    if (linuxX64TargetEnabled(providers)) linuxX64()
 
     applyDefaultHierarchyTemplate()
     compilerOptions { optIn.add("kotlin.ExperimentalUnsignedTypes") }

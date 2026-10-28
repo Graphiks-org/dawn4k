@@ -6,7 +6,7 @@ final class Dawn4kDemoTests: XCTestCase {
     @MainActor
     func testLiveViewportUsesItsWindowRetinaScale() throws {
         func viewport(_ view: UIView) -> UIView? {
-            if String(describing: type(of: view)).contains("IosMetalView") { return view }
+            if String(describing: type(of: view)).contains("DawnMetalView") { return view }
             return view.subviews.lazy.compactMap { viewport($0) }.first
         }
         var metalView: UIView?

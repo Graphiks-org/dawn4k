@@ -11,11 +11,15 @@ on:
         required: false
 
 jobs:
+  native-bundles:
+    uses: ./.github/workflows/toolkit-native-bundles.yml
+
   snapshot:
+    needs: native-bundles
     if: github.event_name == 'push' && github.ref_name == 'master' || github.event_name == 'workflow_dispatch'
     # Publication must run on macOS: the Apple cinterops cannot be processed on a
     # Linux host, so a Linux runner would silently drop every Apple variant.
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
       ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -28,15 +32,14 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
-          # setup-android cannot download the architecture-suffixed macOS 23 archive.
-          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
-          cmdline-tools-version: '15641748'
-          packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+          install-ndk: true
+      - name: Configure verified Linux publication bundles
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Set snapshot version
@@ -49,8 +52,9 @@ jobs:
         run: ./gradlew publishToMavenCentral --no-configuration-cache --no-daemon --stacktrace -PreleaseVersion="${VERSION}"
 
   release:
+    needs: native-bundles
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
       ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -63,19 +67,18 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
-      - name: Set up Android SDK for Gradle project import
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
         with:
-          # setup-android cannot download the architecture-suffixed macOS 23 archive.
-          # Bootstrap macOS with 21, then let sdkmanager install 23 from the catalog.
-          cmdline-tools-version: '15641748'
-          packages: 'cmdline-tools;23.0 platform-tools'
-      - name: Install Android platform
-        run: '"$ANDROID_HOME/cmdline-tools/23.0/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"'
+          install-ndk: true
+      - name: Configure verified Linux publication bundles
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
       - name: Grant execute permission
         run: chmod +x gradlew
       - name: Extract version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - name: Publish release
         # The task selector publishes every subproject that applies the publication
         # convention; the root project deliberately has no such task.

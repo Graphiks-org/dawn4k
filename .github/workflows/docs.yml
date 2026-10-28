@@ -7,6 +7,15 @@ on:
       - 'docs/**'
       - 'docs/mkdocs.yml'
       - '.github/workflows/docs.yml'
+      - '.github/workflows/toolkit-native-bundles.yml'
+      - 'dawn4k*/src/**'
+      - 'dawn4k-native/generated/src/**'
+      - 'buildSrc/**'
+      - '**/build.gradle.kts'
+      - 'gradle/libs.versions.toml'
+      - 'bindings/**'
+      - 'scripts/normalize-toolkit-doc-links.py'
+      - 'scripts/tests/test_toolkit_doc_links.py'
   workflow_dispatch:
 
 permissions:
@@ -19,8 +28,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  native-bundles:
+    uses: ./.github/workflows/toolkit-native-bundles.yml
+
   build:
-    runs-on: ubuntu-latest
+    needs: native-bundles
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +49,16 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
+        with:
+          install-ndk: true
+
+      - name: Configure verified foreign native bundles
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: toolkit-linux-native-bundles
+
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
@@ -45,10 +68,12 @@ jobs:
           pip install mkdocs-material mkdocs-static-i18n
 
       - name: Generate and embed API docs (Dokka → MkDocs)
-        run: ./gradlew --no-daemon :docs:embedDokkaIntoMkDocs
+        run: |
+          python3 scripts/tests/test_toolkit_doc_links.py
+          ./gradlew --no-daemon :docs:verifyToolkitApiDocumentation
 
       - name: Build site (MkDocs)
-        run: mkdocs build -f docs/mkdocs.yml
+        run: mkdocs build --strict -f docs/mkdocs.yml
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

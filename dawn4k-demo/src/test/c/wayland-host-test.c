@@ -5,6 +5,9 @@
 #include <dirent.h>
 #include <limits.h>
 #include <pthread.h>
+#include <errno.h>
+#include <poll.h>
+#include <time.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +19,20 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 #include "xdg-shell-server-protocol.h"
+
+/* A signal at the deadline is a timeout, not a disconnected display. */
+static int interrupt_next_poll;
+int __real_poll(struct pollfd *fds, nfds_t count, int timeout);
+int __wrap_poll(struct pollfd *fds, nfds_t count, int timeout) {
+    if (interrupt_next_poll) {
+        interrupt_next_poll = 0;
+        struct timespec elapsed = {.tv_nsec=20000000};
+        nanosleep(&elapsed, NULL);
+        errno = EINTR;
+        return -1;
+    }
+    return __real_poll(fds, count, timeout);
+}
 
 static int fd_count(void) {
     DIR *directory = opendir("/proc/self/fd");
@@ -129,6 +146,10 @@ static void live_seat_removal_preserves_the_surface_and_closes_keyboard(void) {
     assert(event.type == DAWN_WL_CONFIGURE && event.width == 640 && event.height == 480);
     atomic_store(&fixture.remove_seat, 1);
     for (int i = 0; i < 10; ++i) assert(dawn_wl_next_event(host, &event, 16) >= 0);
+    interrupt_next_poll = 1;
+    assert(dawn_wl_next_event(host, &event, 1) >= 0);
+    assert(interrupt_next_poll == 0);
+    assert(dawn_wl_next_event(host, &event, 1) >= 0);
     assert(dawn_wl_surface(host) != NULL);
     dawn_wl_close(host);
     atomic_store(&fixture.stopping, 1);

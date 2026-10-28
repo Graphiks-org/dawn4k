@@ -7,11 +7,11 @@ plugins {
 }
 
 dokka {
-    moduleName.set("shared")
+    moduleName.set(project.name)
     dokkaSourceSets.configureEach {
         sourceLink {
-            localDirectory.set(project.file("src/commonMain/kotlin"))
-            remoteUrl.set(URI("https://github.com/ygdrasil-io/project-template/blob/master/shared/src/commonMain/kotlin"))
+            localDirectory.set(project.projectDir)
+            remoteUrl.set(URI("https://github.com/Graphiks-org/dawn4k/blob/master/${project.name}"))
             remoteLineSuffix.set("#L")
         }
     }

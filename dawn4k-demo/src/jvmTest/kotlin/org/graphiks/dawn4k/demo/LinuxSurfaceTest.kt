@@ -1,5 +1,7 @@
 package org.graphiks.dawn4k.demo
 
+import kotlin.time.Duration.Companion.seconds
+
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
@@ -18,16 +20,17 @@ import java.lang.foreign.SymbolLookup
 import java.lang.foreign.ValueLayout.ADDRESS
 import java.lang.foreign.ValueLayout.JAVA_INT
 import java.lang.foreign.ValueLayout.JAVA_LONG
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import org.graphiks.dawn4k.toolkit.*
+import org.graphiks.dawn4k.toolkit.surface.*
 
 class LinuxSurfaceTest {
-    private val noNativeCalls = object : NativeBridge {
-        override fun instanceHandle(): Long = error("invalid handles must not access the instance")
-    }
-
     @Test fun rejectsNullDisplayOrWindowBeforeCallingNativeCode() {
-        assertFailsWith<IllegalArgumentException> { DawnSurface.createXlib(noNativeCalls, 1L, 0L, 1L) }
-        assertFailsWith<IllegalArgumentException> { DawnSurface.createXlib(noNativeCalls, 1L, 1L, 0L) }
+        val owner = org.graphiks.dawn4k.toolkit.surface.DawnPlatformOwners.awt()
+        val states = kotlinx.coroutines.flow.MutableStateFlow(org.graphiks.dawn4k.toolkit.surface.DawnTargetState(1,
+            org.graphiks.dawn4k.toolkit.surface.PixelExtent(16, 16), true))
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(0L, 1uL, owner, states, CountingTargetRetention()) }
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(1L, 0uL, owner, states, CountingTargetRetention()) }
     }
 
     @Test fun linuxNegotiatesAndPresentsOnAnXlibSurface() = runBlocking {
@@ -55,15 +58,18 @@ class LinuxSurfaceTest {
                     .invokeWithArguments(display, window)
                 function("XSync", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT))
                     .invokeWithArguments(display, 0)
-                DawnContext.create(DawnConfig(backend = DawnBackend.Vulkan, implicitDeviceSynchronization = true)).useWithDemoEventProgress { context, adapter, device ->
-                        println("[test] Vulkan adapter: ${adapter.info}")
-                            DawnSurface.createXlib(context.nativeBridge(), device.nativeHandle(), display.address(), window).use { surface ->
-                                val configuration = surface.configureForAdapter((adapter as DawnAdapter).nativeHandle())
-                                assertEquals(configuration.textureFormat, surface.textureFormat)
-                                surface.configure(128, 96)
-                                assertEquals(128, surface.width)
-                                surface.acquireFrame().use { surface.present(it) }
-                            }
+                java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { dispatcher ->
+                    val states = kotlinx.coroutines.flow.MutableStateFlow(DawnTargetState(1,
+                        org.graphiks.dawn4k.toolkit.surface.PixelExtent(128, 96), true))
+                    val retention = CountingTargetRetention()
+                    val target = DawnSurfaceTargets.x11(display.address(), window.toULong(),
+                        DawnPlatformOwner.fromDispatcher(dispatcher), states, retention)
+                    try {
+                        withDawnSurface(target, DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan), startupTimeout = 60.seconds)) { gpu, presentation ->
+                            assertEquals(states.value.extent, presentation.configuration.value?.extent)
+                            assertTrue(presentDemoTestFrame(gpu, presentation))
+                        }
+                    } finally { withContext(NonCancellable) { retention.awaitRetirement() } }
                 }
             } finally {
                 destroy.invokeWithArguments(display, window)
