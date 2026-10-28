@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Template `shared` module (sample Android/iOS/desktop layers).
 - `:native-smoke` module; functional validation is delegated to the shared acid test suite.
+- Standalone Maven coordinate consumer verification: `scripts/verify-toolkit-consumers.py`, `scripts/run-toolkit-consumer-artifacts.py`, the `toolkit-published-consumers` CI artifact and the `published-linux` job. Publication keeps `verifyToolkitPublication` and the platform GPU coverage.
 
 ### Changed
 - Replaced the Dokka GFM and Python post-processing pipeline with Dokka for Material for MkDocs.

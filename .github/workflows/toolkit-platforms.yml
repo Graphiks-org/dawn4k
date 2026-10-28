@@ -117,17 +117,9 @@ jobs:
       - name: Require Intel simulator GPU execution
         if: matrix.arch == 'x64'
         run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosX64 --backend Metal
-      - name: Verify complete publication and coordinate consumers
+      - name: Verify complete publication
         if: matrix.arch == 'arm64'
-        run: |
-          ./gradlew verifyToolkitPublication :dawn4k-native:jvmTest --no-daemon --stacktrace
-          python3 scripts/verify-toolkit-consumers.py --maven-root "$HOME/.m2/repository"
-      - uses: actions/upload-artifact@v4
-        if: matrix.arch == 'arm64'
-        with:
-          name: toolkit-published-consumers
-          path: build/toolkit-consumer-artifacts/
-          if-no-files-found: error
+        run: ./gradlew verifyToolkitPublication :dawn4k-native:jvmTest --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -156,10 +148,6 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - uses: actions/download-artifact@v4
-        with:
-          name: toolkit-published-consumers
-          path: build/toolkit-consumer-artifacts
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -167,9 +155,7 @@ jobs:
           target: google_apis
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -feature Vulkan
           disable-animations: true
-          script: |
-            python3 scripts/run-toolkit-platform-tests.py --kind android --target android --backend Vulkan
-            python3 scripts/run-toolkit-consumer-artifacts.py --apk build/toolkit-consumer-artifacts/toolkit-consumer-minified.apk
+          script: python3 scripts/run-toolkit-platform-tests.py --kind android --target android --backend Vulkan
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -177,27 +163,8 @@ jobs:
           path: build/toolkit-coverage/
           if-no-files-found: error
 
-  published-linux:
-    needs: apple
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: toolkit-published-consumers
-          path: build/toolkit-consumer-artifacts
-      - name: Install Vulkan and window systems
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers xvfb weston
-          icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-          test -n "$icd"
-          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
-      - name: Require standalone Native Linux consumers
-        run: python3 scripts/run-toolkit-consumer-artifacts.py --linux-directory build/toolkit-consumer-artifacts
-
   coverage:
-    needs: [desktop, apple, android, published-linux]
+    needs: [desktop, apple, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

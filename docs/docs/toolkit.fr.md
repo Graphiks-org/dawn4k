@@ -221,10 +221,6 @@ conformément à la dépendance de descripteurs.
 
 `./gradlew verifyToolkitPublication` publie les cinq bibliothèques localement et
 vérifie exactement neuf cibles Kotlin pour core/surface et trois pour GLFW.
-`python3 scripts/verify-toolkit-consumers.py --maven-root ~/.m2/repository`
-construit une copie indépendante des exemples publics avec des coordonnées
-Maven, des exécutables/frameworks Native et un APK Android minifié. Ce projet
-n’importe aucune convention de build ni chemin de bibliothèque native du dépôt.
 
 Les variantes Apple Native embarquent Dawn statiquement. Linux Native embarque
 l’ELF Dawn vérifié dans son archive cinterop, vérifie son chargement avant le

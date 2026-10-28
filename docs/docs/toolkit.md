@@ -210,10 +210,6 @@ the descriptor dependency.
 
 `./gradlew verifyToolkitPublication` publishes the five library modules locally
 and checks that core/surface expose exactly nine Kotlin targets and GLFW three.
-`python3 scripts/verify-toolkit-consumers.py --maven-root ~/.m2/repository` builds
-an independent copy of the public examples using Maven coordinates, including
-Native executables/frameworks and a minified Android APK. It imports no build
-conventions or native-library search paths from this checkout.
 
 Native Apple variants embed static Dawn. Native Linux embeds the verified Dawn
 ELF in its cinterop carrier, checks loading before bootstrap, and extracts it to
