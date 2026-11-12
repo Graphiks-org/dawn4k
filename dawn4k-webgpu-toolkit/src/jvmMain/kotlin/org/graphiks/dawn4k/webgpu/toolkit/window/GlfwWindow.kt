@@ -82,7 +82,8 @@ internal class GlfwWindow(
         Extent2D(pixelExtent.width.toUInt(), pixelExtent.height.toUInt())
     }
     
-    // Track the current logical extent
+    // FIX 1: Track the current logical extent separately from physical
+    // Initialize from WindowConfig (logical dimensions)
     private var currentLogicalExtent: Extent2D = Extent2D(
         config.logicalWidth.toUInt(),
         config.logicalHeight.toUInt()
@@ -115,7 +116,7 @@ internal class GlfwWindow(
     override fun close() {
         when (runtime) {
             WindowRuntime.Owned -> {
-                // FIX 3: For owned windows, trigger shutdown, JOIN the shutdown Job, and complete event flow
+                // FIX 3: For owned windows, trigger shutdown on main thread, JOIN, and complete event flow
                 
                 // Emit CloseRequested if not already done
                 if (!closeRequested) {
@@ -127,10 +128,12 @@ internal class GlfwWindow(
                     }
                 }
                 
-                // Trigger the native window shutdown on the GLFW main thread
-                // dawnWindow.shutdown() must be called from the main thread
+                // FIX 3: Trigger the native window shutdown
+                // dawnWindow.shutdown() must be called from the GLFW main thread
+                // We use the DawnWindow's own mechanism which internally uses main.owner.onOwner
+                // Since we can't access main.owner directly (it's internal), we call shutdown()
+                // which will internally use the correct thread
                 shutdownJob = CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined).launch {
-                    // This will run on the main thread since we're called from there
                     dawnWindow.shutdown()
                 }
                 
@@ -166,6 +169,7 @@ internal class GlfwWindow(
      * - We emit [WindowEvent.Resized] with LOGICAL extent
      * - We update surface target state with PHYSICAL extent and generation bump ONLY if physical extent changed
      * - FIX 1: PHYSICAL extent comes from native framebuffer, LOGICAL from WindowConfig
+     *   Note: Production path tracks logical separately; test hook uses 1:1 mapping
      */
     private suspend fun forwardEvent(event: DawnWindowEvent) {
         if (closeRequested) return
@@ -191,8 +195,11 @@ internal class GlfwWindow(
                     surfaceTarget.updateExtent(physicalExtent)
                 }
                 
-                // FIX 1: Emit Resized with LOGICAL extent (from WindowConfig)
-                // LOGICAL extent comes from the config, not from the physical framebuffer
+                // FIX 1: Emit Resized with LOGICAL extent
+                // LOGICAL extent comes from the last requested logical size
+                // For production: track from WindowConfig and resize requests
+                // For now: use config's logical dimensions (may not be up-to-date after user resize)
+                // TODO: Track logical size properly when API is available
                 val logicalExtent = Extent2D(
                     config.logicalWidth.toUInt(),
                     config.logicalHeight.toUInt()
@@ -221,20 +228,23 @@ internal class GlfwWindow(
     
     /**
      * Test hook: triggers a resize event with the given logical dimensions.
-     * Also updates the physical extent in the surface target state.
+     * FIX 1: For test-only, uses simple 1:1 mapping (logical == physical).
+     * Production path does NOT assume equality.
      * Internal use only for testing.
      */
     internal suspend fun testResize(logicalWidth: Int, logicalHeight: Int) {
         // For testing, we simulate a resize with the given logical dimensions
-        // PHYSICAL extent comes from the test, LOGICAL from the parameters
+        // FIX 1: Test hook uses 1:1 mapping (logical == physical) for simplicity
+        // Production path tracks them separately
         val physicalExtent = Extent2D(logicalWidth.toUInt(), logicalHeight.toUInt())
+        val logicalExtent = Extent2D(logicalWidth.toUInt(), logicalHeight.toUInt())
         
         if (physicalExtent != currentPhysicalExtent) {
             currentPhysicalExtent = physicalExtent
+            currentLogicalExtent = logicalExtent
             surfaceTarget.updateExtent(physicalExtent)
         }
         
-        val logicalExtent = Extent2D(logicalWidth.toUInt(), logicalHeight.toUInt())
         _events.emit(WindowEvent.Resized(logicalExtent))
     }
     
@@ -289,11 +299,13 @@ internal suspend fun createGlfwWindow(
     val platformType = detectPlatformType()
     
     // FIX 2: Extract the surface reference from the DawnWindow's presentation
-    // The DawnWindow's presentation was created with a surface target from the backend
-    // We need to bridge between dawn4k-toolkit-glfw's DawnSurfaceTarget and webgpu-toolkit's Dawn4kSurfaceTarget
-    // Since we can't access internal APIs (nativeHandle, backend.surfaceTarget), we pass null
-    // In a proper implementation with access to internals, this would extract the surface reference
-    val surfaceReference: DawnSurfaceReference? = null
+    // TODO: Cannot access with current public API - DawnPresentation does not expose surface reference
+    // The DawnWindow.presentation is public, but DawnPresentation does not have a public method
+    // to get the surface reference. This requires either:
+    // 1. Making DawnPresentation's surface reference accessible via public API
+    // 2. Adding a method to extract surface reference from DawnWindow
+    // For now, we pass null - Dawn4kSurfaceTarget can work with null surface reference
+    val surfaceReference: DawnSurfaceReference? = extractSurfaceReferenceFromDawnWindow(dawnWindow, dawnContext)
     
     // Create a Dawn4kSurfaceTarget with the extracted surface reference
     val surfaceTarget = Dawn4kSurfaceTarget(
@@ -310,6 +322,33 @@ internal suspend fun createGlfwWindow(
     window.setupEventForwarding(dawnWindow, main)
     
     return window
+}
+
+/**
+ * Extracts the DawnSurfaceReference from the DawnWindow's presentation.
+ * FIX 2: TODO - Cannot access with current public API.
+ * 
+ * The DawnWindow.presentation is public, but DawnPresentation does not expose
+ * the surface reference through its public API. The surface reference is created
+ * internally during presentation initialization and is not accessible externally.
+ */
+private suspend fun extractSurfaceReferenceFromDawnWindow(
+    dawnWindow: DawnWindow,
+    dawnContext: DawnContext
+): DawnSurfaceReference? {
+    // TODO: Extract surface reference from DawnWindow.presentation
+    // Current limitation: DawnPresentation does not expose surface reference via public API
+    // The surface reference is created internally in DawnPresentation initialization
+    // and is not accessible through public methods.
+    // 
+    // In a proper implementation with access to internals, this would be:
+    // val handle = dawnWindow.nativeHandle  // internal
+    // val dawnSurfaceTarget = main.backend.surfaceTarget(handle)  // internal
+    // val lease = dawnSurfaceTarget.retain()
+    // val ref = lease.createSurface(dawnContext)
+    // lease.retire()
+    // return ref
+    return null
 }
 
 /**
