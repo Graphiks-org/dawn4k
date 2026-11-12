@@ -47,6 +47,16 @@ kotlin {
         implementation(libs.kotlinx.coroutines.core)
         implementation(libs.kotlinx.atomicfu)
     }
+    
+    // Add GLFW dependency only to JVM source sets (GLFW is JVM-only)
+    sourceSets.getByName("jvmMain").dependencies {
+        api(project(":dawn4k-toolkit-glfw"))
+        // LWJGL natives for GLFW
+        runtimeOnly(libs.lwjgl.core)
+        runtimeOnly(libs.lwjgl.glfw)
+        runtimeOnly("org.lwjgl:lwjgl:${libs.versions.lwjgl.get()}:natives-macos-arm64")
+        runtimeOnly("org.lwjgl:lwjgl-glfw:${libs.versions.lwjgl.get()}:natives-macos-arm64")
+    }
     sourceSets.getByName("commonTest").dependencies {
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.webgpu.descriptors)
