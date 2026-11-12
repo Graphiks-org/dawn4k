@@ -2,6 +2,8 @@ package org.graphiks.dawn4k.webgpu.toolkit.internal
 
 import org.graphiks.dawn4k.DawnAdapter
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
+import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.webgpu.GPUAdapter
 import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPURequestAdapterOptions
@@ -23,6 +25,7 @@ internal class Dawn4kToolkitInstance(
 ) : ToolkitInstance {
     
     private val adapters = mutableListOf<DawnAdapter>()
+    private val surfaces = mutableListOf<Dawn4kSurfaceTarget>()
     
     override val progression: Progression = Progression.Manual
     
@@ -41,10 +44,19 @@ internal class Dawn4kToolkitInstance(
         forTarget: TargetLease,
         hints: AdapterHints,
     ): Result<GPUAdapter> {
-        // TODO: target-bound adapter selection lands with native targets (Task 3)
-        // For now, ignore the lease and request an adapter with hints
+        // For Dawn4kSurfaceTarget leases, use the surface reference for adapter selection
+        val surfaceReference = when (forTarget) {
+            is Dawn4kTargetLease -> forTarget.surfaceReference
+            else -> null
+        }
+        
         val options = hints.toRequestAdapterOptions()
-        val result = context.requestAdapter(options)
+        val result = if (surfaceReference != null) {
+            context.requestAdapter(options, surfaceReference)
+        } else {
+            context.requestAdapter(options)
+        }
+        
         result.onSuccess { adapter ->
             if (adapter is DawnAdapter) {
                 adapters.add(adapter)
@@ -54,9 +66,18 @@ internal class Dawn4kToolkitInstance(
     }
     
     override fun createSurface(adapter: GPUAdapter, lease: TargetLease): ToolkitSurfaceHandle {
-        // Headless implementation: surface creation is not supported
-        // This would require platform-specific surface integration
-        throw UnsupportedOperationException("Surface creation is not supported in headless dawn4k toolkit")
+        // Only Dawn4kTargetLease is supported for surface creation
+        require(lease is Dawn4kTargetLease) {
+            "Only Dawn4kTargetLease is supported for surface creation"
+        }
+        
+        // Create a surface handle for the target
+        // The device will be provided during configure()
+        val surfaceHandle = Dawn4kSurfaceHandle(
+            surfaceTarget = lease.surfaceTarget
+        )
+        
+        return surfaceHandle
     }
     
     override fun pumpEvents() {
