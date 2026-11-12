@@ -37,13 +37,15 @@ import org.graphiks.webgpu.toolkit.surface.WindowRuntime
  * - Updates surface target state with PHYSICAL extent and generation bump when physical size changes
  * 
  * **Lifecycle:**
- * - Owned: `close()` triggers shutdown, joins the shutdown Job, and completes event flow
+ * - Owned: `close()` dispatches `dawnWindow.shutdown()` through the dawn4k main-thread owner
+ *   (`main.owner.onOwner`, like the backend's own `requestClose`), stores the Job and joins it
  * - Borrowed: `close()` is a no-op
  * 
- * **Extent Handling:**
- * - PHYSICAL extent comes from native framebuffer (DawnWindow.extent / Resized event)
- * - LOGICAL extent comes from WindowConfig / logical resize requests
- * - Never assume equality; compute scale when both are known
+ * **Extent Handling (HiDPI):**
+ * - PHYSICAL extent comes from the native framebuffer (DawnWindow.extent / Resized events) into [state]
+ * - LOGICAL extent is tracked from [WindowConfig] and logical [resize] requests
+ * - [WindowEvent.Resized] carries the LOGICAL extent; logical is never derived from physical
+ * - [scale] exposes physical/logical when both are known
  * 
  * **SurfaceTarget Delegation:**
  * - This class implements [SurfaceTarget] by delegating to an internal [Dawn4kSurfaceTarget]
@@ -75,19 +77,31 @@ internal class GlfwWindow(
     // Track if close has been requested
     private var closeRequested = false
     
-    // FIX 1: Track the current physical extent for generation management
-    // Initialize from DawnWindow.extent (PHYSICAL framebuffer size), NOT from config
-    private var currentPhysicalExtent: Extent2D = runBlocking {
+    // HiDPI: track the PHYSICAL extent (framebuffer pixels) separately from the LOGICAL one.
+    // Physical comes from the native framebuffer (DawnWindow.extent / Resized events), never from config.
+    private var currentPhysicalExtent: Extent2D = run {
         val pixelExtent = dawnWindow.extent.value
         Extent2D(pixelExtent.width.toUInt(), pixelExtent.height.toUInt())
     }
-    
-    // FIX 1: Track the current logical extent separately from physical
-    // Initialize from WindowConfig (logical dimensions)
+
+    // HiDPI: track the LOGICAL extent (window coordinates) from WindowConfig and logical
+    // resize requests. Never derived from the physical extent.
     private var currentLogicalExtent: Extent2D = Extent2D(
         config.logicalWidth.toUInt(),
         config.logicalHeight.toUInt()
     )
+
+    /**
+     * HiDPI scale: physical pixels per logical point (physical / logical).
+     * Both extents are known from construction, so the scale is always available;
+     * it is 1f when the logical extent is degenerate.
+     */
+    val scale: Float
+        get() = if (currentLogicalExtent.width == 0u || currentLogicalExtent.height == 0u) {
+            1f
+        } else {
+            currentPhysicalExtent.width.toFloat() / currentLogicalExtent.width.toFloat()
+        }
     
     // Job for managing owned window shutdown
     private var shutdownJob: kotlinx.coroutines.Job? = null
@@ -128,15 +142,15 @@ internal class GlfwWindow(
                     }
                 }
                 
-                // FIX 3: Trigger the native window shutdown
-                // dawnWindow.shutdown() must be called from the GLFW main thread
-                // We use the DawnWindow's own mechanism which internally uses main.owner.onOwner
-                // Since we can't access main.owner directly (it's internal), we call shutdown()
-                // which will internally use the correct thread
-                shutdownJob = CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined).launch {
-                    dawnWindow.shutdown()
+                // Trigger the native window shutdown through the dawn4k main-thread owner,
+                // exactly like the GLFW backend does (DawnWindow.requestClose uses
+                // main.owner.onOwner): native GLFW calls must run on the GLFW main thread,
+                // never on Unconfined/Default. The Job is launched on Default only to park the
+                // coroutine; onOwner immediately moves execution to the main thread.
+                shutdownJob = CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+                    main.owner.onOwner { dawnWindow.shutdown() }
                 }
-                
+
                 // Join the shutdown to ensure the window is properly destroyed
                 // Use runBlocking to join immediately since close() is a synchronous operation
                 shutdownJob?.let {
@@ -161,50 +175,53 @@ internal class GlfwWindow(
     // ========== Event Forwarding ==========
     
     /**
+     * Requests a new content size in LOGICAL (window) coordinates and records it as the
+     * current logical extent. The resulting framebuffer size is PHYSICAL and arrives through
+     * [DawnWindowEvent.Resized] / [DawnWindow.extent] — never derive logical from physical.
+     */
+    suspend fun resize(width: Int, height: Int) {
+        require(width > 0 && height > 0) { "window dimensions must be positive" }
+        currentLogicalExtent = Extent2D(width.toUInt(), height.toUInt())
+        dawnWindow.resize(width, height)
+    }
+
+    /**
      * Forwards a DawnWindowEvent to our WindowEvent flow.
      * This handles the translation between the two event systems.
-     * 
+     *
      * **Important:**
-     * - [DawnWindowEvent.Resized.extent] is the PHYSICAL extent (framebuffer size)
-     * - We emit [WindowEvent.Resized] with LOGICAL extent
-     * - We update surface target state with PHYSICAL extent and generation bump ONLY if physical extent changed
-     * - FIX 1: PHYSICAL extent comes from native framebuffer, LOGICAL from WindowConfig
-     *   Note: Production path tracks logical separately; test hook uses 1:1 mapping
+     * - [DawnWindowEvent.Resized.extent] is the PHYSICAL extent (framebuffer size) only
+     * - We update surface target state with the PHYSICAL extent (generation bump on change)
+     * - We emit [WindowEvent.Resized] with the LOGICAL extent tracked from [WindowConfig]
+     *   and logical [resize] requests — never derived from the physical extent
      */
     private suspend fun forwardEvent(event: DawnWindowEvent) {
         if (closeRequested) return
-        
+
         when (event) {
             DawnWindowEvent.CloseRequested -> {
                 closeRequested = true
                 _events.emit(WindowEvent.CloseRequested)
             }
             is DawnWindowEvent.Resized -> {
-                // FIX 1: event.extent is PHYSICAL (framebuffer pixels) - from native framebuffer
+                // event.extent is PHYSICAL (framebuffer pixels) — from the native framebuffer
                 val physicalExtent = Extent2D(
                     event.extent.width.toUInt(),
                     event.extent.height.toUInt()
                 )
-                
+
                 // Bump generation ONLY if physical extent changed
                 if (physicalExtent != currentPhysicalExtent) {
                     currentPhysicalExtent = physicalExtent
-                    
+
                     // Update surface target state with new physical extent
                     // The generation bump is handled by Dawn4kSurfaceTarget.updateExtent
                     surfaceTarget.updateExtent(physicalExtent)
                 }
-                
-                // FIX 1: Emit Resized with LOGICAL extent
-                // LOGICAL extent comes from the last requested logical size
-                // For production: track from WindowConfig and resize requests
-                // For now: use config's logical dimensions (may not be up-to-date after user resize)
-                // TODO: Track logical size properly when API is available
-                val logicalExtent = Extent2D(
-                    config.logicalWidth.toUInt(),
-                    config.logicalHeight.toUInt()
-                )
-                _events.emit(WindowEvent.Resized(logicalExtent))
+
+                // Emit Resized with the LOGICAL extent (tracked from WindowConfig / logical
+                // resize requests). The physical event carries no logical information.
+                _events.emit(WindowEvent.Resized(currentLogicalExtent))
             }
             else -> {
                 // Ignore other event types (Key, PointerMoved, PointerButton, Scroll)

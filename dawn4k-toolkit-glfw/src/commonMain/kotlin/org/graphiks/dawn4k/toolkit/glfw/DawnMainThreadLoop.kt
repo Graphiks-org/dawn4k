@@ -18,7 +18,8 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
             synchronized(lock) { check(!stopped) { "GLFW main loop is stopped" }; queue.addLast(block) }
         }
     }
-    internal val owner = DawnPlatformOwner.fromDispatcher(dispatcher)
+    /** The GLFW main-thread owner: run all native GLFW work through [DawnPlatformOwner.onOwner], exactly like the backend does. */
+    val owner = DawnPlatformOwner.fromDispatcher(dispatcher)
     internal val backend = overrideBackend ?: createGlfwBackend(this)
     internal val runtime = GlfwRuntime(backend)
     private val windows = mutableSetOf<DawnWindow>()
