@@ -20,6 +20,7 @@ import org.graphiks.webgpu.toolkit.withSession
  * 
  * **Important:** The facade NEVER closes borrowed handles (device/queue/context) — the session
  * owns them. This is enforced by the delegation to the new toolkit which manages lifecycle correctly.
+ * The wrapper's shutdown() method is a no-op because the new toolkit's withSession handles cleanup.
  * 
  * **Note:** `withDawnWindow` is not available in the common module as it requires GLFW which is
  * JVM-only. Use the JVM-specific overload in `LegacyToolkitFacadeJvm`.
@@ -55,6 +56,7 @@ public object LegacyToolkitFacade {
         val config = options.toSessionConfig()
         
         // Delegate to the new toolkit's withSession
+        // The new toolkit handles all lifecycle management including cleanup
         return withSession(
             extension = extension,
             config = config,
@@ -75,7 +77,8 @@ public object LegacyToolkitFacade {
  * Legacy-compatible session wrapper that provides the same API as DawnSession.
  * 
  * This wrapper delegates all calls to the underlying new Session and its components.
- * It NEVER closes any handles - the underlying session owns them.
+ * It NEVER closes any handles - the underlying session owns them and the new toolkit
+ * handles lifecycle management.
  * 
  * **Important:** This is NOT the actual DawnSession class from dawn4k-toolkit-core.
  * It provides a compatible API surface for migration purposes.
@@ -114,14 +117,12 @@ public class LegacyDawnSession(
     }
     
     /**
-     * **Important:** This method throws an error because the facade NEVER closes borrowed handles.
-     * The session owns the device, queue, and context, and only the new toolkit can close them.
+     * Shutdown is a no-op because the new toolkit's withSession handles all lifecycle management.
+     * The facade NEVER closes borrowed handles (device/queue/context) - the session owns them.
      */
     public suspend fun shutdown() {
-        error(
-            "shutdown() should not be called on borrowed sessions - the new toolkit owns the lifecycle. " +
-            "The facade NEVER closes borrowed handles (device/queue/context)."
-        )
+        // No-op: the new toolkit's withSession handles cleanup automatically
+        // The facade never closes borrowed handles
     }
 }
 
