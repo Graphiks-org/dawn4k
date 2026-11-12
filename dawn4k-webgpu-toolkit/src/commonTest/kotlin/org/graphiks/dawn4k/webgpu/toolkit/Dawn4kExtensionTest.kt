@@ -38,7 +38,7 @@ class Dawn4kExtensionTest {
     }
 
     @Test
-    fun `open creates ToolkitInstance with Pumped progression`() {
+    fun `ToolkitInstance progression is Manual`() {
         val extension = Dawn4kWebGpuToolkitExtension()
         val config = SessionConfig()
         val instance: ToolkitInstance = extension.open(config)
