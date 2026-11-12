@@ -23,6 +23,7 @@ dependencyResolutionManagement {
             content {
                 includeModuleByRegex("org\\.graphiks", "kffi(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks", "webgpu-(?:api|descriptors)(?:-.*)?")
+                includeModuleByRegex("org\\.graphiks\\.webgpu", ".*")
                 includeModuleByRegex("org\\.graphiks", "suite-(?:core|acid-tests)(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks", "suite-demos(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks", "kffi-objc(?:-.*)?")
@@ -44,6 +45,7 @@ include(":dawn4k-native")
 include(":docs")
 
 include(":dawn4k-toolkit-examples")
+include(":dawn4k-webgpu-toolkit")
 
 include(":dawn4k-toolkit-examples-androidApp")
 project(":dawn4k-toolkit-examples-androidApp").projectDir = file("dawn4k-toolkit-examples/androidApp")
