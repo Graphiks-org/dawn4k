@@ -1,6 +1,7 @@
 package org.graphiks.dawn4k.webgpu.toolkit.window
 
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindow
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
@@ -41,13 +42,13 @@ class GlfwWindowHost(
     /**
      * Detects the platform type based on the current OS.
      */
-    private fun detectPlatformType(): org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType {
+    private fun detectPlatformType(): PlatformSurfaceType {
         val osName = System.getProperty("os.name").orEmpty().lowercase()
         return when {
-            osName.contains("mac") -> org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType.MetalLayer
-            osName.contains("win") -> org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType.Win32
-            osName.contains("linux") -> org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType.X11
-            else -> org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType.MetalLayer
+            osName.contains("mac") -> PlatformSurfaceType.MetalLayer
+            osName.contains("win") -> PlatformSurfaceType.Win32
+            osName.contains("linux") -> PlatformSurfaceType.X11
+            else -> PlatformSurfaceType.MetalLayer
         }
     }
 }
