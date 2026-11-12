@@ -17,11 +17,11 @@ class Dawn4kExtensionTest {
     }
 
     @Test
-    fun `open creates ToolkitInstance with Manual progression`() {
+    fun `open creates ToolkitInstance with Pumped progression`() {
         val extension = Dawn4kWebGpuToolkitExtension()
         val config = SessionConfig()
         val instance: ToolkitInstance = extension.open(config)
-        assertEquals(Progression.Manual, instance.progression)
+        assertEquals(Progression.Pumped, instance.progression)
     }
 
     @Test
@@ -38,13 +38,13 @@ class Dawn4kExtensionTest {
     }
 
     @Test
-    fun `ToolkitInstance progression is Manual`() {
+    fun `ToolkitInstance progression is Pumped`() {
         val extension = Dawn4kWebGpuToolkitExtension()
         val config = SessionConfig()
         val instance: ToolkitInstance = extension.open(config)
         
-        // Verify progression is Manual (dawn4k uses Manual progression)
-        assertEquals(Progression.Manual, instance.progression)
+        // Verify progression is Pumped (dawn4k uses Pumped progression for TCK compatibility)
+        assertEquals(Progression.Pumped, instance.progression)
         
         instance.close()
     }

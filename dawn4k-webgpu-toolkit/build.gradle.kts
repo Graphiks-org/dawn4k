@@ -60,6 +60,7 @@ kotlin {
     sourceSets.getByName("commonTest").dependencies {
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.webgpu.descriptors)
+        implementation(libs.webgpu.toolkit.tck)
     }
 }
 

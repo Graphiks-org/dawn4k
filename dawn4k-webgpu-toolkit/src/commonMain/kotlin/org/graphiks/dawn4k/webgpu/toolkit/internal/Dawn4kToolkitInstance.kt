@@ -27,7 +27,7 @@ internal class Dawn4kToolkitInstance(
     private val adapters = mutableListOf<DawnAdapter>()
     private val surfaces = mutableListOf<Dawn4kSurfaceTarget>()
     
-    override val progression: Progression = Progression.Manual
+    override val progression: Progression = Progression.Pumped
     
     override suspend fun requestAdapter(hints: AdapterHints): Result<GPUAdapter> {
         val options = hints.toRequestAdapterOptions()
