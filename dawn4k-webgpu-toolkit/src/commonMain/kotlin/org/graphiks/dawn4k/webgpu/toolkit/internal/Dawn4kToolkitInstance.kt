@@ -1,9 +1,10 @@
 package org.graphiks.dawn4k.webgpu.toolkit.internal
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import org.graphiks.dawn4k.DawnAdapter
 import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
-import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.webgpu.GPUAdapter
 import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPURequestAdapterOptions
@@ -24,17 +25,19 @@ internal class Dawn4kToolkitInstance(
     private val context: DawnContext,
 ) : ToolkitInstance {
     
+    // Guarded by adaptersLock: requestAdapter is suspend and may be called concurrently,
+    // while close() iterates and clears the list from a non-suspend context.
+    private val adaptersLock = SynchronizedObject()
     private val adapters = mutableListOf<DawnAdapter>()
-    private val surfaces = mutableListOf<Dawn4kSurfaceTarget>()
-    
+
     override val progression: Progression = Progression.Pumped
-    
+
     override suspend fun requestAdapter(hints: AdapterHints): Result<GPUAdapter> {
         val options = hints.toRequestAdapterOptions()
         val result = context.requestAdapter(options)
         result.onSuccess { adapter ->
             if (adapter is DawnAdapter) {
-                adapters.add(adapter)
+                synchronized(adaptersLock) { adapters.add(adapter) }
             }
         }
         return result
@@ -59,12 +62,12 @@ internal class Dawn4kToolkitInstance(
         
         result.onSuccess { adapter ->
             if (adapter is DawnAdapter) {
-                adapters.add(adapter)
+                synchronized(adaptersLock) { adapters.add(adapter) }
             }
         }
         return result
     }
-    
+
     override fun createSurface(adapter: GPUAdapter, lease: TargetLease): ToolkitSurfaceHandle {
         // Only Dawn4kTargetLease is supported for surface creation
         require(lease is Dawn4kTargetLease) {
@@ -87,10 +90,12 @@ internal class Dawn4kToolkitInstance(
     
     override fun close() {
         // Close all tracked adapters before closing the context
-        adapters.forEach { adapter ->
+        val tracked = synchronized(adaptersLock) {
+            adapters.toList().also { adapters.clear() }
+        }
+        tracked.forEach { adapter ->
             runCatching { adapter.close() }
         }
-        adapters.clear()
         context.close()
     }
 }
