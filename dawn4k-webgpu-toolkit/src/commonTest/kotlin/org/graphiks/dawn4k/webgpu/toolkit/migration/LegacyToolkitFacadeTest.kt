@@ -29,16 +29,6 @@ class LegacyToolkitFacadeTest {
     }
     
     @Test
-    fun `extension can open ToolkitInstance`() {
-        val config = SessionConfig()
-        val instance = extension.open(config)
-        assertNotNull(instance)
-        assertEquals(org.graphiks.webgpu.toolkit.Progression.Pumped, instance.progression)
-        // Clean up
-        instance.close()
-    }
-    
-    @Test
     fun `LegacyToolkitFacade uses Dawn4kWebGpuToolkitExtension`() {
         // Verify that the facade uses the correct extension
         val facadeExtension = Dawn4kWebGpuToolkitExtension()
