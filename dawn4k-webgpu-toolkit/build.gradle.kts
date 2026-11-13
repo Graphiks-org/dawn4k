@@ -42,8 +42,10 @@ kotlin {
 
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k"))
-        api(libs.webgpu.toolkit.core)
-        api(libs.webgpu.toolkit.surface)
+        // The toolkit artifacts carry the published webgpu-api klib; the repository's own
+        // :dawn4k already brings it, so keep the toolkit graph out of the native link.
+        implementation(libs.webgpu.toolkit.core)
+        implementation(libs.webgpu.toolkit.surface)
         implementation(libs.kotlinx.coroutines.core)
         implementation(libs.kotlinx.atomicfu)
     }
