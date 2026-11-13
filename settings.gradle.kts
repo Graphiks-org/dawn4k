@@ -15,7 +15,16 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        google {
+            // Only Android artifacts live here. Without this filter Gradle also asks Google for
+            // every other group, and a DNS failure on dl.google.com disables the repository for
+            // all of them, including the Graphiks snapshots.
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
         maven {
             name = "GraphiksSnapshots"
