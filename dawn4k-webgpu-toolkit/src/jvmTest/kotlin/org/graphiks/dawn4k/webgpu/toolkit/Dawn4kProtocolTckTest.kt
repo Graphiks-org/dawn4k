@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
 import org.graphiks.webgpu.toolkit.AdapterHints
@@ -45,6 +46,14 @@ class Dawn4kProtocolTckTest {
             initialExtent = Extent2D(width = 640u, height = 480u)
         )
 
+        // The kit opens real Dawn contexts. On a host without the native runtime (no GPU
+        // stack, no native library) there is nothing to validate: the GPU-backed suite owns it.
+        if (!nativeRuntimeAvailable()) {
+            println("TCK skipped: the Dawn native runtime is not available on this host")
+            target.close()
+            return@runTest
+        }
+
         try {
             // Skip-aware: probe whether this host can actually provide a GPU adapter,
             // so GPU-less hosts still pass while adapter-available hosts must be clean.
@@ -80,6 +89,16 @@ class Dawn4kProtocolTckTest {
             target.close()
         }
     }
+
+    /** Whether the Dawn native runtime loads on this host. */
+    private fun nativeRuntimeAvailable(): Boolean =
+        try {
+            DawnContext.create().close()
+            true
+        } catch (failure: Throwable) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            false
+        }
 
     /**
      * Probes whether this host can provide a GPU adapter through the extension,
