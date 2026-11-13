@@ -2,7 +2,6 @@ package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
-import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
 import org.graphiks.webgpu.toolkit.AdapterHints
@@ -40,9 +39,7 @@ class Dawn4kProtocolTckTest {
         val extension = Dawn4kWebGpuToolkitExtension()
 
         // A null surface reference means no real frames: expected on a GPU-less host.
-        val context = DawnContext.create()
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = Extent2D(width = 640u, height = 480u)
@@ -81,7 +78,6 @@ class Dawn4kProtocolTckTest {
             }
         } finally {
             target.close()
-            context.close()
         }
     }
 

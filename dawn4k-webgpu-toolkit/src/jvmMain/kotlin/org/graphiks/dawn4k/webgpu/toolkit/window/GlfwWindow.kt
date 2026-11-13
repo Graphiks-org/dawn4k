@@ -356,7 +356,6 @@ internal suspend fun createGlfwWindow(
     
     // Create a Dawn4kSurfaceTarget with the extracted surface reference
     val surfaceTarget = Dawn4kSurfaceTarget(
-        context = dawnContext,
         surfaceReference = surfaceReference,
         platformType = platformType,
         initialExtent = initialPhysicalExtent

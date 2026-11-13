@@ -1,7 +1,6 @@
 package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.coroutines.test.runTest
-import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
@@ -18,11 +17,9 @@ class Dawn4kSurfaceTargetTest {
 
     @Test
     fun `initial state has generation 1 and provided extent`() = runTest {
-        val context = DawnContext.create()
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = initialExtent
@@ -34,16 +31,13 @@ class Dawn4kSurfaceTargetTest {
         assertTrue(state.available)
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `initial state with zero extent is not available`() = runTest {
-        val context = DawnContext.create()
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.Win32,
             initialExtent = zeroExtent
@@ -55,16 +49,13 @@ class Dawn4kSurfaceTargetTest {
         assertFalse(state.available)
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `retain returns lease with current generation`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 1024u, height = 768u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
@@ -76,16 +67,13 @@ class Dawn4kSurfaceTargetTest {
         assertTrue(lease.isValid())
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `retain with zero extent throws`() = runTest {
-        val context = DawnContext.create()
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.Wayland,
             initialExtent = zeroExtent
@@ -99,16 +87,13 @@ class Dawn4kSurfaceTargetTest {
         }
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `updateExtent increases generation and updates state`() = runTest {
-        val context = DawnContext.create()
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = initialExtent
@@ -137,16 +122,13 @@ class Dawn4kSurfaceTargetTest {
         assertTrue((lease2 as Dawn4kTargetLease).isValid())
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `retire with current generation lease marks it retired`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
@@ -162,16 +144,13 @@ class Dawn4kSurfaceTargetTest {
         assertFalse(lease.isValid())
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `retire with stale lease is no-op`() = runTest {
-        val context = DawnContext.create()
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.Win32,
             initialExtent = initialExtent
@@ -187,16 +166,13 @@ class Dawn4kSurfaceTargetTest {
         
         // Should not throw
         target.close()
-        context.close()
     }
 
     @Test
     fun `retire with foreign lease is no-op`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
@@ -212,16 +188,13 @@ class Dawn4kSurfaceTargetTest {
         
         // Should not throw
         target.close()
-        context.close()
     }
 
     @Test
     fun `setAvailable updates availability`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.Wayland,
             initialExtent = extent
@@ -239,16 +212,13 @@ class Dawn4kSurfaceTargetTest {
         assertTrue(target.state.value.available)
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `double retain before retire works`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
@@ -263,16 +233,13 @@ class Dawn4kSurfaceTargetTest {
         assertEquals(lease1.generation, lease2.generation)
         
         target.close()
-        context.close()
     }
 
     @Test
     fun `platformType is preserved`() = runTest {
-        val context = DawnContext.create()
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
@@ -281,6 +248,5 @@ class Dawn4kSurfaceTargetTest {
         assertEquals(PlatformSurfaceType.MetalLayer, target.platformType)
         
         target.close()
-        context.close()
     }
 }

@@ -19,13 +19,11 @@ import org.graphiks.webgpu.toolkit.TargetState
  * lifecycle management through generations, extent tracking, and lease-based
  * retention for drawing operations.
  * 
- * @param context The Dawn context that owns this surface
- * @param surfaceReference The native surface reference adopted by the context
+ * @param surfaceReference The native surface reference adopted by the context, when one exists
  * @param platformType The platform-specific surface type
  * @param initialExtent The initial physical extent of the surface
  */
 class Dawn4kSurfaceTarget(
-    private val context: DawnContext,
     private val surfaceReference: DawnSurfaceReference?,
     val platformType: PlatformSurfaceType,
     initialExtent: Extent2D,

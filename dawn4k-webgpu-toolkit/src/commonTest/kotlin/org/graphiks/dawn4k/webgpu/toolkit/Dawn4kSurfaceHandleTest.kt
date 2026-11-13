@@ -1,7 +1,6 @@
 package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.coroutines.test.runTest
-import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.webgpu.toolkit.internal.Dawn4kSurfaceHandle
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
@@ -18,11 +17,10 @@ import kotlin.test.assertTrue
 
 class Dawn4kSurfaceHandleTest {
 
-    private fun createSurfaceTarget(context: DawnContext): Dawn4kSurfaceTarget {
+    private fun createSurfaceTarget(): Dawn4kSurfaceTarget {
         val extent = Extent2D(width = 800u, height = 600u)
         
         return Dawn4kSurfaceTarget(
-            context = context,
             surfaceReference = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
@@ -31,8 +29,7 @@ class Dawn4kSurfaceHandleTest {
 
     @Test
     fun `capabilities returns supported formats and alpha modes`() = runTest {
-        val context = DawnContext.create()
-        val target = createSurfaceTarget(context)
+        val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
         val capabilities = handle.capabilities
@@ -52,13 +49,11 @@ class Dawn4kSurfaceHandleTest {
         
         handle.close()
         target.close()
-        context.close()
     }
 
     @Test
     fun `acquireFrame without configure throws`() = runTest {
-        val context = DawnContext.create()
-        val target = createSurfaceTarget(context)
+        val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
         try {
@@ -70,13 +65,11 @@ class Dawn4kSurfaceHandleTest {
         
         handle.close()
         target.close()
-        context.close()
     }
 
     @Test
     fun `present without acquired frame throws`() = runTest {
-        val context = DawnContext.create()
-        val target = createSurfaceTarget(context)
+        val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
         val fakeFrame = AcquiredFrame(
@@ -94,20 +87,17 @@ class Dawn4kSurfaceHandleTest {
         
         handle.close()
         target.close()
-        context.close()
     }
 
     @Test
     fun `close is idempotent`() = runTest {
-        val context = DawnContext.create()
-        val target = createSurfaceTarget(context)
+        val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
         handle.close()
         handle.close() // Should not throw
         
         target.close()
-        context.close()
     }
 
     private fun createMockTextureView(): org.graphiks.webgpu.GPUTextureView {
