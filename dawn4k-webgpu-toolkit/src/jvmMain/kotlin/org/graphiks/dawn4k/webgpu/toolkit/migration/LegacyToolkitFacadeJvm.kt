@@ -2,8 +2,8 @@ package org.graphiks.dawn4k.webgpu.toolkit.migration
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.graphiks.dawn4k.toolkit.DawnSessionOptions
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions
@@ -11,13 +11,14 @@ import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceConfiguration
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
+import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindow
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindowHost
-import org.graphiks.webgpu.toolkit.AdapterHints
 import org.graphiks.webgpu.toolkit.Session
-import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
+import org.graphiks.webgpu.toolkit.surface.WindowEvent
 import org.graphiks.webgpu.toolkit.surface.WindowHost
 import org.graphiks.webgpu.toolkit.withSession
 
@@ -66,7 +67,7 @@ public object LegacyToolkitFacadeJvm {
         return withSession(
             extension = extension,
             config = sessionConfig,
-            hints = AdapterHints(),
+            hints = sessionOptions.toAdapterHints(),
         ) { newSession ->
             // Open a window using the injectable host
             val newWindow = windowHost.open(windowConfig)
@@ -88,15 +89,6 @@ public object LegacyToolkitFacadeJvm {
             }
         }
     }
-}
-
-/**
- * Maps old DawnSessionOptions to new SessionConfig.
- */
-private fun DawnSessionOptions.toSessionConfig(): SessionConfig {
-    return SessionConfig(
-        // TODO: Map relevant options from DawnSessionOptions to SessionConfig
-    )
 }
 
 /**
@@ -135,30 +127,48 @@ public class LegacyDawnWindow(
     
     /**
      * Events from the window.
-     * Returns an empty flow since the new Window may not expose events directly.
+     *
+     * Delegates to the new [Window.events] flow, translating [WindowEvent]s back to
+     * legacy [DawnWindowEvent]s. Because the underlying window publishes a hot flow
+     * (replay = 1), the mapped flow is hot as well; note the legacy `DawnWindow.events`
+     * was a `SharedFlow`, while this exposes the mapped [Flow].
      */
-    public val events: SharedFlow<DawnWindowEvent> = MutableSharedFlow()
-    
+    public val events: Flow<DawnWindowEvent> = newWindow.events.map { it.toDawnWindowEvent() }
+
     /**
      * The native window handle.
      * Returns 0L as it's not available from the new Window.
      */
     public val nativeHandle: Long = 0L
-    
+
     /**
      * Requests a resize of the window.
-     * No-op since the new Window may not support this directly.
+     *
+     * Delegates to the new window's real `resize` (available on GLFW-backed windows,
+     * i.e. windows opened by [GlfwWindowHost]).
      */
     public suspend fun resize(width: Int, height: Int) {
-        // No-op: window resize is not supported through the new toolkit's Window
+        val glfwWindow = newWindow as? GlfwWindow
+            ?: throw UnsupportedOperationException(
+                "resize is only supported for GLFW-backed windows (opened by GlfwWindowHost), " +
+                    "got ${newWindow::class.simpleName}"
+            )
+        glfwWindow.resize(width, height)
     }
-    
+
     /**
      * Requests the window to close.
-     * No-op since the new Window may not support this directly.
+     *
+     * Delegates to the new window's real close-request path (available on GLFW-backed
+     * windows, i.e. windows opened by [GlfwWindowHost]).
      */
     public suspend fun requestClose() {
-        // No-op: window close request is not supported through the new toolkit's Window
+        val glfwWindow = newWindow as? GlfwWindow
+            ?: throw UnsupportedOperationException(
+                "requestClose is only supported for GLFW-backed windows (opened by GlfwWindowHost), " +
+                    "got ${newWindow::class.simpleName}"
+            )
+        glfwWindow.requestClose()
     }
     
     /**
@@ -198,10 +208,13 @@ public class LegacyDawnPresentation(
     
     /**
      * Executes a block with a frame.
-     * Returns false since the new Window may not support this directly.
+     *
+     * **Partial / known limitation:** frame delivery is NOT wired yet — this always
+     * returns `false` and never runs [block] until the real native present wiring
+     * (surface reference extraction + `wgpuSurfacePresent`) lands in a later snapshot.
      */
     public suspend fun withFrame(block: suspend (org.graphiks.dawn4k.toolkit.surface.DawnFrame) -> Unit): Boolean {
-        // No-op: frame presentation is not supported through the new toolkit's Window
+        // Partial: frame presentation is not supported through the new toolkit's Window yet
         return false
     }
     
@@ -228,4 +241,15 @@ public class LegacyDawnPresentation(
     public suspend fun detachTarget(generation: Long) {
         // No-op: target detachment is not supported through the new toolkit's Window
     }
+}
+
+/**
+ * Translates a new-toolkit [WindowEvent] back to the legacy [DawnWindowEvent].
+ * [WindowEvent.Resized] carries the LOGICAL extent, mapped into [PixelExtent].
+ */
+private fun WindowEvent.toDawnWindowEvent(): DawnWindowEvent = when (this) {
+    WindowEvent.CloseRequested -> DawnWindowEvent.CloseRequested
+    is WindowEvent.Resized -> DawnWindowEvent.Resized(
+        PixelExtent(width = logical.width.toInt(), height = logical.height.toInt())
+    )
 }

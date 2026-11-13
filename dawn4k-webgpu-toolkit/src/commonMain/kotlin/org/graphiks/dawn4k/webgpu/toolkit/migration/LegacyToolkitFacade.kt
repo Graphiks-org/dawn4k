@@ -54,13 +54,13 @@ public object LegacyToolkitFacade {
     ): T {
         // Map old DawnSessionOptions to new SessionConfig
         val config = options.toSessionConfig()
-        
+
         // Delegate to the new toolkit's withSession
         // The new toolkit handles all lifecycle management including cleanup
         return withSession(
             extension = extension,
             config = config,
-            hints = AdapterHints(),
+            hints = options.toAdapterHints(),
         ) { newSession ->
             // Wrap the new Session in a legacy-compatible wrapper
             val legacySession = LegacyDawnSession(newSession)
@@ -127,11 +127,23 @@ public class LegacyDawnSession(
 }
 
 /**
- * Maps old DawnSessionOptions to new SessionConfig.
+ * Maps old [DawnSessionOptions] to new [SessionConfig], carrying over the
+ * startup/shutdown timeouts (the other legacy options have no v1 equivalent).
  */
-private fun DawnSessionOptions.toSessionConfig(): SessionConfig {
+internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
     return SessionConfig(
-        // TODO: Map relevant options from DawnSessionOptions to SessionConfig
-        // For now, return an empty config as the new toolkit handles defaults
+        startupTimeout = startupTimeout,
+        shutdownTimeout = shutdownTimeout,
+    )
+}
+
+/**
+ * Maps old [DawnSessionOptions] to new [AdapterHints], carrying over the
+ * adapter request options' power preference and fallback-adapter flag.
+ */
+internal fun DawnSessionOptions.toAdapterHints(): AdapterHints {
+    return AdapterHints(
+        powerPreference = adapterOptions?.powerPreference,
+        forceFallbackAdapter = adapterOptions?.forceFallbackAdapter,
     )
 }

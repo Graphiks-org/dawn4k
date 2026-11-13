@@ -122,10 +122,15 @@ class Dawn4kSurfaceTarget(
      */
     internal fun getSurfaceReference(): DawnSurfaceReference? = surfaceReference
     
+    private var closed = false
+
     /**
      * Closes this surface target and releases resources.
+     * Idempotent: closing an already-closed target is a no-op.
      */
     fun close() {
+        if (closed) return
+        closed = true
         surfaceReference?.close()
     }
 }

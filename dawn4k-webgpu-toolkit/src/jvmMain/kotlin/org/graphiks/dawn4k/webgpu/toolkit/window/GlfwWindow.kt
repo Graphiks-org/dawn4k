@@ -74,11 +74,16 @@ internal class GlfwWindow(
     )
     override val events: Flow<WindowEvent> = _events.asSharedFlow()
     
-    // Track if close has been requested
+    // Track if close has been requested.
+    // @Volatile: written by the event collector (GLFW callback thread) and read from
+    // close() on other threads.
+    @Volatile
     private var closeRequested = false
-    
+
     // HiDPI: track the PHYSICAL extent (framebuffer pixels) separately from the LOGICAL one.
     // Physical comes from the native framebuffer (DawnWindow.extent / Resized events), never from config.
+    // @Volatile: written by the event collector and read from close()/scale on other threads.
+    @Volatile
     private var currentPhysicalExtent: Extent2D = run {
         val pixelExtent = dawnWindow.extent.value
         Extent2D(pixelExtent.width.toUInt(), pixelExtent.height.toUInt())
@@ -86,6 +91,8 @@ internal class GlfwWindow(
 
     // HiDPI: track the LOGICAL extent (window coordinates) from WindowConfig and logical
     // resize requests. Never derived from the physical extent.
+    // @Volatile: written by the event collector and resize() and read from close()/scale on other threads.
+    @Volatile
     private var currentLogicalExtent: Extent2D = Extent2D(
         config.logicalWidth.toUInt(),
         config.logicalHeight.toUInt()
@@ -126,12 +133,22 @@ internal class GlfwWindow(
     }
     
     // ========== Window Contract Implementation ==========
-    
+
+    /**
+     * Closes this window when [runtime] is [WindowRuntime.Owned]: dispatches the native
+     * shutdown through the dawn4k main-thread owner, joins it, and releases the surface
+     * target. A [WindowRuntime.Borrowed] window ignores [close] — its lifetime belongs
+     * to the embedder.
+     *
+     * **Warning:** must NOT be called on the GLFW main thread itself — the owned path
+     * dispatches `dawnWindow.shutdown()` through `main.owner.onOwner` and then joins the
+     * resulting Job, so calling [close] from the GLFW main thread would deadlock.
+     */
     override fun close() {
         when (runtime) {
             WindowRuntime.Owned -> {
                 // FIX 3: For owned windows, trigger shutdown on main thread, JOIN, and complete event flow
-                
+
                 // Emit CloseRequested if not already done
                 if (!closeRequested) {
                     closeRequested = true
@@ -141,7 +158,7 @@ internal class GlfwWindow(
                         // Ignore if flow is closed
                     }
                 }
-                
+
                 // Trigger the native window shutdown through the dawn4k main-thread owner,
                 // exactly like the GLFW backend does (DawnWindow.requestClose uses
                 // main.owner.onOwner): native GLFW calls must run on the GLFW main thread,
@@ -156,6 +173,9 @@ internal class GlfwWindow(
                 shutdownJob?.let {
                     runBlocking { it.join() }
                 }
+
+                // Release the surface target (closes the adopted surface reference, if any)
+                runCatching { surfaceTarget.close() }
             }
             WindowRuntime.Borrowed -> {
                 // Borrowed: no-op
@@ -183,6 +203,15 @@ internal class GlfwWindow(
         require(width > 0 && height > 0) { "window dimensions must be positive" }
         currentLogicalExtent = Extent2D(width.toUInt(), height.toUInt())
         dawnWindow.resize(width, height)
+    }
+
+    /**
+     * Requests the native window to close: sets the GLFW should-close flag through the
+     * dawn4k main-thread owner and emits [DawnWindowEvent.CloseRequested] — the same
+     * path the window's close button takes (see [DawnWindow.requestClose]).
+     */
+    suspend fun requestClose() {
+        dawnWindow.requestClose()
     }
 
     /**
