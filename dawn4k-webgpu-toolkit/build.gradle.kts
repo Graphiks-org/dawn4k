@@ -70,6 +70,12 @@ kotlin {
     }
 }
 
+// The module ships no native test sources: its suites live in commonTest and jvmTest.
+// Linking a native test binary would embed the published webgpu-api klib next to the
+// repository's own api, which ld.lld rejects as duplicate symbols.
+tasks.matching { it.name.startsWith("linkDebugTest") || it.name.startsWith("linkReleaseTest") }
+    .configureEach { enabled = false }
+
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
