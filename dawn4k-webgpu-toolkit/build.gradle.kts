@@ -57,9 +57,13 @@ kotlin {
         runtimeOnly("org.lwjgl:lwjgl:${libs.versions.lwjgl.get()}:natives-macos-arm64")
         runtimeOnly("org.lwjgl:lwjgl-glfw:${libs.versions.lwjgl.get()}:natives-macos-arm64")
     }
+    // The contract kit opens real Dawn contexts, so it stays on the JVM target: linking it
+    // into the native targets would embed the published webgpu-api klib a second time.
     sourceSets.getByName("commonTest").dependencies {
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.webgpu.descriptors)
+    }
+    sourceSets.getByName("jvmTest").dependencies {
         implementation(libs.webgpu.toolkit.tck)
     }
 }
