@@ -4,7 +4,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import org.graphiks.dawn4k.DawnDevice
 import org.graphiks.dawn4k.DawnQueue
-import org.graphiks.dawn4k.toolkit.DawnSessionOptions
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.webgpu.GPUDeviceLostInfo
 import org.graphiks.webgpu.toolkit.AdapterHints
@@ -44,23 +43,22 @@ public object LegacyToolkitFacade {
      * The session and its handles (device, queue, context) are managed by the new toolkit
      * and are NOT closed by this facade.
      * 
-     * @param options Session configuration (mapped to new SessionConfig)
+     * @param config Session configuration of the new toolkit
+     * @param hints Adapter request hints of the new toolkit
      * @param block The code to execute with the session
      * @return The result of the block
      */
     public suspend fun <T> withDawnSession(
-        options: DawnSessionOptions = DawnSessionOptions(),
+        config: SessionConfig = SessionConfig(),
+        hints: AdapterHints = AdapterHints(),
         block: suspend CoroutineScope.(LegacyDawnSession) -> T,
     ): T {
-        // Map old DawnSessionOptions to new SessionConfig
-        val config = options.toSessionConfig()
-
         // Delegate to the new toolkit's withSession
         // The new toolkit handles all lifecycle management including cleanup
         return withSession(
             extension = extension,
             config = config,
-            hints = options.toAdapterHints(),
+            hints = hints,
         ) { newSession ->
             // Wrap the new Session in a legacy-compatible wrapper
             val legacySession = LegacyDawnSession(newSession)
@@ -124,26 +122,4 @@ public class LegacyDawnSession(
         // No-op: the new toolkit's withSession handles cleanup automatically
         // The facade never closes borrowed handles
     }
-}
-
-/**
- * Maps old [DawnSessionOptions] to new [SessionConfig], carrying over the
- * startup/shutdown timeouts (the other legacy options have no v1 equivalent).
- */
-internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
-    return SessionConfig(
-        startupTimeout = startupTimeout,
-        shutdownTimeout = shutdownTimeout,
-    )
-}
-
-/**
- * Maps old [DawnSessionOptions] to new [AdapterHints], carrying over the
- * adapter request options' power preference and fallback-adapter flag.
- */
-internal fun DawnSessionOptions.toAdapterHints(): AdapterHints {
-    return AdapterHints(
-        powerPreference = adapterOptions?.powerPreference,
-        forceFallbackAdapter = adapterOptions?.forceFallbackAdapter,
-    )
 }

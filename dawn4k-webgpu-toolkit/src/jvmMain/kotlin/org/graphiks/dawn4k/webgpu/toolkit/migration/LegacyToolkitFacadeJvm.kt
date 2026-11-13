@@ -5,6 +5,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.graphiks.dawn4k.toolkit.DawnSessionOptions
+import org.graphiks.webgpu.toolkit.AdapterHints
+import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
@@ -251,5 +253,29 @@ private fun WindowEvent.toDawnWindowEvent(): DawnWindowEvent = when (this) {
     WindowEvent.CloseRequested -> DawnWindowEvent.CloseRequested
     is WindowEvent.Resized -> DawnWindowEvent.Resized(
         PixelExtent(width = logical.width.toInt(), height = logical.height.toInt())
+    )
+}
+
+/**
+ * Maps the legacy [DawnSessionOptions] to the new toolkit [SessionConfig], carrying over the
+ * startup/shutdown timeouts (the other legacy options have no v1 equivalent).
+ *
+ * Lives in the JVM source set because the legacy toolkit types are only available there.
+ */
+internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
+    return SessionConfig(
+        startupTimeout = startupTimeout,
+        shutdownTimeout = shutdownTimeout,
+    )
+}
+
+/**
+ * Maps the legacy [DawnSessionOptions] to the new toolkit [AdapterHints], carrying over the
+ * adapter request options' power preference and fallback-adapter flag.
+ */
+internal fun DawnSessionOptions.toAdapterHints(): AdapterHints {
+    return AdapterHints(
+        powerPreference = adapterOptions?.powerPreference,
+        forceFallbackAdapter = adapterOptions?.forceFallbackAdapter,
     )
 }
