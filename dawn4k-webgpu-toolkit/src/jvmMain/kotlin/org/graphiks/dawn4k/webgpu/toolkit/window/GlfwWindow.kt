@@ -315,13 +315,14 @@ internal suspend fun createGlfwWindow(
     // Determine platform type
     val platformType = detectPlatformType()
     
-    // FIX 2: Extract the surface reference from the DawnWindow's presentation
-    // TODO: Cannot access with current public API - DawnPresentation does not expose surface reference
+    // FIX 2 (KNOWN UNIMPLEMENTED): Extract the surface reference from the DawnWindow's presentation.
+    // TODO: Cannot access with current public API - DawnPresentation does not expose surface reference.
     // The DawnWindow.presentation is public, but DawnPresentation does not have a public method
     // to get the surface reference. This requires either:
     // 1. Making DawnPresentation's surface reference accessible via public API
     // 2. Adding a method to extract surface reference from DawnWindow
-    // For now, we pass null - Dawn4kSurfaceTarget can work with null surface reference
+    // For now, we pass null - Dawn4kSurfaceTarget can work with null surface reference.
+    // This stays parked until the real native present wiring lands in a later snapshot.
     val surfaceReference: DawnSurfaceReference? = extractSurfaceReferenceFromDawnWindow(dawnWindow, dawnContext)
     
     // Create a Dawn4kSurfaceTarget with the extracted surface reference
@@ -343,17 +344,19 @@ internal suspend fun createGlfwWindow(
 
 /**
  * Extracts the DawnSurfaceReference from the DawnWindow's presentation.
- * FIX 2: TODO - Cannot access with current public API.
- * 
+ * FIX 2: TODO - KNOWN UNIMPLEMENTED: cannot access with current public API.
+ *
  * The DawnWindow.presentation is public, but DawnPresentation does not expose
  * the surface reference through its public API. The surface reference is created
  * internally during presentation initialization and is not accessible externally.
+ * This function therefore always returns `null` until the real native present
+ * wiring lands in a later snapshot.
  */
 private suspend fun extractSurfaceReferenceFromDawnWindow(
     dawnWindow: DawnWindow,
     dawnContext: DawnContext
 ): DawnSurfaceReference? {
-    // TODO: Extract surface reference from DawnWindow.presentation
+    // TODO (known unimplemented): Extract surface reference from DawnWindow.presentation
     // Current limitation: DawnPresentation does not expose surface reference via public API
     // The surface reference is created internally in DawnPresentation initialization
     // and is not accessible through public methods.

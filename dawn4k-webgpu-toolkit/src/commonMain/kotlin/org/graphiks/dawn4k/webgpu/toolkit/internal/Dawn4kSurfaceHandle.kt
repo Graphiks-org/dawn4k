@@ -2,8 +2,6 @@ package org.graphiks.dawn4k.webgpu.toolkit.internal
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.graphiks.dawn4k.DawnDevice
-import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.GPUTextureFormat
@@ -19,7 +17,13 @@ import org.graphiks.webgpu.toolkit.ToolkitSurfaceHandle
  * 
  * This handle manages the lifecycle of a surface bound to a device, including
  * configuration, frame acquisition, presentation, and frame release.
- * 
+ *
+ * **Known limitation (unimplemented):** frame acquisition and presentation are
+ * currently backed by a mock texture view — the real native present wiring
+ * (`wgpuSurfaceGetCurrentTexture` / `wgpuSurfacePresent` against an adopted
+ * native surface reference) lands in a later snapshot. The related TODOs in
+ * [acquireFrame] / [present] are marked known-unimplemented.
+ *
  * @param surfaceTarget The native surface target to present to
  */
 class Dawn4kSurfaceHandle(
@@ -98,8 +102,8 @@ class Dawn4kSurfaceHandle(
         }
         
         // Check generation - if stale, fail fast
-        // In a real implementation, this would interact with the native surface
-        // For now, we'll create a mock frame
+        // KNOWN UNIMPLEMENTED: in the real native present wiring this would acquire
+        // the current texture from the native surface; for now we create a mock frame
         val textureView = createMockTextureView(state.extent)
         
         currentFrame = AcquiredFrame(
@@ -117,8 +121,8 @@ class Dawn4kSurfaceHandle(
         check(frame === currentFrame) { "Can only present the currently acquired frame" }
         check(!framePresented) { "Frame has already been presented" }
         
-        // In a real implementation, this would call wgpuSurfacePresent
-        // For now, we just mark it as presented
+        // KNOWN UNIMPLEMENTED: the real native present wiring would call
+        // wgpuSurfacePresent here; for now we just mark it as presented
         framePresented = true
     }
     
@@ -151,14 +155,16 @@ class Dawn4kSurfaceHandle(
     
     /**
      * Mock texture view for testing purposes.
-     * In a real implementation, this would be a real GPUTextureView from Dawn.
+     * KNOWN UNIMPLEMENTED: in the real native present wiring (later snapshot) this
+     * would be a real GPUTextureView from Dawn's surface.
      */
     private fun createMockTextureView(extent: org.graphiks.webgpu.toolkit.Extent2D): GPUTextureView {
         return MockTextureView(extent)
     }
-    
+
     /**
      * Mock implementation of GPUTextureView for testing.
+     * KNOWN UNIMPLEMENTED until the real native present wiring lands.
      */
     private class MockTextureView(val extent: org.graphiks.webgpu.toolkit.Extent2D) : GPUTextureView {
         private var isClosed = false
