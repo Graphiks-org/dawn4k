@@ -11,6 +11,8 @@ import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
+import org.graphiks.dawn4k.toolkit.surface.DawnAlphaMode
+import org.graphiks.dawn4k.toolkit.surface.DawnPresentMode
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceConfiguration
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
@@ -23,6 +25,7 @@ import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.WindowEvent
 import org.graphiks.webgpu.toolkit.surface.WindowHost
+import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.surface.ToolkitSurface
 import org.graphiks.webgpu.toolkit.surface.withSurface
 import org.graphiks.webgpu.toolkit.withSession
@@ -126,7 +129,7 @@ public class ToolkitWindowView(
     /**
      * The presentation associated with this window.
      */
-    public val presentation: ToolkitPresentationView = ToolkitPresentationView(newSurface)
+    public val presentation: ToolkitPresentationView = ToolkitPresentationView(newSurface, newWindow)
     
     /**
      * Events from the window.
@@ -195,18 +198,28 @@ public class ToolkitWindowView(
  */
 public class ToolkitPresentationView(
     private val surface: ToolkitSurface,
+    private val target: SurfaceTarget,
 ) {
     /**
-     * The current surface configuration.
-     * The negotiated configuration, or dawn4k defaults while the surface is still negotiating.
+     * The configuration the toolkit negotiated for this surface, in dawn4k terms.
+     *
+     * The toolkit publishes the format and alpha mode it bound; the extent is the target's
+     * physical extent, which is the size of the frames it hands out. `presentMode` is `Fifo`
+     * because the toolkit does not expose a present mode yet.
      */
     public val configuration: DawnSurfaceConfiguration
-        get() = org.graphiks.dawn4k.toolkit.surface.DawnSurfaceConfiguration(
-            format = org.graphiks.webgpu.GPUTextureFormat.BGRA8Unorm,
-            alphaMode = org.graphiks.dawn4k.toolkit.surface.DawnAlphaMode.Premultiplied,
-            presentMode = org.graphiks.dawn4k.toolkit.surface.DawnPresentMode.Fifo,
-            extent = org.graphiks.dawn4k.toolkit.surface.PixelExtent(800, 600),
-        )
+        get() {
+            val negotiated = checkNotNull(surface.configuration.value) {
+                "the toolkit surface is still negotiating its configuration"
+            }
+            val extent = target.state.value.extent
+            return DawnSurfaceConfiguration(
+                format = negotiated.format,
+                alphaMode = negotiated.alphaMode.toDawnAlphaMode(),
+                presentMode = DawnPresentMode.Fifo,
+                extent = PixelExtent(extent.width.toInt(), extent.height.toInt()),
+            )
+        }
     
     /**
      * Executes a block with the toolkit's frame for this window and presents it on a normal
@@ -245,6 +258,16 @@ public class ToolkitPresentationView(
     public suspend fun detachTarget(generation: Long) {
         // No-op: target detachment is not supported through the new toolkit's Window
     }
+}
+
+/**
+ * Translates a toolkit alpha mode to its dawn4k equivalent; both describe how the compositor
+ * blends presented frames with the content behind the target.
+ */
+private fun org.graphiks.webgpu.toolkit.AlphaMode.toDawnAlphaMode(): DawnAlphaMode = when (this) {
+    org.graphiks.webgpu.toolkit.AlphaMode.Opaque -> DawnAlphaMode.Opaque
+    org.graphiks.webgpu.toolkit.AlphaMode.Premultiplied -> DawnAlphaMode.Premultiplied
+    org.graphiks.webgpu.toolkit.AlphaMode.PostMultiplied -> DawnAlphaMode.Unpremultiplied
 }
 
 /**
