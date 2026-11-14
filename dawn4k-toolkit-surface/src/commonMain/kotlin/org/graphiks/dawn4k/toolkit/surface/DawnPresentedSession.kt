@@ -10,7 +10,18 @@ import org.graphiks.dawn4k.toolkit.surface.internal.*
  * [presentation] owns its surface lease, while the application keeps owning the
  * native window or view behind the target.
  */
-class DawnPresentedSession internal constructor(val gpu: DawnSession, val presentation: DawnPresentation) {
+class DawnPresentedSession internal constructor(
+    val gpu: DawnSession,
+    val presentation: DawnPresentation,
+    /** The target this session retains and presents to. */
+    val surfaceTarget: DawnSurfaceTarget,
+) {
+    /**
+     * Acquires one frame and hands it to the caller, who presents and closes it. Returns null
+     * when the target cannot be drawn to right now.
+     */
+    suspend fun acquireFrame(): DawnFrame? = presentation.acquireFrame()
+
     /** Shuts the session down; retiring the presentation's surface and lease is the shutdown's first stage. */
     suspend fun shutdown() = gpu.shutdown()
 }
@@ -70,7 +81,7 @@ internal suspend fun openDawnSurface(
             }
         }
     })
-    return DawnPresentedSession(session, checkNotNull(presentation))
+    return DawnPresentedSession(session, checkNotNull(presentation), target)
 }
 
 /**

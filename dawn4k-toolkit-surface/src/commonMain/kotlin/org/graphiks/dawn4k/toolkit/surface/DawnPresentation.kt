@@ -51,6 +51,16 @@ class DawnPresentation internal constructor(
         }
     }
 
+    /**
+     * Acquires one frame and hands it to the caller, who presents and closes it. The frame is
+     * held until [DawnFrame.close], so the next acquisition waits for it. Returns null when the
+     * target cannot be drawn to right now.
+     */
+    suspend fun acquireFrame(): DawnFrame? = gpu.run {
+        checkOutsideFrame()
+        frames.withLock { controller.acquireFrame() }
+    }
+
     suspend fun replaceTarget(target: DawnSurfaceTarget) = replaceTargetWithOptions(target, null)
 
     /** Applies the new policy only after successful attachment, for example to retain an existing pipeline's format. */

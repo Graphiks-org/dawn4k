@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
 
 ### Added
+- Optional `dawn4k-webgpu-toolkit` module (`org.graphiks:dawn4k-webgpu-toolkit`): Dawn (WebGPU) extension providing managed GPU sessions, native surface presentation and desktop GLFW window hosting for the Graphiks toolkit, with contract coverage from the toolkit TCK.
 - Optional `dawn4k-toolkit-core`, `dawn4k-toolkit-surface` and `dawn4k-toolkit-glfw` modules in this repository: managed/headless GPU sessions, caller-owned execution, typed native presentation, cancellation-safe frames and view/window retirement, desktop GLFW windows, and public compute/triangle examples for all existing backend targets.
 - Strict toolkit publication/coverage checks and platform CI for JVM macOS/Windows/Linux x64/ARM64, Native macOS/Linux X11 and Wayland, Android Vulkan, and ARM64/Intel Apple simulators. Physical iOS/tvOS device compilation is reported separately from GPU execution.
 - Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CI integration. Usage and result interpretation are documented in `docs/docs/acid-tests-verification.md` and its French translation.
