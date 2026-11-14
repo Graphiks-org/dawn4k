@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.webgpu.toolkit.migration
+package org.graphiks.dawn4k.webgpu.toolkit.interop
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -28,11 +28,12 @@ import org.graphiks.webgpu.toolkit.surface.withSurface
 import org.graphiks.webgpu.toolkit.withSession
 
 /**
- * JVM-specific migration facade extensions for window-related functions.
- * 
- * This provides the `withDawnWindow` function that requires GLFW (JVM-only).
+ * JVM side of [DawnToolkitInterop]: the window entry point, which needs GLFW.
+ *
+ * `withDawnWindow` opens a window through a [WindowHost], presents to it with the toolkit's
+ * surface protocol, and hands the dawn4k-shaped window and presentation views to the block.
  */
-public object LegacyToolkitFacadeJvm {
+public object DawnToolkitInteropJvm {
     
     private val extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension()
     
@@ -45,7 +46,7 @@ public object LegacyToolkitFacadeJvm {
     /**
      * Opens a Dawn window using the new WebGPU toolkit and executes the given block.
      * 
-     * This is a migration facade that delegates to the new toolkit's window creation.
+     * Delegates to the toolkit's window and surface protocol.
      * The window, session, and presentation are managed by the new toolkit and are NOT
      * closed by this facade.
      * 
@@ -62,7 +63,7 @@ public object LegacyToolkitFacadeJvm {
         windowOptions: DawnWindowOptions = DawnWindowOptions(),
         sessionOptions: DawnSessionOptions = DawnSessionOptions(),
         presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
-        block: suspend CoroutineScope.(LegacyDawnSession, LegacyDawnWindow, LegacyDawnPresentation) -> T,
+        block: suspend CoroutineScope.(ToolkitSessionView, ToolkitWindowView, ToolkitPresentationView) -> T,
     ): T {
         // Map configurations
         val sessionConfig = sessionOptions.toSessionConfig()
@@ -76,14 +77,13 @@ public object LegacyToolkitFacadeJvm {
             hints = sessionOptions.toAdapterHints(),
         ) { newSession, newSurface ->
             try {
-                // Map the new types to legacy-compatible wrappers
-                val legacySession = LegacyDawnSession(newSession)
-                val legacyWindow = LegacyDawnWindow(newWindow, newSession, newSurface)
-                val legacyPresentation = legacyWindow.presentation
+                val sessionView = ToolkitSessionView(newSession)
+                val windowView = ToolkitWindowView(newWindow, newSession, newSurface)
+                val presentationView = windowView.presentation
 
                 // Execute the block with a CoroutineScope receiver
                 coroutineScope {
-                    block(legacySession, legacyWindow, legacyPresentation)
+                    block(sessionView, windowView, presentationView)
                 }
             } finally {
                 // The toolkit owns the surface, session and window lifetimes; the facade only
@@ -105,15 +105,15 @@ private fun DawnWindowOptions.toWindowConfig(): WindowConfig {
 }
 
 /**
- * Legacy-compatible window wrapper that provides the same API as DawnWindow.
+ * The dawn4k `DawnWindow` surface over a toolkit [Window].
  * 
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
  * **Important:** This is NOT the actual DawnWindow class from dawn4k-toolkit-glfw.
- * It provides a compatible API surface for migration purposes.
+ * It offers the same members so dawn4k-style code keeps compiling.
  */
-public class LegacyDawnWindow(
+public class ToolkitWindowView(
     private val newWindow: Window,
     private val newSession: Session,
     private val newSurface: ToolkitSurface,
@@ -121,19 +121,19 @@ public class LegacyDawnWindow(
     /**
      * The GPU session associated with this window.
      */
-    public val gpu: LegacyDawnSession = LegacyDawnSession(newSession)
+    public val gpu: ToolkitSessionView = ToolkitSessionView(newSession)
     
     /**
      * The presentation associated with this window.
      */
-    public val presentation: LegacyDawnPresentation = LegacyDawnPresentation(newSurface)
+    public val presentation: ToolkitPresentationView = ToolkitPresentationView(newSurface)
     
     /**
      * Events from the window.
      *
      * Delegates to the new [Window.events] flow, translating [WindowEvent]s back to
-     * legacy [DawnWindowEvent]s. Because the underlying window publishes a hot flow
-     * (replay = 1), the mapped flow is hot as well; note the legacy `DawnWindow.events`
+     * dawn4k [DawnWindowEvent]s. Because the underlying window publishes a hot flow
+     * (replay = 1), the mapped flow is hot as well; note the dawn4k `DawnWindow.events`
      * was a `SharedFlow`, while this exposes the mapped [Flow].
      */
     public val events: Flow<DawnWindowEvent> = newWindow.events.map { it.toDawnWindowEvent() }
@@ -185,20 +185,20 @@ public class LegacyDawnWindow(
 }
 
 /**
- * Legacy-compatible presentation wrapper that provides the same API as DawnPresentation.
+ * The dawn4k `DawnPresentation` surface over a toolkit `ToolkitSurface`.
  * 
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
  * **Important:** This is NOT the actual DawnPresentation class from dawn4k-toolkit-surface.
- * It provides a compatible API surface for migration purposes.
+ * It offers the same members so dawn4k-style code keeps compiling.
  */
-public class LegacyDawnPresentation(
+public class ToolkitPresentationView(
     private val surface: ToolkitSurface,
 ) {
     /**
      * The current surface configuration.
-     * Not yet supported in migration facade - returns default.
+     * The negotiated configuration, or dawn4k defaults while the surface is still negotiating.
      */
     public val configuration: DawnSurfaceConfiguration
         get() = org.graphiks.dawn4k.toolkit.surface.DawnSurfaceConfiguration(
@@ -213,7 +213,7 @@ public class LegacyDawnPresentation(
      * return, exactly like the toolkit's own `withFrame`.
      */
     public suspend fun withFrame(block: suspend (org.graphiks.webgpu.toolkit.surface.Frame) -> Unit) {
-        // The toolkit frame block is not suspending while legacy blocks are, so the frame is
+        // The toolkit frame block is not suspending while dawn4k blocks are, so the frame is
         // handed to the caller through a bounded bridge that keeps the frame open during the body.
         coroutineScope {
             surface.withFrame { frame ->
@@ -248,7 +248,7 @@ public class LegacyDawnPresentation(
 }
 
 /**
- * Translates a new-toolkit [WindowEvent] back to the legacy [DawnWindowEvent].
+ * Translates a toolkit [WindowEvent] to the dawn4k [DawnWindowEvent].
  * [WindowEvent.Resized] carries the LOGICAL extent, mapped into [PixelExtent].
  */
 private fun WindowEvent.toDawnWindowEvent(): DawnWindowEvent = when (this) {
@@ -259,10 +259,10 @@ private fun WindowEvent.toDawnWindowEvent(): DawnWindowEvent = when (this) {
 }
 
 /**
- * Maps the legacy [DawnSessionOptions] to the new toolkit [SessionConfig], carrying over the
- * startup/shutdown timeouts (the other legacy options have no v1 equivalent).
+ * Maps the dawn4k [DawnSessionOptions] to the toolkit [SessionConfig], carrying over the
+ * startup/shutdown timeouts (the other dawn4k options have no toolkit equivalent).
  *
- * Lives in the JVM source set because the legacy toolkit types are only available there.
+ * Lives in the JVM source set because the dawn4k toolkit types are only available there.
  */
 internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
     return SessionConfig(
@@ -272,7 +272,7 @@ internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
 }
 
 /**
- * Maps the legacy [DawnSessionOptions] to the new toolkit [AdapterHints], carrying over the
+ * Maps the dawn4k [DawnSessionOptions] to the toolkit [AdapterHints], carrying over the
  * adapter request options' power preference and fallback-adapter flag.
  */
 internal fun DawnSessionOptions.toAdapterHints(): AdapterHints {

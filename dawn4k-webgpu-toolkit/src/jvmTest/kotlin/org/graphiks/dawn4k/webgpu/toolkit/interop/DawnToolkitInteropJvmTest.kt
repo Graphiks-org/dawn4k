@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.webgpu.toolkit.migration
+package org.graphiks.dawn4k.webgpu.toolkit.interop
 
 import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.toolkit.DawnSessionOptions
@@ -16,27 +16,27 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Tests for the JVM-specific LegacyToolkitFacadeJvm migration layer.
+ * Tests for the JVM window side of DawnToolkitInteropJvm.
  */
-class LegacyToolkitFacadeJvmTest {
+class DawnToolkitInteropJvmTest {
     
     private lateinit var originalWindowHost: WindowHost
     
     @BeforeTest
     fun setup() {
         // Save the original window host
-        originalWindowHost = LegacyToolkitFacadeJvm.windowHost
+        originalWindowHost = DawnToolkitInteropJvm.windowHost
     }
     
     @AfterTest
     fun tearDown() {
         // Restore the original window host
-        LegacyToolkitFacadeJvm.windowHost = originalWindowHost
+        DawnToolkitInteropJvm.windowHost = originalWindowHost
     }
     
     @Test
     fun `windowHost is injectable`() = runTest {
-        val original = LegacyToolkitFacadeJvm.windowHost
+        val original = DawnToolkitInteropJvm.windowHost
         
         // Verify that we can set a custom window host
         // This proves the facade supports injection for testing
@@ -47,42 +47,42 @@ class LegacyToolkitFacadeJvmTest {
     }
     
     @Test
-    fun `LegacyDawnWindow shutdown is no-op and does not throw`() = runTest {
-        // Verify that LegacyDawnWindow.shutdown() is a no-op
+    fun `ToolkitWindowView shutdown is no-op and does not throw`() = runTest {
+        // Verify that ToolkitWindowView.shutdown() is a no-op
         // The facade NEVER closes borrowed handles - this is enforced by the implementation
         // being a no-op that delegates to the new toolkit's lifecycle management
         
-        assertTrue(true, "LegacyDawnWindow.shutdown() is a no-op by design")
+        assertTrue(true, "ToolkitWindowView.shutdown() is a no-op by design")
     }
     
     @Test
-    fun `LegacyDawnPresentation shutdown is no-op and does not throw`() = runTest {
-        // Verify that LegacyDawnPresentation methods are no-ops
+    fun `ToolkitPresentationView shutdown is no-op and does not throw`() = runTest {
+        // Verify that ToolkitPresentationView methods are no-ops
         // The facade NEVER closes borrowed handles
         
-        assertTrue(true, "LegacyDawnPresentation methods are no-ops by design")
+        assertTrue(true, "ToolkitPresentationView methods are no-ops by design")
     }
     
     @Test
-    fun `LegacyDawnSession shutdown is no-op and does not throw`() = runTest {
-        // Verify that LegacyDawnSession.shutdown() is a no-op
+    fun `ToolkitSessionView shutdown is no-op and does not throw`() = runTest {
+        // Verify that ToolkitSessionView.shutdown() is a no-op
         // The facade NEVER closes borrowed handles
         
-        assertTrue(true, "LegacyDawnSession.shutdown() is a no-op by design")
+        assertTrue(true, "ToolkitSessionView.shutdown() is a no-op by design")
     }
     
     @Test
-    fun `LegacyToolkitFacadeJvm object exists`() {
-        assertNotNull(LegacyToolkitFacadeJvm)
+    fun `DawnToolkitInteropJvm object exists`() {
+        assertNotNull(DawnToolkitInteropJvm)
     }
     
     @Test
-    fun `LegacyDawnWindow class exists`() {
-        assertNotNull(LegacyDawnWindow::class)
+    fun `ToolkitWindowView class exists`() {
+        assertNotNull(ToolkitWindowView::class)
     }
     
     @Test
-    fun `LegacyDawnPresentation class exists`() {
-        assertNotNull(LegacyDawnPresentation::class)
+    fun `ToolkitPresentationView class exists`() {
+        assertNotNull(ToolkitPresentationView::class)
     }
 }

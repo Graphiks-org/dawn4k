@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.webgpu.toolkit.migration
+package org.graphiks.dawn4k.webgpu.toolkit.interop
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -12,36 +12,35 @@ import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.withSession
 
 /**
- * Migration facade that provides backward compatibility with the old dawn4k-toolkit entry points.
+ * Exposes the dawn4k toolkit's own session API on top of the generic WebGPU toolkit.
+ *
+ * The two toolkits are both current: dawn4k publishes `DawnSession`, `DawnWindow` and
+ * `DawnPresentation`, while the Graphiks toolkit publishes `Session`, `Window` and
+ * `ToolkitSurface`. This object lets code written against the dawn4k types run on the generic
+ * toolkit, so an application can move to `org.graphiks.webgpu:toolkit-*` without rewriting its
+ * render loop.
+ *
+ * **Important:** the views borrow handles (device, queue, context); the session owns them and
+ * closes them. `shutdown()` on a view is a no-op for that reason.
  * 
- * This facade exposes the old `withDawnSession` function but delegates to the new WebGPU
- * toolkit's `withSession` function.
- * 
- * **Important:** The facade NEVER closes borrowed handles (device/queue/context) — the session
- * owns them. This is enforced by the delegation to the new toolkit which manages lifecycle correctly.
- * The wrapper's shutdown() method is a no-op because the new toolkit's withSession handles cleanup.
- * 
- * **Note:** `withDawnWindow` is not available in the common module as it requires GLFW which is
- * JVM-only. Use the JVM-specific overload in `LegacyToolkitFacadeJvm`.
+ * **Note:** `withDawnWindow` needs GLFW, so it lives in the JVM-only [DawnToolkitInteropJvm].
  * 
  * **Usage:**
  * ```kotlin
- * // Old API
- * withDawnSession(options) { session ->
- *     // use session.device, session.queue, etc.
+ * DawnToolkitInterop.withDawnSession { session ->
+ *     // session.device, session.queue, session.run { ... }
  * }
  * ```
  */
-public object LegacyToolkitFacade {
+public object DawnToolkitInterop {
     
     private val extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension()
     
     /**
      * Opens a Dawn session using the new WebGPU toolkit and executes the given block.
      * 
-     * This is a migration facade that delegates to the new toolkit's `withSession` function.
-     * The session and its handles (device, queue, context) are managed by the new toolkit
-     * and are NOT closed by this facade.
+     * Delegates to the toolkit's `withSession`; the session owns the device, queue and
+     * context, and the view never closes them.
      * 
      * @param config Session configuration of the new toolkit
      * @param hints Adapter request hints of the new toolkit
@@ -51,7 +50,7 @@ public object LegacyToolkitFacade {
     public suspend fun <T> withDawnSession(
         config: SessionConfig = SessionConfig(),
         hints: AdapterHints = AdapterHints(),
-        block: suspend CoroutineScope.(LegacyDawnSession) -> T,
+        block: suspend CoroutineScope.(ToolkitSessionView) -> T,
     ): T {
         // Delegate to the new toolkit's withSession
         // The new toolkit handles all lifecycle management including cleanup
@@ -60,28 +59,23 @@ public object LegacyToolkitFacade {
             config = config,
             hints = hints,
         ) { newSession ->
-            // Wrap the new Session in a legacy-compatible wrapper
-            val legacySession = LegacyDawnSession(newSession)
-            
-            // Call the old block with a CoroutineScope receiver
+            val view = ToolkitSessionView(newSession)
+
             coroutineScope {
-                block(legacySession)
+                block(view)
             }
         }
     }
 }
 
 /**
- * Legacy-compatible session wrapper that provides the same API as DawnSession.
- * 
- * This wrapper delegates all calls to the underlying new Session and its components.
- * It NEVER closes any handles - the underlying session owns them and the new toolkit
- * handles lifecycle management.
- * 
- * **Important:** This is NOT the actual DawnSession class from dawn4k-toolkit-core.
- * It provides a compatible API surface for migration purposes.
+ * The dawn4k `DawnSession` surface over a toolkit [Session].
+ *
+ * Every call delegates to the toolkit session, which owns the device, queue and context; the
+ * view never closes them. This is not `org.graphiks.dawn4k.toolkit.DawnSession`, it only
+ * offers the same members so dawn4k-style code keeps compiling.
  */
-public class LegacyDawnSession(
+public class ToolkitSessionView(
     private val newSession: Session,
 ) {
     /**
@@ -101,9 +95,9 @@ public class LegacyDawnSession(
     /**
      * Executes a block with this session as the receiver.
      */
-    public suspend fun <T> run(block: suspend CoroutineScope.(LegacyDawnSession) -> T): T {
+    public suspend fun <T> run(block: suspend CoroutineScope.(ToolkitSessionView) -> T): T {
         return coroutineScope {
-            block(this@LegacyDawnSession)
+            block(this@ToolkitSessionView)
         }
     }
     
