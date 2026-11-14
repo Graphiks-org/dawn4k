@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.toolkit.glfw
 
 import org.graphiks.dawn4k.toolkit.DawnSession
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
+import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import kotlin.test.*
 
 class WindowControlTest {
@@ -14,6 +15,7 @@ class WindowControlTest {
                 DawnWindow(main, native, object : WindowSession {
                     override val gpu: DawnSession get() = error("control tests do not access a GPU")
                     override val presentation: DawnPresentation get() = error("control tests do not access a surface")
+                    override val surfaceTarget: DawnSurfaceTarget get() = error("control tests do not access a surface")
                     override suspend fun shutdown() {}
                 }).also(main::register)
             }

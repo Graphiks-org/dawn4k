@@ -20,7 +20,7 @@ class Dawn4kSurfaceTargetTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = initialExtent
         )
@@ -38,7 +38,7 @@ class Dawn4kSurfaceTargetTest {
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.Win32,
             initialExtent = zeroExtent
         )
@@ -56,7 +56,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 1024u, height = 768u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
         )
@@ -74,7 +74,7 @@ class Dawn4kSurfaceTargetTest {
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.Wayland,
             initialExtent = zeroExtent
         )
@@ -94,7 +94,7 @@ class Dawn4kSurfaceTargetTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = initialExtent
         )
@@ -129,7 +129,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
         )
@@ -151,7 +151,7 @@ class Dawn4kSurfaceTargetTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.Win32,
             initialExtent = initialExtent
         )
@@ -173,7 +173,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
         )
@@ -195,7 +195,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.Wayland,
             initialExtent = extent
         )
@@ -219,7 +219,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.X11,
             initialExtent = extent
         )
@@ -240,7 +240,7 @@ class Dawn4kSurfaceTargetTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
         )

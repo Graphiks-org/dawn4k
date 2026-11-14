@@ -21,7 +21,7 @@ class Dawn4kSurfaceHandleTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         return Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = extent
         )

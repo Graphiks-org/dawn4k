@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindow
 import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
+import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
@@ -344,19 +344,12 @@ internal suspend fun createGlfwWindow(
     // Determine platform type
     val platformType = detectPlatformType()
     
-    // FIX 2 (KNOWN UNIMPLEMENTED): Extract the surface reference from the DawnWindow's presentation.
-    // TODO: Cannot access with current public API - DawnPresentation does not expose surface reference.
-    // The DawnWindow.presentation is public, but DawnPresentation does not have a public method
-    // to get the surface reference. This requires either:
-    // 1. Making DawnPresentation's surface reference accessible via public API
-    // 2. Adding a method to extract surface reference from DawnWindow
-    // For now, we pass null - Dawn4kSurfaceTarget can work with null surface reference.
-    // This stays parked until the real native present wiring lands in a later snapshot.
-    val surfaceReference: DawnSurfaceReference? = extractSurfaceReferenceFromDawnWindow(dawnWindow, dawnContext)
-    
-    // Create a Dawn4kSurfaceTarget with the extracted surface reference
+    // The window's own dawn4k target is the surface this contract target fronts: presentation
+    // goes through it, so frames come from the swap chain the window already owns.
+    val dawnTarget: DawnSurfaceTarget = dawnWindow.surfaceTarget
+
     val surfaceTarget = Dawn4kSurfaceTarget(
-        surfaceReference = surfaceReference,
+        dawnTarget = dawnTarget,
         platformType = platformType,
         initialExtent = initialPhysicalExtent
     )
@@ -369,36 +362,6 @@ internal suspend fun createGlfwWindow(
     
     return window
 }
-
-/**
- * Extracts the DawnSurfaceReference from the DawnWindow's presentation.
- * FIX 2: TODO - KNOWN UNIMPLEMENTED: cannot access with current public API.
- *
- * The DawnWindow.presentation is public, but DawnPresentation does not expose
- * the surface reference through its public API. The surface reference is created
- * internally during presentation initialization and is not accessible externally.
- * This function therefore always returns `null` until the real native present
- * wiring lands in a later snapshot.
- */
-private suspend fun extractSurfaceReferenceFromDawnWindow(
-    dawnWindow: DawnWindow,
-    dawnContext: DawnContext
-): DawnSurfaceReference? {
-    // TODO (known unimplemented): Extract surface reference from DawnWindow.presentation
-    // Current limitation: DawnPresentation does not expose surface reference via public API
-    // The surface reference is created internally in DawnPresentation initialization
-    // and is not accessible through public methods.
-    // 
-    // In a proper implementation with access to internals, this would be:
-    // val handle = dawnWindow.nativeHandle  // internal
-    // val dawnSurfaceTarget = main.backend.surfaceTarget(handle)  // internal
-    // val lease = dawnSurfaceTarget.retain()
-    // val ref = lease.createSurface(dawnContext)
-    // lease.retire()
-    // return ref
-    return null
-}
-
 /**
  * Detects the platform type based on the current OS.
  */

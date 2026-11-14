@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import org.graphiks.dawn4k.toolkit.DawnSession
 import org.graphiks.dawn4k.toolkit.glfw.internal.GlfwWindowTarget
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
+import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,6 +49,7 @@ class WindowEventTest {
                 lease to DawnWindow(main, lease, object : WindowSession {
                     override val gpu: DawnSession get() = error("close-contract test does not access a GPU")
                     override val presentation: DawnPresentation get() = error("close-contract test does not access a surface")
+                    override val surfaceTarget: DawnSurfaceTarget get() = error("close-contract test does not access a surface")
                     override suspend fun shutdown() {}
                 }).also(main::register)
             }

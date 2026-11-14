@@ -5,8 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.DawnSurfaceReference
+import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease
@@ -19,12 +18,13 @@ import org.graphiks.webgpu.toolkit.TargetState
  * lifecycle management through generations, extent tracking, and lease-based
  * retention for drawing operations.
  * 
- * @param surfaceReference The native surface reference adopted by the context, when one exists
+ * @param dawnTarget The dawn4k toolkit target this contract target fronts, when the surface
+ *   comes from a native window; presentation goes through it
  * @param platformType The platform-specific surface type
  * @param initialExtent The initial physical extent of the surface
  */
 class Dawn4kSurfaceTarget(
-    private val surfaceReference: DawnSurfaceReference?,
+    private val dawnTarget: DawnSurfaceTarget?,
     val platformType: PlatformSurfaceType,
     initialExtent: Extent2D,
 ) : SurfaceTarget {
@@ -91,7 +91,7 @@ class Dawn4kSurfaceTarget(
         val lease = Dawn4kTargetLease(
             generation = currentGeneration,
             extent = currentExtent,
-            surfaceReference = surfaceReference,
+            dawnTarget = dawnTarget,
             surfaceTarget = this
         )
         activeLeases.add(lease)
@@ -115,10 +115,8 @@ class Dawn4kSurfaceTarget(
         lease.markRetired()
     }
     
-    /**
-     * Returns the native surface reference for adapter selection.
-     */
-    internal fun getSurfaceReference(): DawnSurfaceReference? = surfaceReference
+    /** The dawn4k target backing this contract target, or null for a headless target. */
+    internal val nativeTarget: DawnSurfaceTarget? get() = dawnTarget
     
     private var closed = false
 
@@ -129,7 +127,6 @@ class Dawn4kSurfaceTarget(
     fun close() {
         if (closed) return
         closed = true
-        surfaceReference?.close()
     }
 }
 
@@ -139,7 +136,7 @@ class Dawn4kSurfaceTarget(
 class Dawn4kTargetLease(
     override val generation: Long,
     val extent: Extent2D,
-    val surfaceReference: DawnSurfaceReference?,
+    val dawnTarget: DawnSurfaceTarget?,
     val surfaceTarget: Dawn4kSurfaceTarget,
 ) : TargetLease {
     

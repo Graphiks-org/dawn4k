@@ -47,19 +47,12 @@ internal class Dawn4kToolkitInstance(
         forTarget: TargetLease,
         hints: AdapterHints,
     ): Result<GPUAdapter> {
-        // For Dawn4kSurfaceTarget leases, use the surface reference for adapter selection
-        val surfaceReference = when (forTarget) {
-            is Dawn4kTargetLease -> forTarget.surfaceReference
-            else -> null
-        }
-        
-        val options = hints.toRequestAdapterOptions()
-        val result = if (surfaceReference != null) {
-            context.requestAdapter(options, surfaceReference)
-        } else {
-            context.requestAdapter(options)
-        }
-        
+        // A dawn4k surface reference belongs to the context that created it, so a target-bound
+        // adapter would be bound to a surface this context cannot present to. The surface handle
+        // opens its own presentation on the retained target instead, and the adapter is chosen
+        // for the device that presentation will use.
+        val result = context.requestAdapter(hints.toRequestAdapterOptions())
+
         result.onSuccess { adapter ->
             if (adapter is DawnAdapter) {
                 synchronized(adaptersLock) { adapters.add(adapter) }
@@ -74,8 +67,8 @@ internal class Dawn4kToolkitInstance(
             "Only Dawn4kTargetLease is supported for surface creation"
         }
         
-        // Create a surface handle for the target
-        // The device will be provided during configure()
+        // The handle opens its own dawn4k presentation on the retained target when it acquires
+        // its first frame; the configured device is the one the toolkit negotiated.
         val surfaceHandle = Dawn4kSurfaceHandle(
             surfaceTarget = lease.surfaceTarget
         )

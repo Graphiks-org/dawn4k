@@ -41,7 +41,7 @@ class Dawn4kProtocolTckTest {
 
         // A null surface reference means no real frames: expected on a GPU-less host.
         val target = Dawn4kSurfaceTarget(
-            surfaceReference = null,
+            dawnTarget = null,
             platformType = PlatformSurfaceType.MetalLayer,
             initialExtent = Extent2D(width = 640u, height = 480u)
         )

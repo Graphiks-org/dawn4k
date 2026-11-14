@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.webgpu.toolkit.migration
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.graphiks.dawn4k.toolkit.DawnSessionOptions
@@ -22,6 +23,8 @@ import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.WindowEvent
 import org.graphiks.webgpu.toolkit.surface.WindowHost
+import org.graphiks.webgpu.toolkit.surface.ToolkitSurface
+import org.graphiks.webgpu.toolkit.surface.withSurface
 import org.graphiks.webgpu.toolkit.withSession
 
 /**
@@ -65,29 +68,26 @@ public object LegacyToolkitFacadeJvm {
         val sessionConfig = sessionOptions.toSessionConfig()
         val windowConfig = windowOptions.toWindowConfig()
         
-        // Delegate to the new toolkit's withSession first
-        return withSession(
+        // Open the window first, then present to it through the toolkit's surface protocol.
+        val newWindow = windowHost.open(windowConfig)
+        return withSurface(
             extension = extension,
-            config = sessionConfig,
+            target = newWindow,
             hints = sessionOptions.toAdapterHints(),
-        ) { newSession ->
-            // Open a window using the injectable host
-            val newWindow = windowHost.open(windowConfig)
-            
+        ) { newSession, newSurface ->
             try {
                 // Map the new types to legacy-compatible wrappers
                 val legacySession = LegacyDawnSession(newSession)
-                val legacyWindow = LegacyDawnWindow(newWindow, newSession)
-                val legacyPresentation = LegacyDawnPresentation(newWindow, newSession)
-                
+                val legacyWindow = LegacyDawnWindow(newWindow, newSession, newSurface)
+                val legacyPresentation = legacyWindow.presentation
+
                 // Execute the block with a CoroutineScope receiver
                 coroutineScope {
                     block(legacySession, legacyWindow, legacyPresentation)
                 }
             } finally {
-                // Note: We do NOT close the window or session here
-                // The new toolkit's withSession manages the lifecycle
-                // The facade never closes borrowed handles
+                // The toolkit owns the surface, session and window lifetimes; the facade only
+                // hands out borrowed handles and never closes them.
             }
         }
     }
@@ -116,6 +116,7 @@ private fun DawnWindowOptions.toWindowConfig(): WindowConfig {
 public class LegacyDawnWindow(
     private val newWindow: Window,
     private val newSession: Session,
+    private val newSurface: ToolkitSurface,
 ) {
     /**
      * The GPU session associated with this window.
@@ -125,7 +126,7 @@ public class LegacyDawnWindow(
     /**
      * The presentation associated with this window.
      */
-    public val presentation: LegacyDawnPresentation = LegacyDawnPresentation(newWindow, newSession)
+    public val presentation: LegacyDawnPresentation = LegacyDawnPresentation(newSurface)
     
     /**
      * Events from the window.
@@ -193,8 +194,7 @@ public class LegacyDawnWindow(
  * It provides a compatible API surface for migration purposes.
  */
 public class LegacyDawnPresentation(
-    private val newWindow: Window,
-    private val newSession: Session,
+    private val surface: ToolkitSurface,
 ) {
     /**
      * The current surface configuration.
@@ -209,15 +209,17 @@ public class LegacyDawnPresentation(
         )
     
     /**
-     * Executes a block with a frame.
-     *
-     * **Partial / known limitation:** frame delivery is NOT wired yet — this always
-     * returns `false` and never runs [block] until the real native present wiring
-     * (surface reference extraction + `wgpuSurfacePresent`) lands in a later snapshot.
+     * Executes a block with the toolkit's frame for this window and presents it on a normal
+     * return, exactly like the toolkit's own `withFrame`.
      */
-    public suspend fun withFrame(block: suspend (org.graphiks.dawn4k.toolkit.surface.DawnFrame) -> Unit): Boolean {
-        // Partial: frame presentation is not supported through the new toolkit's Window yet
-        return false
+    public suspend fun withFrame(block: suspend (org.graphiks.webgpu.toolkit.surface.Frame) -> Unit) {
+        // The toolkit frame block is not suspending while legacy blocks are, so the frame is
+        // handed to the caller through a bounded bridge that keeps the frame open during the body.
+        coroutineScope {
+            surface.withFrame { frame ->
+                runBlocking { block(frame) }
+            }
+        }
     }
     
     /**

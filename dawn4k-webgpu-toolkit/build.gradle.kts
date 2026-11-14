@@ -46,6 +46,8 @@ kotlin {
         // :dawn4k already brings it, so keep the toolkit graph out of the native link.
         implementation(libs.webgpu.toolkit.core)
         implementation(libs.webgpu.toolkit.surface)
+        // The surface handle presents through the dawn4k toolkit's own presentation.
+        implementation(project(":dawn4k-toolkit-surface"))
         implementation(libs.kotlinx.coroutines.core)
         implementation(libs.kotlinx.atomicfu)
     }
