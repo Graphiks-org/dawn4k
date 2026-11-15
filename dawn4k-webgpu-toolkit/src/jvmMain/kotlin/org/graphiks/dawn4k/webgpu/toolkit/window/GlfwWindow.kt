@@ -65,7 +65,7 @@ internal class GlfwWindow(
     private val config: WindowConfig,
     override val runtime: WindowRuntime,
     private val surfaceTarget: Dawn4kSurfaceTarget,
-    private val dawnWindow: DawnWindow,
+    internal val dawnWindow: DawnWindow,
     private val main: DawnMainThreadLoop,
 ) : Window {
     
@@ -365,11 +365,6 @@ internal class GlfwWindow(
         
         _events.emit(WindowEvent.Resized(logicalExtent))
     }
-    
-    /**
-     * Returns the underlying DawnWindow for testing purposes.
-     */
-    internal fun getDawnWindow(): DawnWindow = dawnWindow
     
     /**
      * Returns the underlying surface target for testing purposes.

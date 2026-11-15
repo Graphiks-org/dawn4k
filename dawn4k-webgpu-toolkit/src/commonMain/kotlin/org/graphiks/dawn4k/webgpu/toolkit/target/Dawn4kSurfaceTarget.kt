@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
+import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease
@@ -82,7 +84,23 @@ class Dawn4kSurfaceTarget(
         )
     }
     
-    override suspend fun retain(): TargetLease = mutex.withLock {
+    override suspend fun retain(): TargetLease {
+        // A target that fronts a dawn4k surface retains that surface, so the lease carries the
+        // native reference the presentation needs and the dawn4k generations stay authoritative.
+        val native = dawnTarget
+        if (native != null) {
+            val lease = native.retain()
+            return Dawn4kTargetLease(
+                generation = lease.state.value.generation,
+                extent = lease.state.value.extent.toExtent2D(),
+                dawnTarget = native,
+                surfaceTarget = this,
+            ).also { it.attachNativeLease(lease) }
+        }
+        return retainHeadless()
+    }
+
+    private suspend fun retainHeadless(): TargetLease = mutex.withLock {
         // Check if surface is available and has valid extent
         if (!isAvailable || currentExtent.width == 0u || currentExtent.height == 0u) {
             throw IllegalStateException("Cannot retain surface: not available or extent is zero")
@@ -98,21 +116,26 @@ class Dawn4kSurfaceTarget(
         return lease
     }
     
-    override suspend fun retire(lease: TargetLease) = mutex.withLock {
-        // Tolerant: no-op for stale or foreign leases
-        if (lease !is Dawn4kTargetLease) {
-            return@withLock
+    override suspend fun retire(lease: TargetLease) {
+        if (lease !is Dawn4kTargetLease) return
+        val native = lease.nativeLease
+        if (native != null) {
+            // Tolerant: retiring a stale dawn4k lease is a no-op there as well.
+            runCatching { native.retire() }
+            lease.markRetired()
+            return
         }
-        
-        // Check if lease is from this target and current generation
-        if (lease.generation != currentGeneration) {
-            // Stale lease - no-op
-            return@withLock
+        mutex.withLock {
+            // Check if lease is from this target and current generation
+            if (lease.generation != currentGeneration) {
+                // Stale lease - no-op
+                return@withLock
+            }
+
+            // Remove from active leases
+            activeLeases.remove(lease)
+            lease.markRetired()
         }
-        
-        // Remove from active leases
-        activeLeases.remove(lease)
-        lease.markRetired()
     }
     
     /** The dawn4k target backing this contract target, or null for a headless target. */
@@ -139,6 +162,14 @@ class Dawn4kTargetLease(
     val dawnTarget: DawnSurfaceTarget?,
     val surfaceTarget: Dawn4kSurfaceTarget,
 ) : TargetLease {
+
+    /** The dawn4k lease this contract lease fronts, when the target presents to a native surface. */
+    internal var nativeLease: DawnTargetLease? = null
+        private set
+
+    internal fun attachNativeLease(lease: DawnTargetLease) {
+        nativeLease = lease
+    }
     
     private var isStale = false
     private var isRetired = false
@@ -162,3 +193,5 @@ class Dawn4kTargetLease(
      */
     fun isValid(): Boolean = !isStale && !isRetired
 }
+
+internal fun PixelExtent.toExtent2D(): Extent2D = Extent2D(width.toUInt(), height.toUInt())

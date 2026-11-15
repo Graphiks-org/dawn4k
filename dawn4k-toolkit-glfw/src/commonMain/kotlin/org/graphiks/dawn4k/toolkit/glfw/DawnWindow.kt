@@ -37,7 +37,8 @@ class DawnWindow internal constructor(
     val events = native.state.events
     /** The surface this window presents to; retain it to draw through another toolkit. */
     val surfaceTarget: DawnSurfaceTarget get() { check(!closed.value); native.requireLive(); return presented.surfaceTarget }
-    internal val nativeHandle: Long get() { check(!closed.value); native.requireLive(); return native.handle }
+    /** The platform window handle (GLFWwindow*), valid until the window closes. */
+    val nativeHandle: Long get() { check(!closed.value); native.requireLive(); return native.handle }
 
     /** Requests a content size in window coordinates; [extent] reports the resulting framebuffer pixels. */
     suspend fun resize(width: Int, height: Int) {

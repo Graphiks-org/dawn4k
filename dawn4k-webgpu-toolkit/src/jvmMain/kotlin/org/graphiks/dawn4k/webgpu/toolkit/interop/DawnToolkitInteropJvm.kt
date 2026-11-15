@@ -145,10 +145,11 @@ public class ToolkitWindowView(
     public val events: Flow<DawnWindowEvent> = newWindow.events.map { it.toDawnWindowEvent() }
 
     /**
-     * The native window handle.
-     * Returns 0L as it's not available from the new Window.
+     * The platform window handle (GLFWwindow*), or `0` for a window that is not GLFW-backed.
+     * Valid until the window closes.
      */
-    public val nativeHandle: Long = 0L
+    public val nativeHandle: Long
+        get() = (newWindow as? GlfwWindow)?.dawnWindow?.nativeHandle ?: 0L
 
     /**
      * Requests a resize of the window.
@@ -239,27 +240,38 @@ public class ToolkitPresentationView(
     }
     
     /**
-     * Replaces the target surface.
-     * No-op since the new Window may not support this directly.
+     * Swaps the presented target for [target], keeping the device when it supports the current
+     * format. The toolkit retains and rolls back the replacement; a failure leaves the previous
+     * target presenting.
      */
     public suspend fun replaceTarget(target: DawnSurfaceTarget) {
-        // No-op: target replacement is not supported through the new toolkit's Window
+        surface.replaceTarget(target.toSurfaceTarget())
     }
-    
+
     /**
-     * Replaces the target surface with options.
-     * No-op since the new Window may not support this directly.
+     * Swaps the presented target, applying [options] to the new configuration.
+     *
+     * The toolkit negotiates from the replacement's capabilities; dawn4k's per-option policy
+     * (required or preferred format, present mode, alpha mode) has no toolkit equivalent yet, so
+     * the surface keeps its own negotiation and the options only bound the accepted format.
      */
     public suspend fun replaceTarget(target: DawnSurfaceTarget, options: DawnPresentationOptions) {
-        // No-op: target replacement with options is not supported through the new toolkit's Window
+        val required = options.requiredFormat
+        val replacement = target.toSurfaceTarget()
+        if (required != null) {
+            require(required in replacement.capabilitiesFormats) {
+                "the replacement target does not support the required format $required"
+            }
+        }
+        surface.replaceTarget(replacement)
     }
-    
+
     /**
-     * Detaches a target by generation.
-     * No-op since the new Window may not support this directly.
+     * Detaches the target whose lease carries [generation]; [withFrame] then suspends until a
+     * replacement arrives. A generation the surface no longer holds is ignored by the toolkit.
      */
     public suspend fun detachTarget(generation: Long) {
-        // No-op: target detachment is not supported through the new toolkit's Window
+        surface.detachTarget(generation)
     }
 }
 
@@ -394,3 +406,13 @@ private const val GLFW_KEY_LEFT_SUPER = 343
 private const val GLFW_MOUSE_BUTTON_LEFT = 0
 private const val GLFW_MOUSE_BUTTON_RIGHT = 1
 private const val GLFW_MOUSE_BUTTON_MIDDLE = 2
+
+/**
+ * Presents a dawn4k target through the toolkit contract, so it can replace the surface's
+ * current target. Adapters are kept until the surface releases them.
+ */
+private fun DawnSurfaceTarget.toSurfaceTarget(): SurfaceTarget =
+    DawnTargetAdapter(this).also { targetAdapters.add(it) }
+
+/** Adapters created for target replacement; closed when the presentation view is closed. */
+private val targetAdapters = mutableListOf<DawnTargetAdapter>()
