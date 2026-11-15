@@ -242,6 +242,29 @@ public class ToolkitPresentationView(
             }
         }
     }
+
+    /**
+     * Acquires the next frame and hands it to the caller, who presents and releases it with
+     * [present] and [releaseFrame], matching dawn4k's `DawnPresentation.acquireFrame`.
+     *
+     * Unlike [withFrame], the frame stays open until [releaseFrame], so a caller can encode
+     * across several passes before presenting. Acquisition suspends while the target is
+     * unavailable or its extent is zero. A frame that is never released holds the surface, so a
+     * failure path must release it too.
+     */
+    public suspend fun acquireFrame(): org.graphiks.webgpu.toolkit.surface.Frame = surface.acquireFrame()
+
+    /**
+     * Presents [frame], the one returned by [acquireFrame]. Presenting twice fails.
+     */
+    public fun present(frame: org.graphiks.webgpu.toolkit.surface.Frame) = frame.present()
+
+    /**
+     * Releases [frame], the one returned by [acquireFrame]. Idempotent: releasing a frame twice,
+     * or a frame that is no longer current, is a no-op. A frame released without being presented
+     * is not shown.
+     */
+    public fun releaseFrame(frame: org.graphiks.webgpu.toolkit.surface.Frame) = surface.releaseFrame(frame)
     
     /**
      * Swaps the presented target for [target], keeping the device when it supports the current

@@ -75,6 +75,26 @@ la présentation ; un timeout de surface saute la frame. `window.resize(w, h)`
 utilise les coordonnées logiques du contenu ; les dimensions de la frame et
 `window.extent` utilisent les pixels physiques.
 
+`withFrame` ferme la frame à la sortie du bloc. Un renderer qui encode sur
+plusieurs passes appelle d’abord `presentation.acquireFrame()`, qui garde la
+frame ouverte, puis `presentation.present(frame)` et
+`presentation.releaseFrame(frame)` :
+
+```kotlin
+val frame = presentation.acquireFrame()
+try {
+    triangle.encodeShadowPass(frame.view)
+    triangle.encodeMainPass(frame.view, frame.extent)
+    presentation.present(frame)
+} finally {
+    presentation.releaseFrame(frame)
+}
+```
+
+`releaseFrame` est idempotent, et une frame libérée sans avoir été présentée
+n’est pas affichée. Une frame jamais libérée retient la surface : le chemin
+d’échec doit donc la libérer aussi.
+
 La forme persistante utilise `DawnMainThreadLoop.run { main ->
 openDawnWindow(mainThread = main) }`. Garder la boucle active jusqu’à la fin de
 l’arrêt. Toutes les fenêtres simultanées choisissent le même mode de possession

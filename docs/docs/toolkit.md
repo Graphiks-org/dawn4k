@@ -72,6 +72,25 @@ and releases it. A zero-sized or unavailable target suspends presentation; a
 surface timeout skips the frame. `window.resize(w, h)` requests logical content
 coordinates, whereas `window.extent` and frame extents are physical pixels.
 
+`withFrame` closes the frame when the block returns. A renderer that encodes
+across several passes first calls `presentation.acquireFrame()`, which keeps the
+frame open, then `presentation.present(frame)` and `presentation.releaseFrame(frame)`:
+
+```kotlin
+val frame = presentation.acquireFrame()
+try {
+    triangle.encodeShadowPass(frame.view)
+    triangle.encodeMainPass(frame.view, frame.extent)
+    presentation.present(frame)
+} finally {
+    presentation.releaseFrame(frame)
+}
+```
+
+`releaseFrame` is idempotent, and a frame released without being presented is not
+shown. A frame that is never released holds the surface, so the failure path must
+release it too.
+
 The persistent form is `DawnMainThreadLoop.run { main ->
 openDawnWindow(mainThread = main) }`. Keep that loop alive until window shutdown
 finishes. All concurrent toolkit windows must use the same `Owned` or `Borrowed`
