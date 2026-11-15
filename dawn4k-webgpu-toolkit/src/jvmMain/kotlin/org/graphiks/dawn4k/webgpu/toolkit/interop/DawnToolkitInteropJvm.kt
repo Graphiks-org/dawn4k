@@ -88,8 +88,8 @@ public object DawnToolkitInteropJvm {
             policy = presentationOptions.toPresentationPolicy(),
         ) { newSession, newSurface ->
             try {
-                val sessionView = ToolkitSessionView(newSession)
-                val windowView = ToolkitWindowView(newWindow, newSession, newSurface)
+                val sessionView = ToolkitSessionView(newSession, extension)
+                val windowView = ToolkitWindowView(newWindow, newSession, newSurface, extension)
                 val presentationView = windowView.presentation
 
                 // Execute the block with a CoroutineScope receiver
@@ -128,11 +128,12 @@ public class ToolkitWindowView(
     private val newWindow: Window,
     private val newSession: Session,
     private val newSurface: ToolkitSurface,
+    private val extension: Dawn4kWebGpuToolkitExtension,
 ) {
     /**
      * The GPU session associated with this window.
      */
-    public val gpu: ToolkitSessionView = ToolkitSessionView(newSession)
+    public val gpu: ToolkitSessionView = ToolkitSessionView(newSession, extension)
     
     /**
      * The presentation associated with this window.
@@ -148,6 +149,17 @@ public class ToolkitWindowView(
      * was a `SharedFlow`, while this exposes the mapped [Flow].
      */
     public val events: Flow<DawnWindowEvent> = newWindow.events.map { it.toDawnWindowEvent() }
+
+    /**
+     * The current physical extent of the window, matching dawn4k's `DawnWindow.extent`.
+     *
+     * This is the size a frame acquired now would have; it follows resizes and is zero while
+     * the window is minimised or not yet laid out.
+     */
+    public val extent: PixelExtent
+        get() = newWindow.state.value.extent.let {
+            PixelExtent(width = it.width.toInt(), height = it.height.toInt())
+        }
 
     /**
      * The platform window handle (GLFWwindow*), or `0` for a window that is not GLFW-backed.

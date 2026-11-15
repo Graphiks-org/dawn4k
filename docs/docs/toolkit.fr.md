@@ -55,6 +55,15 @@ L’appeler depuis `fun main() = runBlocking { ... }`, avec `-XstartOnFirstThrea
 Ne pas déplacer cette boucle vers un worker. La JVM demande Java 25 HotSpot et
 `--enable-native-access=ALL-UNNAMED`.
 
+`gpu` est la session à la forme dawn4k : elle publie `device`, `queue`, `context`,
+`adapter`, `state`, `manualProgress` et `createRenderTexture`, si bien que du code
+écrit contre `DawnSession` continue de fonctionner. `window` publie `extent`,
+`events`, `nativeHandle`, `resize` et `requestClose`.
+
+L’extension fonctionne en progression `Manual` : un appelant qui pilote ses
+frames lui-même fait avancer les événements via `gpu.manualProgress`, sur le
+propriétaire d’exécution de la session.
+
 ```kotlin
 withDawnWindow { gpu, window, presentation ->
     TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->

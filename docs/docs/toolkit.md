@@ -53,6 +53,14 @@ GLFW loop, creates a compatible GPU and owns its window. Call it from
 that moves process-main-thread work to a worker. JVM requires Java 25 HotSpot and
 `--enable-native-access=ALL-UNNAMED`.
 
+`gpu` is the dawn4k-shaped session: it publishes `device`, `queue`, `context`,
+`adapter`, `state`, `manualProgress` and `createRenderTexture`, so code written
+against `DawnSession` keeps working. `window` publishes `extent`, `events`,
+`nativeHandle`, `resize` and `requestClose`.
+
+The extension runs `Manual` progression, so a caller that drives frames itself
+pumps events through `gpu.manualProgress` on the session's execution owner.
+
 ```kotlin
 withDawnWindow { gpu, window, presentation ->
     TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->

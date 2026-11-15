@@ -32,6 +32,22 @@ internal class Dawn4kToolkitInstance(
      */
     private val sessionConfig: SessionConfig = SessionConfig(),
 ) : ToolkitInstance {
+
+    /**
+     * The Dawn context this instance owns, which is what a caller needs to retain an additional
+     * native surface on the same device.
+     */
+    internal val dawnContext: DawnContext get() = context
+
+    /**
+     * The adapter the session's device was requested from, or `null` before the request.
+     *
+     * The toolkit asks for exactly one adapter during startup, so the last one recorded is the
+     * session's.
+     */
+    internal val lastAdapter: DawnAdapter?
+        get() = synchronized(adaptersLock) { adapters.lastOrNull() }
+    
     
     // Guarded by adaptersLock: requestAdapter is suspend and may be called concurrently,
     // while close() iterates and clears the list from a non-suspend context.

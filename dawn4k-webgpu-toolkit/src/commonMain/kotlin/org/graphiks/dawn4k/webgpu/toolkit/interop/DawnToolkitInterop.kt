@@ -1,10 +1,19 @@
 package org.graphiks.dawn4k.webgpu.toolkit.interop
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import org.graphiks.dawn4k.DawnAdapter
+import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.DawnDevice
 import org.graphiks.dawn4k.DawnQueue
 import org.graphiks.dawn4k.DawnTexture
+import org.graphiks.dawn4k.toolkit.DawnSessionState
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.webgpu.GPUDeviceLostInfo
 import org.graphiks.webgpu.GPUTextureFormat
@@ -12,8 +21,10 @@ import org.graphiks.webgpu.GPUTextureUsage
 import org.graphiks.webgpu.descriptors.Extent3D
 import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.toolkit.AdapterHints
+import org.graphiks.webgpu.toolkit.ManualProgression
 import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
+import org.graphiks.webgpu.toolkit.SessionState
 import org.graphiks.webgpu.toolkit.withSession
 
 /**
@@ -64,7 +75,7 @@ public object DawnToolkitInterop {
             config = config,
             hints = hints,
         ) { newSession ->
-            val view = ToolkitSessionView(newSession)
+            val view = ToolkitSessionView(newSession, extension)
 
             coroutineScope {
                 block(view)
@@ -82,7 +93,10 @@ public object DawnToolkitInterop {
  */
 public class ToolkitSessionView(
     private val newSession: Session,
+    private val extension: Dawn4kWebGpuToolkitExtension,
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     /**
      * The device from the underlying session.
      * This is a DawnDevice that can be used for WebGPU operations.
@@ -96,6 +110,46 @@ public class ToolkitSessionView(
      */
     public val queue: DawnQueue
         get() = device.queue as DawnQueue
+
+    /**
+     * The Dawn context the session's device came from, matching dawn4k's `DawnSession.context`.
+     *
+     * A surface reference belongs to the context that created it, so this is what a caller needs
+     * to retain an additional native surface — `DawnSurfaceTargets.metalLayer(...)` and friends —
+     * and present to it on the same device.
+     */
+    public val context: DawnContext
+        get() = checkNotNull(extension.currentInstance()) {
+            "the session view lost the instance its extension opened"
+        }.dawnContext
+
+    /**
+     * The adapter the session's device was requested from, matching dawn4k's
+     * `DawnSession.adapter`.
+     */
+    public val adapter: DawnAdapter
+        get() = checkNotNull(extension.currentInstance()?.lastAdapter) {
+            "the session has not requested an adapter yet"
+        }
+
+    /**
+     * The lifecycle the session publishes, translated to dawn4k's `DawnSessionState`.
+     *
+     * The generic toolkit names the same phases; a loss carries no info there, so
+     * `DawnSessionState.Lost` is published without one and [awaitLost] still returns it.
+     */
+    public val state: StateFlow<DawnSessionState> = newSession.state
+        .map { it.toDawnSessionState() }
+        .stateIn(scope, SharingStarted.Eagerly, newSession.state.value.toDawnSessionState())
+
+    /**
+     * The manual progression lease, or `null` when the session is not driven manually.
+     *
+     * The dawn4k extension always runs `Manual`, so a caller must pump events through this lease
+     * on the session's execution owner.
+     */
+    public val manualProgress: ManualProgression?
+        get() = newSession.manualProgress
     
     /**
      * Executes a block with this session as the receiver.
@@ -151,4 +205,33 @@ public class ToolkitSessionView(
         // No-op: the new toolkit's withSession handles cleanup automatically
         // The facade never closes borrowed handles
     }
+}
+
+/**
+ * Translates the toolkit's session lifecycle to dawn4k's.
+ *
+ * Both name the same phases. The toolkit's loss carries no info, so `DawnSessionState.Lost` is
+ * published without one; [ToolkitSessionView.awaitLost] still returns the details.
+ */
+internal fun SessionState.toDawnSessionState(): DawnSessionState = when (this) {
+    SessionState.Ready -> DawnSessionState.Ready
+    SessionState.ShuttingDown -> DawnSessionState.ShuttingDown
+    SessionState.ShutdownTimedOut -> DawnSessionState.ShutdownTimedOut
+    SessionState.Lost -> DawnSessionState.Lost(UnknownDeviceLost)
+    SessionState.Failed -> DawnSessionState.Failed(
+        IllegalStateException("the toolkit session failed; see the session log"),
+    )
+    SessionState.Closed -> DawnSessionState.Closed
+}
+
+/**
+ * The loss dawn4k's state carries when the toolkit only reports that the device was lost.
+ *
+ * The toolkit's `SessionState.Lost` has no payload; [ToolkitSessionView.awaitLost] returns the
+ * details, so this stands in for the state flow only.
+ */
+private object UnknownDeviceLost : org.graphiks.webgpu.GPUDeviceLostInfo {
+    override val reason: org.graphiks.webgpu.GPUDeviceLostReason =
+        org.graphiks.webgpu.GPUDeviceLostReason.Unknown
+    override val message: String = "the device was lost; awaitLost carries the details"
 }
