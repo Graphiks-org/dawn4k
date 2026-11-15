@@ -23,14 +23,13 @@ import org.graphiks.webgpu.toolkit.ToolkitSurfaceHandle
  */
 internal class Dawn4kToolkitInstance(
     private val context: DawnContext,
+    override val progression: Progression = Progression.Pumped,
 ) : ToolkitInstance {
     
     // Guarded by adaptersLock: requestAdapter is suspend and may be called concurrently,
     // while close() iterates and clears the list from a non-suspend context.
     private val adaptersLock = SynchronizedObject()
     private val adapters = mutableListOf<DawnAdapter>()
-
-    override val progression: Progression = Progression.Pumped
 
     override suspend fun requestAdapter(hints: AdapterHints): Result<GPUAdapter> {
         val options = hints.toRequestAdapterOptions()

@@ -41,6 +41,16 @@ internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBack
             glfwSetCursorPosCallback(handle) { _, x, y -> target.onPointerMoved(x, y) }
             glfwSetMouseButtonCallback(handle) { _, button, action, modifiers -> target.onPointerButton(button, action, modifiers) }
             glfwSetScrollCallback(handle) { _, x, y -> target.onScroll(x, y) }
+            glfwSetCharCallback(handle) { _, codePoint -> target.onChar(String(Character.toChars(codePoint))) }
+            glfwSetCursorEnterCallback(handle) { _, entered ->
+                if (entered) {
+                    val (x, y) = cursorPosition(handle)
+                    target.onPointerEntered(x, y)
+                } else {
+                    target.onPointerExited()
+                }
+            }
+            glfwSetWindowFocusCallback(handle) { _, focused -> target.onFocus(focused) }
             return handle
         } catch (failure: Throwable) {
             windows.remove(handle)
@@ -61,6 +71,13 @@ internal class LwjglGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBack
         glfwSetWindowSize(handle, width, height)
     }
     override fun pollEvents() { requireGlfwMainThread(); glfwPollEvents() }
+
+    private fun cursorPosition(handle: Long): Pair<Double, Double> = MemoryStack.stackPush().use { stack ->
+        val x = stack.mallocDouble(1)
+        val y = stack.mallocDouble(1)
+        glfwGetCursorPos(handle, x, y)
+        x[0] to y[0]
+    }
 
     override fun pixelExtent(handle: Long): PixelExtent = MemoryStack.stackPush().use { stack ->
         val width = stack.mallocInt(1); val height = stack.mallocInt(1)

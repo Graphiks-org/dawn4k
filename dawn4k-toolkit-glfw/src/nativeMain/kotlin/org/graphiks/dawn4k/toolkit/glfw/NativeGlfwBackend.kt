@@ -69,6 +69,26 @@ internal class NativeGlfwBackend(private val main: DawnMainThreadLoop) : GlfwBac
             glfwSetScrollCallback(window, staticCFunction { pointer, x, y ->
                 callbackTarget(pointer)?.onScroll(x, y)
             })
+            glfwSetCharCallback(window, staticCFunction { pointer, codePoint ->
+                callbackTarget(pointer)?.onChar(codePoint.toInt().toChar().toString())
+            })
+            glfwSetCursorEnterCallback(window, staticCFunction { pointer, entered ->
+                val target = callbackTarget(pointer)
+                if (entered == GLFW_TRUE) {
+                    val position = memScoped {
+                        val x = alloc<DoubleVar>()
+                        val y = alloc<DoubleVar>()
+                        glfwGetCursorPos(pointer, x.ptr, y.ptr)
+                        x.value to y.value
+                    }
+                    target?.onPointerEntered(position.first, position.second)
+                } else {
+                    target?.onPointerExited()
+                }
+            })
+            glfwSetWindowFocusCallback(window, staticCFunction { pointer, focused ->
+                callbackTarget(pointer)?.onFocus(focused == GLFW_TRUE)
+            })
             return handle
         } catch (failure: Throwable) {
             windows.remove(handle)
@@ -121,6 +141,8 @@ private fun clearCallbacks(window: CPointer<GLFWwindow>) {
     glfwSetFramebufferSizeCallback(window, null); glfwSetWindowCloseCallback(window, null)
     glfwSetKeyCallback(window, null); glfwSetCursorPosCallback(window, null)
     glfwSetMouseButtonCallback(window, null); glfwSetScrollCallback(window, null)
+    glfwSetCharCallback(window, null); glfwSetCursorEnterCallback(window, null)
+    glfwSetWindowFocusCallback(window, null)
     glfwSetWindowUserPointer(window, null)
 }
 

@@ -23,6 +23,9 @@ import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindowHost
 import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
+import org.graphiks.webgpu.toolkit.surface.KeyState
+import org.graphiks.webgpu.toolkit.surface.PointerButton
+import org.graphiks.webgpu.toolkit.surface.PointerState
 import org.graphiks.webgpu.toolkit.surface.WindowEvent
 import org.graphiks.webgpu.toolkit.surface.WindowHost
 import org.graphiks.webgpu.toolkit.SurfaceTarget
@@ -279,6 +282,65 @@ private fun WindowEvent.toDawnWindowEvent(): DawnWindowEvent = when (this) {
     is WindowEvent.Resized -> DawnWindowEvent.Resized(
         PixelExtent(width = logical.width.toInt(), height = logical.height.toInt())
     )
+    is WindowEvent.Pointer -> when (state) {
+        PointerState.Moved -> DawnWindowEvent.PointerMoved(position.x, position.y)
+        PointerState.Pressed -> DawnWindowEvent.PointerButton(
+            button = (button ?: PointerButton.Primary).toGlfwButton(),
+            action = GLFW_PRESS,
+            modifiers = 0,
+        )
+        PointerState.Released -> DawnWindowEvent.PointerButton(
+            button = (button ?: PointerButton.Primary).toGlfwButton(),
+            action = GLFW_RELEASE,
+            modifiers = 0,
+        )
+    }
+    WindowEvent.PointerExited -> DawnWindowEvent.PointerExited
+    is WindowEvent.Scroll -> DawnWindowEvent.Scroll(delta.x, delta.y)
+    is WindowEvent.Key -> DawnWindowEvent.Key(
+        key = key.toGlfwKey(),
+        scanCode = 0,
+        action = if (state == KeyState.Pressed) GLFW_PRESS else GLFW_RELEASE,
+        modifiers = 0,
+        text = text,
+    )
+    is WindowEvent.FocusChanged -> DawnWindowEvent.FocusChanged(focused)
+}
+
+/** The window contract names keys; dawn4k carries the GLFW code, so the common ones map back. */
+private fun String.toGlfwKey(): Int = when (this) {
+    "Space" -> GLFW_KEY_SPACE
+    "Escape" -> GLFW_KEY_ESCAPE
+    "Enter" -> GLFW_KEY_ENTER
+    "Tab" -> GLFW_KEY_TAB
+    "Backspace" -> GLFW_KEY_BACKSPACE
+    "Delete" -> GLFW_KEY_DELETE
+    "ArrowLeft" -> GLFW_KEY_LEFT
+    "ArrowRight" -> GLFW_KEY_RIGHT
+    "ArrowUp" -> GLFW_KEY_UP
+    "ArrowDown" -> GLFW_KEY_DOWN
+    "Home" -> GLFW_KEY_HOME
+    "End" -> GLFW_KEY_END
+    "PageUp" -> GLFW_KEY_PAGE_UP
+    "PageDown" -> GLFW_KEY_PAGE_DOWN
+    "Shift" -> GLFW_KEY_LEFT_SHIFT
+    "Control" -> GLFW_KEY_LEFT_CONTROL
+    "Alt" -> GLFW_KEY_LEFT_ALT
+    "Meta" -> GLFW_KEY_LEFT_SUPER
+    else -> when {
+        length == 4 && startsWith("Key") -> GLFW_KEY_A + (this[3] - 'A')
+        length == 6 && startsWith("Digit") -> GLFW_KEY_0 + (this[5] - '0')
+        startsWith("F") && drop(1).toIntOrNull() in 1..25 -> GLFW_KEY_F1 + (drop(1).toInt() - 1)
+        else -> 0
+    }
+}
+
+private fun PointerButton.toGlfwButton(): Int = when (this) {
+    PointerButton.Primary -> GLFW_MOUSE_BUTTON_LEFT
+    PointerButton.Secondary -> GLFW_MOUSE_BUTTON_RIGHT
+    PointerButton.Middle -> GLFW_MOUSE_BUTTON_MIDDLE
+    PointerButton.Back -> 3
+    PointerButton.Forward -> 4
 }
 
 /**
@@ -304,3 +366,31 @@ internal fun DawnSessionOptions.toAdapterHints(): AdapterHints {
         forceFallbackAdapter = adapterOptions?.forceFallbackAdapter,
     )
 }
+
+// GLFW key, button and action codes (glfw3.h), mirroring the window contract's names.
+private const val GLFW_RELEASE = 0
+private const val GLFW_PRESS = 1
+private const val GLFW_KEY_SPACE = 32
+private const val GLFW_KEY_0 = 48
+private const val GLFW_KEY_A = 65
+private const val GLFW_KEY_ESCAPE = 256
+private const val GLFW_KEY_ENTER = 257
+private const val GLFW_KEY_TAB = 258
+private const val GLFW_KEY_BACKSPACE = 259
+private const val GLFW_KEY_DELETE = 261
+private const val GLFW_KEY_RIGHT = 262
+private const val GLFW_KEY_LEFT = 263
+private const val GLFW_KEY_DOWN = 264
+private const val GLFW_KEY_UP = 265
+private const val GLFW_KEY_PAGE_UP = 266
+private const val GLFW_KEY_PAGE_DOWN = 267
+private const val GLFW_KEY_HOME = 268
+private const val GLFW_KEY_END = 269
+private const val GLFW_KEY_F1 = 290
+private const val GLFW_KEY_LEFT_SHIFT = 340
+private const val GLFW_KEY_LEFT_CONTROL = 341
+private const val GLFW_KEY_LEFT_ALT = 342
+private const val GLFW_KEY_LEFT_SUPER = 343
+private const val GLFW_MOUSE_BUTTON_LEFT = 0
+private const val GLFW_MOUSE_BUTTON_RIGHT = 1
+private const val GLFW_MOUSE_BUTTON_MIDDLE = 2
