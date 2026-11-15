@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
 import org.graphiks.dawn4k.toolkit.surface.PixelExtent
@@ -24,11 +25,14 @@ import org.graphiks.webgpu.toolkit.TargetState
  *   comes from a native window; presentation goes through it
  * @param platformType The platform-specific surface type
  * @param initialExtent The initial physical extent of the surface
+ * @param presentationOptions The dawn4k negotiation policy the presentation opened for this
+ *   target applies; the toolkit's own policy is translated into it
  */
 class Dawn4kSurfaceTarget(
     private val dawnTarget: DawnSurfaceTarget?,
     val platformType: PlatformSurfaceType,
     initialExtent: Extent2D,
+    internal val presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
 ) : SurfaceTarget {
     
     private val mutex = Mutex()

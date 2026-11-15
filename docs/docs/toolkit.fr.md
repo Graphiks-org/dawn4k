@@ -97,6 +97,16 @@ préserve le GPU compatible. Sa politique optionnelle peut imposer le format du
 pipeline existant. Un remplacement échoué conserve la politique précédente.
 `detachTarget(generation)` ignore les demandes d’une ancienne génération.
 
+`presentationOptions` est la politique de négociation de `withDawnWindow` et de
+`replaceTarget(target, options)` : les formats, modes alpha et modes de
+présentation exigés doivent être annoncés par la cible sinon la configuration
+échoue, sinon la première entrée préférée supportée l’emporte. Le toolkit la
+traduit dans sa propre `PresentationPolicy`, négocie une fois et fige le
+résultat, si bien que `presentation.configuration` rapporte le format, le mode
+alpha et le mode de présentation avec lesquels la swap chain est réellement
+configurée. Le descripteur de périphérique et les délais de `sessionOptions`
+atteignent aussi le périphérique propre à la présentation.
+
 Le protocole complet d’une cible — générations, rétention, suspension
 d’acquisition et libération — figure dans la section Cycle de vie. Les appels UI
 restent sur leur propriétaire UI ; l’encodage GPU reste dans `gpu.run`.

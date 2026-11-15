@@ -8,11 +8,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
-import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease
@@ -29,6 +29,8 @@ import org.graphiks.webgpu.toolkit.TargetState
 internal class DawnTargetAdapter(
     val dawnTarget: DawnSurfaceTarget,
     private val platformType: PlatformSurfaceType = PlatformSurfaceType.MetalLayer,
+    /** The dawn4k policy the presentation opened over this target applies. */
+    private val presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
 ) : SurfaceTarget {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -46,6 +48,7 @@ internal class DawnTargetAdapter(
             dawnTarget = dawnTarget,
             platformType = platformType,
             initialExtent = snapshot.extent.toExtent2D(),
+            presentationOptions = presentationOptions,
         ).retain()
     }
 
@@ -63,7 +66,3 @@ private fun org.graphiks.dawn4k.toolkit.surface.DawnTargetState.toTargetState():
 
 private fun org.graphiks.dawn4k.toolkit.surface.PixelExtent.toExtent2D(): Extent2D =
     Extent2D(width.toUInt(), height.toUInt())
-
-/** The formats a dawn4k target can present, matching the handle's advertised capabilities. */
-internal val SurfaceTarget.capabilitiesFormats: List<GPUTextureFormat>
-    get() = listOf(GPUTextureFormat.BGRA8Unorm, GPUTextureFormat.RGBA8Unorm, GPUTextureFormat.RGBA16Float)

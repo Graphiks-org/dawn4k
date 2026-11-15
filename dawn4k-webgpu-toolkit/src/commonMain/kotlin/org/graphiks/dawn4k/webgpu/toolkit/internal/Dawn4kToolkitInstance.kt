@@ -10,6 +10,7 @@ import org.graphiks.webgpu.GPUFeatureLevel
 import org.graphiks.webgpu.GPURequestAdapterOptions
 import org.graphiks.webgpu.toolkit.AdapterHints
 import org.graphiks.webgpu.toolkit.Progression
+import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.TargetLease
 import org.graphiks.webgpu.toolkit.ToolkitInstance
 import org.graphiks.webgpu.toolkit.ToolkitSurfaceHandle
@@ -24,6 +25,12 @@ import org.graphiks.webgpu.toolkit.ToolkitSurfaceHandle
 internal class Dawn4kToolkitInstance(
     private val context: DawnContext,
     override val progression: Progression = Progression.Pumped,
+    /**
+     * The session configuration this instance was opened with. A surface handle opens its own
+     * dawn4k presentation, so it needs the device descriptor and timeouts to open that
+     * presentation the way the session asked for.
+     */
+    private val sessionConfig: SessionConfig = SessionConfig(),
 ) : ToolkitInstance {
     
     // Guarded by adaptersLock: requestAdapter is suspend and may be called concurrently,
@@ -69,7 +76,10 @@ internal class Dawn4kToolkitInstance(
         // The handle opens its own dawn4k presentation on the retained target when it acquires
         // its first frame; the configured device is the one the toolkit negotiated.
         val surfaceHandle = Dawn4kSurfaceHandle(
-            surfaceTarget = lease.surfaceTarget
+            surfaceTarget = lease.surfaceTarget,
+            deviceDescriptor = sessionConfig.deviceDescriptor,
+            startupTimeout = sessionConfig.startupTimeout,
+            shutdownTimeout = sessionConfig.shutdownTimeout,
         )
         
         return surfaceHandle

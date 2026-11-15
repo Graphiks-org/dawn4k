@@ -93,6 +93,15 @@ GPU when compatible. Its optional new presentation policy can require the
 existing pipeline format. A failed replacement preserves the previous policy.
 `detachTarget(generation)` ignores obsolete generation requests.
 
+`presentationOptions` is the negotiation policy of `withDawnWindow`, and of
+`replaceTarget(target, options)`: required formats, alpha modes and present modes
+must be advertised by the target or configuration fails, otherwise the first
+supported preferred entry wins. The toolkit translates it into its own
+`PresentationPolicy`, negotiates once, and pins the result, so
+`presentation.configuration` reports the format, alpha mode and present mode the
+swap chain is actually configured with. The device descriptor and timeouts of
+`sessionOptions` reach the presentation's own device as well.
+
 The full target protocol — generations, retention, acquisition suspension and
 retirement — is listed in the lifecycle section. Native UI calls stay on the
 supplied UI owner; GPU encoding stays in `gpu.run`. `gpu.executionOwner` is

@@ -22,6 +22,7 @@ class Dawn4kWebGpuToolkitExtension : WebGpuToolkitExtension {
         return Dawn4kToolkitInstance(
             context = org.graphiks.dawn4k.DawnContext.create(),
             progression = Progression.Manual,
+            sessionConfig = config,
         )
     }
 }

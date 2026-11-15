@@ -10,6 +10,7 @@ import org.graphiks.webgpu.toolkit.AcquiredFrame
 import org.graphiks.webgpu.toolkit.AlphaMode
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.PresentationConfiguration
+import org.graphiks.webgpu.toolkit.PresentMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -106,5 +107,21 @@ class Dawn4kSurfaceHandleTest {
             override fun close() {
             }
         }
+    }
+
+    @Test
+    fun `capabilities advertise every present mode dawn4k can configure`() = runTest {
+        val target = createSurfaceTarget()
+        val handle = Dawn4kSurfaceHandle(target)
+
+        assertEquals(
+            listOf(PresentMode.Fifo, PresentMode.FifoRelaxed, PresentMode.Mailbox, PresentMode.Immediate),
+            handle.capabilities.presentModes,
+        )
+        // A post-multiplied surface is offered, which the native compositor supports.
+        assertTrue(AlphaMode.PostMultiplied in handle.capabilities.alphaModes)
+
+        handle.close()
+        target.close()
     }
 }

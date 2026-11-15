@@ -21,6 +21,8 @@ import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindow
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindowHost
 import org.graphiks.webgpu.toolkit.Session
+import org.graphiks.webgpu.toolkit.PresentationPolicy
+import org.graphiks.webgpu.toolkit.PresentMode
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.KeyState
@@ -61,7 +63,8 @@ public object DawnToolkitInteropJvm {
      * 
      * @param windowOptions Window configuration (mapped to new WindowConfig)
      * @param sessionOptions Session configuration (mapped to new SessionConfig)
-     * @param presentationOptions Presentation configuration (currently not used in new API)
+     * @param presentationOptions Presentation policy, translated into the toolkit's
+     *   `PresentationPolicy` and negotiated by `withSurface`
      * @param block The code to execute with the session, window, and presentation
      * @return The result of the block
      */
@@ -81,6 +84,7 @@ public object DawnToolkitInteropJvm {
             extension = extension,
             target = newWindow,
             hints = sessionOptions.toAdapterHints(),
+            policy = presentationOptions.toPresentationPolicy(),
         ) { newSession, newSurface ->
             try {
                 val sessionView = ToolkitSessionView(newSession)
@@ -207,9 +211,8 @@ public class ToolkitPresentationView(
     /**
      * The configuration the toolkit negotiated for this surface, in dawn4k terms.
      *
-     * The toolkit publishes the format and alpha mode it bound; the extent is the target's
-     * physical extent, which is the size of the frames it hands out. `presentMode` is `Fifo`
-     * because the toolkit does not expose a present mode yet.
+     * The toolkit publishes the format, alpha mode and present mode it bound; the extent is the
+     * target's physical extent, which is the size of the frames it hands out.
      */
     public val configuration: DawnSurfaceConfiguration
         get() {
@@ -220,7 +223,7 @@ public class ToolkitPresentationView(
             return DawnSurfaceConfiguration(
                 format = negotiated.format,
                 alphaMode = negotiated.alphaMode.toDawnAlphaMode(),
-                presentMode = DawnPresentMode.Fifo,
+                presentMode = negotiated.presentMode.toDawnPresentMode(),
                 extent = PixelExtent(extent.width.toInt(), extent.height.toInt()),
             )
         }
@@ -251,19 +254,12 @@ public class ToolkitPresentationView(
     /**
      * Swaps the presented target, applying [options] to the new configuration.
      *
-     * The toolkit negotiates from the replacement's capabilities; dawn4k's per-option policy
-     * (required or preferred format, present mode, alpha mode) has no toolkit equivalent yet, so
-     * the surface keeps its own negotiation and the options only bound the accepted format.
+     * The replacement is retained with [options] as its negotiation policy, so the toolkit
+     * renegotiates format, alpha mode and present mode under it; a value the replacement cannot
+     * advertise fails and rolls the swap back, leaving the previous target presenting.
      */
     public suspend fun replaceTarget(target: DawnSurfaceTarget, options: DawnPresentationOptions) {
-        val required = options.requiredFormat
-        val replacement = target.toSurfaceTarget()
-        if (required != null) {
-            require(required in replacement.capabilitiesFormats) {
-                "the replacement target does not support the required format $required"
-            }
-        }
-        surface.replaceTarget(replacement)
+        surface.replaceTarget(target.toSurfaceTarget(options))
     }
 
     /**
@@ -283,6 +279,56 @@ private fun org.graphiks.webgpu.toolkit.AlphaMode.toDawnAlphaMode(): DawnAlphaMo
     org.graphiks.webgpu.toolkit.AlphaMode.Opaque -> DawnAlphaMode.Opaque
     org.graphiks.webgpu.toolkit.AlphaMode.Premultiplied -> DawnAlphaMode.Premultiplied
     org.graphiks.webgpu.toolkit.AlphaMode.PostMultiplied -> DawnAlphaMode.Unpremultiplied
+}
+
+/**
+ * Translates a toolkit present mode to its dawn4k equivalent; both name when a presented frame
+ * becomes visible relative to the display refresh.
+ */
+private fun PresentMode.toDawnPresentMode(): DawnPresentMode = when (this) {
+    PresentMode.Fifo -> DawnPresentMode.Fifo
+    PresentMode.FifoRelaxed -> DawnPresentMode.FifoRelaxed
+    PresentMode.Immediate -> DawnPresentMode.Immediate
+    PresentMode.Mailbox -> DawnPresentMode.Mailbox
+}
+
+/**
+ * Translates a dawn4k present mode to its toolkit equivalent; both name when a presented frame
+ * becomes visible relative to the display refresh.
+ */
+private fun DawnPresentMode.toToolkitPresentMode(): PresentMode = when (this) {
+    DawnPresentMode.Fifo -> PresentMode.Fifo
+    DawnPresentMode.FifoRelaxed -> PresentMode.FifoRelaxed
+    DawnPresentMode.Immediate -> PresentMode.Immediate
+    DawnPresentMode.Mailbox -> PresentMode.Mailbox
+}
+
+/**
+ * Translates the dawn4k negotiation policy to the toolkit's [PresentationPolicy].
+ *
+ * Both carry the same three axes with the same meaning: a `required` value must be advertised,
+ * otherwise the first supported `preferred` entry wins. dawn4k's `Auto` alpha mode expresses no
+ * preference, so it is dropped from the preferred list; `Inherit` has no toolkit equivalent and
+ * is dropped as well, since the toolkit only names modes a surface composites with.
+ */
+internal fun DawnPresentationOptions.toPresentationPolicy(): PresentationPolicy = PresentationPolicy(
+    preferredFormats = preferredFormats,
+    requiredFormat = requiredFormat,
+    preferredAlphaModes = preferredAlphaModes.mapNotNull { it.toToolkitAlphaMode() },
+    requiredAlphaMode = requiredAlphaMode?.toToolkitAlphaMode(),
+    preferredPresentModes = preferredPresentModes.map { it.toToolkitPresentMode() },
+    requiredPresentMode = requiredPresentMode?.toToolkitPresentMode(),
+)
+
+/**
+ * Translates a dawn4k alpha mode to its toolkit equivalent, or `null` when the toolkit has no
+ * name for it: `Auto` defers to the target and `Inherit` has no toolkit counterpart.
+ */
+private fun DawnAlphaMode.toToolkitAlphaMode(): org.graphiks.webgpu.toolkit.AlphaMode? = when (this) {
+    DawnAlphaMode.Opaque -> org.graphiks.webgpu.toolkit.AlphaMode.Opaque
+    DawnAlphaMode.Premultiplied -> org.graphiks.webgpu.toolkit.AlphaMode.Premultiplied
+    DawnAlphaMode.Unpremultiplied -> org.graphiks.webgpu.toolkit.AlphaMode.PostMultiplied
+    DawnAlphaMode.Auto, DawnAlphaMode.Inherit -> null
 }
 
 /**
@@ -356,8 +402,12 @@ private fun PointerButton.toGlfwButton(): Int = when (this) {
 }
 
 /**
- * Maps the dawn4k [DawnSessionOptions] to the toolkit [SessionConfig], carrying over the
- * startup/shutdown timeouts (the other dawn4k options have no toolkit equivalent).
+ * Maps the dawn4k [DawnSessionOptions] to the toolkit [SessionConfig]: the startup/shutdown
+ * timeouts and the device descriptor, which both contracts hand to `requestDevice`.
+ *
+ * The progression is not carried over: a dawn4k context processes its events on the thread that
+ * created it, and the extension reports `Manual` for that reason, so asking for another
+ * progression would fail startup.
  *
  * Lives in the JVM source set because the dawn4k toolkit types are only available there.
  */
@@ -365,6 +415,7 @@ internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
     return SessionConfig(
         startupTimeout = startupTimeout,
         shutdownTimeout = shutdownTimeout,
+        deviceDescriptor = deviceDescriptor,
     )
 }
 
@@ -411,8 +462,10 @@ private const val GLFW_MOUSE_BUTTON_MIDDLE = 2
  * Presents a dawn4k target through the toolkit contract, so it can replace the surface's
  * current target. Adapters are kept until the surface releases them.
  */
-private fun DawnSurfaceTarget.toSurfaceTarget(): SurfaceTarget =
-    DawnTargetAdapter(this).also { targetAdapters.add(it) }
+private fun DawnSurfaceTarget.toSurfaceTarget(
+    options: DawnPresentationOptions = DawnPresentationOptions(),
+): SurfaceTarget =
+    DawnTargetAdapter(this, presentationOptions = options).also { targetAdapters.add(it) }
 
 /** Adapters created for target replacement; closed when the presentation view is closed. */
 private val targetAdapters = mutableListOf<DawnTargetAdapter>()
