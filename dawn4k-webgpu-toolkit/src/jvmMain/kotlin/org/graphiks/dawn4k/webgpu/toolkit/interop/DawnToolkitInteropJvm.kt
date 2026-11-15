@@ -20,6 +20,7 @@ import org.graphiks.dawn4k.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindow
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindowHost
+import org.graphiks.dawn4k.webgpu.toolkit.target.DawnTargetAdapter
 import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.PresentationPolicy
 import org.graphiks.webgpu.toolkit.PresentMode

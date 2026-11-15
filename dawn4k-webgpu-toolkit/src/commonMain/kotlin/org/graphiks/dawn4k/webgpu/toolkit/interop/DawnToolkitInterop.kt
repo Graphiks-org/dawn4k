@@ -4,8 +4,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import org.graphiks.dawn4k.DawnDevice
 import org.graphiks.dawn4k.DawnQueue
+import org.graphiks.dawn4k.DawnTexture
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.webgpu.GPUDeviceLostInfo
+import org.graphiks.webgpu.GPUTextureFormat
+import org.graphiks.webgpu.GPUTextureUsage
+import org.graphiks.webgpu.descriptors.Extent3D
+import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.toolkit.AdapterHints
 import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
@@ -106,6 +111,36 @@ public class ToolkitSessionView(
      */
     public suspend fun awaitLost(): Result<GPUDeviceLostInfo> {
         return device.awaitLost()
+    }
+
+    /**
+     * Creates an offscreen render texture owned by the caller, matching dawn4k's
+     * `DawnSession.createRenderTexture`.
+     *
+     * The texture belongs to the caller and must be closed after use; the session does not
+     * track it. Rendering into it is the ordinary WebGPU path: encode a render pass with
+     * [texture]'s view as the colour attachment, then copy it out if the caller needs the
+     * pixels.
+     *
+     * @param width Texture width in texels
+     * @param height Texture height in texels
+     * @param format Texture format, which a pipeline rendering into it must match
+     * @param usage Usages the texture is created with
+     */
+    public fun createRenderTexture(
+        width: UInt,
+        height: UInt,
+        format: GPUTextureFormat,
+        usage: GPUTextureUsage = GPUTextureUsage.RenderAttachment or GPUTextureUsage.CopySrc,
+    ): DawnTexture {
+        require(width > 0u && height > 0u) { "render texture dimensions must be positive" }
+        return device.createTexture(
+            TextureDescriptor(
+                size = Extent3D(width, height),
+                format = format,
+                usage = usage,
+            ),
+        ) as DawnTexture
     }
     
     /**

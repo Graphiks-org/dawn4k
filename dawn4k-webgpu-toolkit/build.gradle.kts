@@ -40,6 +40,14 @@ kotlin {
     sourceSets.getByName("jvmMain").dependsOn(jvmSharedMain)
     sourceSets.getByName("androidMain").dependsOn(jvmSharedMain)
 
+    // The mobile views live in appleMobileMain, the parent of iosMain and tvosMain; appleMain
+    // also covers macOS, where DawnMetalView does not exist.
+    val appleMobileMain = sourceSets.create("appleMobileMain") {
+        dependsOn(sourceSets.getByName("appleMain"))
+    }
+    sourceSets.getByName("iosMain").dependsOn(appleMobileMain)
+    sourceSets.getByName("tvosMain").dependsOn(appleMobileMain)
+
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k"))
         // The toolkit artifacts carry the published webgpu-api klib; the repository's own
@@ -48,6 +56,8 @@ kotlin {
         implementation(libs.webgpu.toolkit.surface)
         // The surface handle presents through the dawn4k toolkit's own presentation.
         implementation(project(":dawn4k-toolkit-surface"))
+        // Offscreen render textures are built from the descriptor types.
+        implementation(libs.webgpu.descriptors)
         implementation(libs.kotlinx.coroutines.core)
         implementation(libs.kotlinx.atomicfu)
     }

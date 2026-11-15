@@ -12,4 +12,6 @@ enum class PlatformSurfaceType {
     X11,
     /** Wayland surface for Linux/Wayland */
     Wayland,
+    /** Android SurfaceHolder-backed surface */
+    Android,
 }

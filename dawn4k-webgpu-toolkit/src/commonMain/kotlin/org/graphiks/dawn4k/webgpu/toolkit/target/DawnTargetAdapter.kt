@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.webgpu.toolkit.interop
+package org.graphiks.dawn4k.webgpu.toolkit.target
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,9 +10,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
 import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
-import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
-import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease
@@ -26,7 +23,7 @@ import org.graphiks.webgpu.toolkit.TargetState
  * [Dawn4kSurfaceTarget]s that retain the dawn4k surface themselves. It is what lets
  * `ToolkitSurface.replaceTarget` accept a target someone already holds in dawn4k terms.
  */
-internal class DawnTargetAdapter(
+class DawnTargetAdapter(
     val dawnTarget: DawnSurfaceTarget,
     private val platformType: PlatformSurfaceType = PlatformSurfaceType.MetalLayer,
     /** The dawn4k policy the presentation opened over this target applies. */
@@ -63,6 +60,3 @@ internal class DawnTargetAdapter(
 
 private fun org.graphiks.dawn4k.toolkit.surface.DawnTargetState.toTargetState(): TargetState =
     TargetState(generation, extent.toExtent2D(), available)
-
-private fun org.graphiks.dawn4k.toolkit.surface.PixelExtent.toExtent2D(): Extent2D =
-    Extent2D(width.toUInt(), height.toUInt())
