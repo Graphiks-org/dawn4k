@@ -117,6 +117,11 @@ disposent de leur propre protocole d’admission.
 
 Android fournit `DawnSurfaceView` ; iOS et tvOS fournissent `DawnMetalView`.
 Leur `target` publie générations, disponibilité et dimensions physiques.
+`view.asToolkitTarget()` l’expose comme `SurfaceTarget` du toolkit, si bien que
+`withSurface(view.asToolkitTarget()) { _, surface -> ... }` présente dans la vue
+exactement comme dans une fenêtre de bureau : un changement de taille ou une
+surface détruite publie une nouvelle génération et le toolkit la suit. La cible
+retournée ne fait que relayer l’état de la vue et ne la ferme jamais.
 L’attacher avec la même factory de surface. Garder le job de rendu et son
 nettoyage dans le bloc GPU. Lors du retrait de la vue, annuler et rejoindre le
 rendu de façon asynchrone, puis attendre `awaitRetirement()` avant de terminer

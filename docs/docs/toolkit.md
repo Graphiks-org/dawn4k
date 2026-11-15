@@ -112,6 +112,12 @@ admission protocol.
 
 Android provides `DawnSurfaceView`; iOS and tvOS provide `DawnMetalView`. Their
 `target` publishes attachment generations, availability and physical dimensions.
+`view.asToolkitTarget()` exposes it as a toolkit `SurfaceTarget`, so
+`withSurface(view.asToolkitTarget()) { _, surface -> ... }` presents into the view
+exactly like a desktop window: a size change or a destroyed surface publishes a
+new generation and the toolkit follows it. The returned target only forwards the
+view's state and never closes it.
+
 Attach it with the same surface factory. Keep the rendering job and its resource
 cleanup inside the GPU scope. When the view disappears, cancel/join rendering
 asynchronously and `awaitRetirement()` before completing host destruction.
