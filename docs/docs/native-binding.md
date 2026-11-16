@@ -3,7 +3,7 @@
 `dawn4k-native` is the low-level binding to Google's [Dawn](https://dawn.googlesource.com/dawn)
 WebGPU implementation. It exposes the raw C API in the package
 `org.graphiks.dawn4k.native` and depends only on
-[kffi](https://central.sonatype.com/artifact/org.graphiks/kffi); it does **not**
+[kffi](https://central.sonatype.com/artifact/org.graphiks.kffi/kffi); it does **not**
 depend on the higher-level `webgpu-api` module.
 
 ## Layers
