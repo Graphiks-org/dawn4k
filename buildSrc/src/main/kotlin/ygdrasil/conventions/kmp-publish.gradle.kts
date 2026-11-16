@@ -15,6 +15,7 @@ val libraryDescription = when (project.name) {
     "dawn4k-toolkit-core" -> "Managed and manually progressed Dawn GPU sessions for Kotlin Multiplatform"
     "dawn4k-toolkit-surface" -> "Typed native presentation targets and frame lifecycles for Dawn GPU sessions"
     "dawn4k-toolkit-glfw" -> "Desktop GLFW windows and main-thread progression for Dawn GPU sessions"
+    "dawn4k-webgpu-toolkit" -> "WebGPU toolkit extension module for Dawn4k"
     else -> "Graphiks dawn4k for Kotlin Multiplatform"
 }
 

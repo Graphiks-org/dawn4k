@@ -53,6 +53,14 @@ GLFW loop, creates a compatible GPU and owns its window. Call it from
 that moves process-main-thread work to a worker. JVM requires Java 25 HotSpot and
 `--enable-native-access=ALL-UNNAMED`.
 
+`gpu` is the dawn4k-shaped session: it publishes `device`, `queue`, `context`,
+`adapter`, `state`, `manualProgress` and `createRenderTexture`, so code written
+against `DawnSession` keeps working. `window` publishes `extent`, `events`,
+`nativeHandle`, `resize` and `requestClose`.
+
+The extension runs `Manual` progression, so a caller that drives frames itself
+pumps events through `gpu.manualProgress` on the session's execution owner.
+
 ```kotlin
 withDawnWindow { gpu, window, presentation ->
     TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->
@@ -71,6 +79,25 @@ not cache or close that view yourself. Failure or cancellation abandons the fram
 and releases it. A zero-sized or unavailable target suspends presentation; a
 surface timeout skips the frame. `window.resize(w, h)` requests logical content
 coordinates, whereas `window.extent` and frame extents are physical pixels.
+
+`withFrame` closes the frame when the block returns. A renderer that encodes
+across several passes first calls `presentation.acquireFrame()`, which keeps the
+frame open, then `presentation.present(frame)` and `presentation.releaseFrame(frame)`:
+
+```kotlin
+val frame = presentation.acquireFrame()
+try {
+    triangle.encodeShadowPass(frame.view)
+    triangle.encodeMainPass(frame.view, frame.extent)
+    presentation.present(frame)
+} finally {
+    presentation.releaseFrame(frame)
+}
+```
+
+`releaseFrame` is idempotent, and a frame released without being presented is not
+shown. A frame that is never released holds the surface, so the failure path must
+release it too.
 
 The persistent form is `DawnMainThreadLoop.run { main ->
 openDawnWindow(mainThread = main) }`. Keep that loop alive until window shutdown
@@ -93,6 +120,15 @@ GPU when compatible. Its optional new presentation policy can require the
 existing pipeline format. A failed replacement preserves the previous policy.
 `detachTarget(generation)` ignores obsolete generation requests.
 
+`presentationOptions` is the negotiation policy of `withDawnWindow`, and of
+`replaceTarget(target, options)`: required formats, alpha modes and present modes
+must be advertised by the target or configuration fails, otherwise the first
+supported preferred entry wins. The toolkit translates it into its own
+`PresentationPolicy`, negotiates once, and pins the result, so
+`presentation.configuration` reports the format, alpha mode and present mode the
+swap chain is actually configured with. The device descriptor and timeouts of
+`sessionOptions` reach the presentation's own device as well.
+
 The full target protocol — generations, retention, acquisition suspension and
 retirement — is listed in the lifecycle section. Native UI calls stay on the
 supplied UI owner; GPU encoding stays in `gpu.run`. `gpu.executionOwner` is
@@ -103,6 +139,12 @@ admission protocol.
 
 Android provides `DawnSurfaceView`; iOS and tvOS provide `DawnMetalView`. Their
 `target` publishes attachment generations, availability and physical dimensions.
+`view.asToolkitTarget()` exposes it as a toolkit `SurfaceTarget`, so
+`withSurface(view.asToolkitTarget()) { _, surface -> ... }` presents into the view
+exactly like a desktop window: a size change or a destroyed surface publishes a
+new generation and the toolkit follows it. The returned target only forwards the
+view's state and never closes it.
+
 Attach it with the same surface factory. Keep the rendering job and its resource
 cleanup inside the GPU scope. When the view disappears, cancel/join rendering
 asynchronously and `awaitRetirement()` before completing host destruction.

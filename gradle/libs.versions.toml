@@ -73,6 +73,11 @@ kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
 kffi-win32-jvm = { module = "org.graphiks:kffi-win32-jvm", version.ref = "kffi" }
 kffi-x11-jvm = { module = "org.graphiks:kffi-x11-jvm", version.ref = "kffi" }
 
+# WebGPU toolkit snapshots
+webgpu-toolkit-core = { module = "org.graphiks.webgpu:toolkit-core", version.ref = "webgpu" }
+webgpu-toolkit-surface = { module = "org.graphiks.webgpu:toolkit-surface", version.ref = "webgpu" }
+webgpu-toolkit-tck = { module = "org.graphiks.webgpu:toolkit-tck", version.ref = "webgpu" }
+
 # Compose Desktop (application)
 compose-desktop-currentOs = { module = "org.jetbrains.compose.desktop:desktop", version.ref = "compose-multiplatform" }
 compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-multiplatform" }

@@ -13,12 +13,14 @@ import org.graphiks.dawn4k.toolkit.glfw.internal.*
 internal interface WindowSession {
     val gpu: DawnSession
     val presentation: DawnPresentation
+    val surfaceTarget: DawnSurfaceTarget
     suspend fun shutdown()
 }
 
 private class PresentedWindowSession(private val session: DawnPresentedSession) : WindowSession {
     override val gpu get() = session.gpu
     override val presentation get() = session.presentation
+    override val surfaceTarget get() = session.surfaceTarget
     override suspend fun shutdown() = session.shutdown()
 }
 
@@ -33,7 +35,10 @@ class DawnWindow internal constructor(
     val presentation: DawnPresentation get() = presented.presentation
     val extent = native.state.extent
     val events = native.state.events
-    internal val nativeHandle: Long get() { check(!closed.value); native.requireLive(); return native.handle }
+    /** The surface this window presents to; retain it to draw through another toolkit. */
+    val surfaceTarget: DawnSurfaceTarget get() { check(!closed.value); native.requireLive(); return presented.surfaceTarget }
+    /** The platform window handle (GLFWwindow*), valid until the window closes. */
+    val nativeHandle: Long get() { check(!closed.value); native.requireLive(); return native.handle }
 
     /** Requests a content size in window coordinates; [extent] reports the resulting framebuffer pixels. */
     suspend fun resize(width: Int, height: Int) {

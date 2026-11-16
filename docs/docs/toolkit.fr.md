@@ -55,6 +55,15 @@ L’appeler depuis `fun main() = runBlocking { ... }`, avec `-XstartOnFirstThrea
 Ne pas déplacer cette boucle vers un worker. La JVM demande Java 25 HotSpot et
 `--enable-native-access=ALL-UNNAMED`.
 
+`gpu` est la session à la forme dawn4k : elle publie `device`, `queue`, `context`,
+`adapter`, `state`, `manualProgress` et `createRenderTexture`, si bien que du code
+écrit contre `DawnSession` continue de fonctionner. `window` publie `extent`,
+`events`, `nativeHandle`, `resize` et `requestClose`.
+
+L’extension fonctionne en progression `Manual` : un appelant qui pilote ses
+frames lui-même fait avancer les événements via `gpu.manualProgress`, sur le
+propriétaire d’exécution de la session.
+
 ```kotlin
 withDawnWindow { gpu, window, presentation ->
     TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->
@@ -74,6 +83,26 @@ abandonne et libère la frame. Une cible indisponible ou de taille nulle suspend
 la présentation ; un timeout de surface saute la frame. `window.resize(w, h)`
 utilise les coordonnées logiques du contenu ; les dimensions de la frame et
 `window.extent` utilisent les pixels physiques.
+
+`withFrame` ferme la frame à la sortie du bloc. Un renderer qui encode sur
+plusieurs passes appelle d’abord `presentation.acquireFrame()`, qui garde la
+frame ouverte, puis `presentation.present(frame)` et
+`presentation.releaseFrame(frame)` :
+
+```kotlin
+val frame = presentation.acquireFrame()
+try {
+    triangle.encodeShadowPass(frame.view)
+    triangle.encodeMainPass(frame.view, frame.extent)
+    presentation.present(frame)
+} finally {
+    presentation.releaseFrame(frame)
+}
+```
+
+`releaseFrame` est idempotent, et une frame libérée sans avoir été présentée
+n’est pas affichée. Une frame jamais libérée retient la surface : le chemin
+d’échec doit donc la libérer aussi.
 
 La forme persistante utilise `DawnMainThreadLoop.run { main ->
 openDawnWindow(mainThread = main) }`. Garder la boucle active jusqu’à la fin de
@@ -97,6 +126,16 @@ préserve le GPU compatible. Sa politique optionnelle peut imposer le format du
 pipeline existant. Un remplacement échoué conserve la politique précédente.
 `detachTarget(generation)` ignore les demandes d’une ancienne génération.
 
+`presentationOptions` est la politique de négociation de `withDawnWindow` et de
+`replaceTarget(target, options)` : les formats, modes alpha et modes de
+présentation exigés doivent être annoncés par la cible sinon la configuration
+échoue, sinon la première entrée préférée supportée l’emporte. Le toolkit la
+traduit dans sa propre `PresentationPolicy`, négocie une fois et fige le
+résultat, si bien que `presentation.configuration` rapporte le format, le mode
+alpha et le mode de présentation avec lesquels la swap chain est réellement
+configurée. Le descripteur de périphérique et les délais de `sessionOptions`
+atteignent aussi le périphérique propre à la présentation.
+
 Le protocole complet d’une cible — générations, rétention, suspension
 d’acquisition et libération — figure dans la section Cycle de vie. Les appels UI
 restent sur leur propriétaire UI ; l’encodage GPU reste dans `gpu.run`.
@@ -107,6 +146,11 @@ disposent de leur propre protocole d’admission.
 
 Android fournit `DawnSurfaceView` ; iOS et tvOS fournissent `DawnMetalView`.
 Leur `target` publie générations, disponibilité et dimensions physiques.
+`view.asToolkitTarget()` l’expose comme `SurfaceTarget` du toolkit, si bien que
+`withSurface(view.asToolkitTarget()) { _, surface -> ... }` présente dans la vue
+exactement comme dans une fenêtre de bureau : un changement de taille ou une
+surface détruite publie une nouvelle génération et le toolkit la suit. La cible
+retournée ne fait que relayer l’état de la vue et ne la ferme jamais.
 L’attacher avec la même factory de surface. Garder le job de rendu et son
 nettoyage dans le bloc GPU. Lors du retrait de la vue, annuler et rejoindre le
 rendu de façon asynchrone, puis attendre `awaitRetirement()` avant de terminer

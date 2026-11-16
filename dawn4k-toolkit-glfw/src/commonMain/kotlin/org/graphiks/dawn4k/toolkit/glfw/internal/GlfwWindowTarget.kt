@@ -52,9 +52,16 @@ internal open class GlfwWindowTarget(
     fun onKey(key: Int, scanCode: Int, action: Int, modifiers: Int) =
         event(DawnWindowEvent.Key(key, scanCode, action, modifiers))
 
+    /** Character input for the key that produced it; the platform reports it after the key press. */
+    fun onChar(text: String) =
+        event(DawnWindowEvent.Key(key = 0, scanCode = 0, action = 1, modifiers = 0, text = text))
+
     fun onPointerMoved(x: Double, y: Double) = event(DawnWindowEvent.PointerMoved(x, y))
+    fun onPointerEntered(x: Double, y: Double) = event(DawnWindowEvent.PointerMoved(x, y))
+    fun onPointerExited() = event(DawnWindowEvent.PointerExited)
     fun onPointerButton(button: Int, action: Int, modifiers: Int) =
         event(DawnWindowEvent.PointerButton(button, action, modifiers))
 
     fun onScroll(x: Double, y: Double) = event(DawnWindowEvent.Scroll(x, y))
+    fun onFocus(focused: Boolean) = event(DawnWindowEvent.FocusChanged(focused))
 }
