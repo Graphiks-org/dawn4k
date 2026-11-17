@@ -178,3 +178,33 @@ tasks.withType<AbstractTestTask>().configureEach {
     outputs.upToDateWhen { false }
     outputs.doNotCacheIf("GPU availability must be checked at execution time") { true }
 }
+
+// The Android window JNI shim is a tiny C file compiled with the NDK clang into jniLibs;
+// the AAR merge tasks must wait for it, exactly as the legacy surface module did.
+val androidSdk = providers.environmentVariable("ANDROID_HOME")
+    .orElse(providers.environmentVariable("ANDROID_SDK_ROOT"))
+    .orElse("${System.getProperty("user.home")}/Library/Android/sdk")
+val buildAndroidWindow = listOf("arm64-v8a" to "aarch64-linux-android", "x86_64" to "x86_64-linux-android").map { (abi, triple) ->
+    tasks.register<Exec>("buildToolkitAndroidWindow${if (abi == "arm64-v8a") "Arm64" else "X64"}") {
+        val output = layout.projectDirectory.file("src/androidMain/jniLibs/$abi/libdawn4k_toolkit_window.so")
+        inputs.file("src/androidMain/c/android_window.c")
+        inputs.property("ndk", "28.2.13676358")
+        outputs.file(output)
+        doFirst {
+            val os = System.getProperty("os.name").lowercase()
+            val host = when {
+                "mac" in os -> "darwin-x86_64"
+                "windows" in os -> "windows-x86_64"
+                else -> "linux-x86_64"
+            }
+            val suffix = if ("windows" in os) ".cmd" else ""
+            val compiler = "${androidSdk.get()}/ndk/28.2.13676358/toolchains/llvm/prebuilt/$host/bin/${triple}24-clang$suffix"
+            output.asFile.parentFile.mkdirs()
+            commandLine(compiler, "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
+                "src/androidMain/c/android_window.c", "-landroid", "-o", output.asFile.absolutePath)
+        }
+    }
+}
+tasks.matching {
+    it.name in setOf("mergeAndroidMainJniLibFolders", "mergeAndroidDeviceTestJniLibFolders", "mergeAndroidDeviceTestNativeLibs", "bundleAndroidMainAar")
+}.configureEach { dependsOn(buildAndroidWindow) }

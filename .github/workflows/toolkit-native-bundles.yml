@@ -25,7 +25,7 @@ jobs:
       - name: Build verified Linux publication bundles
         run: |
           python3 scripts/tests/test_dawn_linux_bundle.py
-          ./gradlew :dawn4k-native:prepareLinuxDawnCarrier :dawn4k-toolkit-glfw:buildGlfwLinuxX64 \
+          ./gradlew :dawn4k-native:prepareLinuxDawnCarrier :dawn4k-webgpu-toolkit:buildGlfwLinuxX64 \
             -Pdawn.targets=linuxX64 --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
@@ -33,6 +33,6 @@ jobs:
           path: |
             dawn4k-native/build/dawnCarrier/linuxX64/libdawn4k_dawn.a
             dawn4k-native/build/dawnCarrier/linuxX64/bundle.json
-            dawn4k-toolkit-glfw/build/glfw/linuxX64/lib*.a
-            dawn4k-toolkit-glfw/build/glfw/linuxX64/bundle.properties
+            dawn4k-webgpu-toolkit/build/glfw/linuxX64/lib*.a
+            dawn4k-webgpu-toolkit/build/glfw/linuxX64/bundle.properties
           if-no-files-found: error
