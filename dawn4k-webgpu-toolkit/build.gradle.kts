@@ -16,8 +16,8 @@ plugins {
     id("ygdrasil.conventions.dawn-native-linkage")
 }
 
-// GLFW is built from the pinned source and linked into the native targets, exactly as the
-// former dawn4k-toolkit-glfw module did before the desktop window layer moved here.
+// GLFW is built from the pinned source and linked into the desktop native targets,
+// where the desktop window layer lives.
 val prepareGlfw by tasks.registering(PrepareGlfwTask::class) {
     lockFile.set(rootProject.layout.projectDirectory.file("bindings/glfw.lock.json"))
     outputDirectory.set(layout.buildDirectory.dir("glfw/source"))

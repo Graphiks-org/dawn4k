@@ -12,8 +12,8 @@ import org.graphiks.webgpu.toolkit.surface.WindowRuntime
 /**
  * GLFW-based implementation of [WindowHost] that creates native windows using GLFW.
  *
- * This host adapts the dawn4k-toolkit-glfw [DawnWindow] to the webgpu-toolkit-surface
- * [Window] contract, translating between the two event systems and lifecycle models.
+ * This host adapts the [DawnWindow] to the toolkit [Window] contract, translating
+ * between the two event systems and lifecycle models.
  *
  * This implementation is JVM-only as it depends on GLFW through LWJGL.
  *

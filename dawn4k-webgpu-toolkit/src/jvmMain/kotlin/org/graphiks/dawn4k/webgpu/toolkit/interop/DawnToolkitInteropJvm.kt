@@ -121,7 +121,7 @@ private fun DawnWindowOptions.toWindowConfig(): WindowConfig {
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
- * **Important:** This is NOT the actual DawnWindow class from dawn4k-toolkit-glfw.
+ * **Important:** This is a view over the toolkit's `Window`, not a legacy `DawnWindow`.
  * It offers the same members so dawn4k-style code keeps compiling.
  */
 public class ToolkitWindowView(
@@ -214,7 +214,7 @@ public class ToolkitWindowView(
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
- * **Important:** This is NOT the actual DawnPresentation class from dawn4k-toolkit-surface.
+ * **Important:** This is a view over the toolkit's presentation, not a legacy `DawnPresentation`.
  * It offers the same members so dawn4k-style code keeps compiling.
  */
 public class ToolkitPresentationView(

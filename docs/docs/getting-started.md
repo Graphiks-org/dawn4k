@@ -29,9 +29,9 @@ See [Native Dawn binding](native-binding.md) for generation and linkage.
 ## Managed sessions and presentation
 
 For application code that wants the toolkit to own bootstrap, one GPU thread,
-progression and shutdown, add `org.graphiks:dawn4k-toolkit-core` at the same
-release version as the backend. Add `dawn4k-toolkit-surface` for an existing native
-view or `dawn4k-toolkit-glfw` for toolkit-owned desktop windows. Use
+progression and shutdown, add `org.graphiks:dawn4k-webgpu-toolkit` at the same
+release version as the backend: it covers headless sessions, existing native
+views and toolkit-owned desktop windows. Use
 `withDawnSession { ... }` inside a coroutine instead of writing a backend pump.
 See [Dawn4k toolkit](toolkit.md) for complete runnable compute/triangle examples,
 Android/Apple hosts, manual progression and timeout/retirement rules. The lower
