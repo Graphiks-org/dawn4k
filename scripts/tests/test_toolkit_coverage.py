@@ -92,7 +92,7 @@ class CoverageFixtures(unittest.TestCase):
 
     def test_rejectsX11FallbackReportedAsWayland(self):
         suite = ET.Element("testsuite", tests="3", failures="0", errors="0", skipped="0")
-        for name in sorted(verify.GPU_TESTS[verify.MODULES[0]]): ET.SubElement(suite, "testcase", name=name)
+        for name in sorted({"liveWindowRendersAndCloses"}): ET.SubElement(suite, "testcase", name=name)
         ET.ElementTree(suite).write(self.junit)
         self.stdout.write_text("TOOLKIT_GPU backend=Vulkan required=1\nTOOLKIT_PRESENTATION kind=x11\n")
         record = dict(self.record, module=verify.MODULES[0], target="jvm-linuxX64", presentation="wayland", backend="Vulkan")

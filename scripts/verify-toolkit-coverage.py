@@ -17,10 +17,10 @@ MODULES = toolkit_ci.MODULES
 COMMON_TARGETS = {"jvm", "android", "macosArm64", "linuxX64", "iosArm64", "iosSimulatorArm64", "iosX64", "tvosArm64", "tvosSimulatorArm64"}
 DECLARED = {MODULES[0]: COMMON_TARGETS}
 NATIVE_NAMES = {"macos_arm64": "macosArm64", "linux_x64": "linuxX64", "ios_arm64": "iosArm64", "ios_simulator_arm64": "iosSimulatorArm64", "ios_x64": "iosX64", "tvos_arm64": "tvosArm64", "tvos_simulator_arm64": "tvosSimulatorArm64"}
+# Only the headless presentation runs the headless GPU cases; presentation surfaces
+# (metal/x11/wayland/win32/android) are covered by the live window tests, the old default.
 GPU_TESTS = {
-    MODULES[0]: {"headlessComputeReturnsExpectedValues", "offscreenTriangleHasExpectedPixel",
-                "compatibleSurfaceSelectsPresentingAdapter", "presentationResizePreservesDevice",
-                "frameCancellationReleasesViewThenTexture"},
+    MODULES[0]: {"headlessComputeReturnsExpectedValues", "offscreenTriangleHasExpectedPixel"},
 }
 
 class VerificationError(ValueError):
@@ -143,7 +143,8 @@ def verify_coverage(records, required):
                     raise VerificationError(f"{module}/{target}: failed or skipped test: {case.get('name')}")
                 names.add(case.get("name", "").split("[")[0].split("(")[0].rsplit(".", 1)[-1])
             output += [node.text or "" for node in root.iter("system-out")]
-        expected = GPU_TESTS.get(module, {"liveWindowRendersAndCloses" if target.startswith("jvm-") else "nativeWindowUsesSameLifecycleContract"})
+        default = {"liveWindowRendersAndCloses" if target.startswith("jvm-") else "nativeWindowUsesSameLifecycleContract"}
+        expected = GPU_TESTS[module] if presentation == "headless" else default
         if not expected <= names:
             raise VerificationError(f"{module}/{target}: missing GPU cases {sorted(expected - names)}")
         output += [Path(path).read_text() for path in record.get("stdout", [])]
