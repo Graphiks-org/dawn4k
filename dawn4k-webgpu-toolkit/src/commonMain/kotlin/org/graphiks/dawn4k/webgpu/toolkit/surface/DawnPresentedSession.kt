@@ -38,7 +38,10 @@ class DawnPresentedSession internal constructor(
      * a second call is a no-op.
      */
     suspend fun shutdown() {
-        presentation.retire()
+        gpu.requireOutsideGpuBlock()
+        // Retire on the context owner: the caller's thread may be mid-processEvents, where a
+        // native close is rejected.
+        gpu.run { presentation.retire() }
         gpu.manualProgress?.stop()
         session.shutdown()
     }

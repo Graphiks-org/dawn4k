@@ -34,6 +34,9 @@ import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.SessionState
 import org.graphiks.webgpu.toolkit.withSession
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 
 /**
  * Exposes the dawn4k toolkit's own session API on top of the generic WebGPU toolkit.
@@ -205,10 +208,19 @@ public class ToolkitSessionView(
      */
     public suspend fun <T> run(block: suspend CoroutineScope.(ToolkitSessionView) -> T): T {
         val owner = extension.currentInstance()?.dawnOwner
-        return if (owner != null) {
-            owner.run { coroutineScope { block(this@ToolkitSessionView) } }
-        } else {
-            coroutineScope { block(this@ToolkitSessionView) }
+        val admitted: suspend CoroutineScope.() -> T = {
+            withContext(GpuBlockAdmission()) { block(this@ToolkitSessionView) }
+        }
+        return if (owner != null) owner.run { coroutineScope(admitted) } else coroutineScope(admitted)
+    }
+
+    /**
+     * Fails when called from inside this view's own [run] block: a session never shuts down
+     * from its own GPU work, the block must return first.
+     */
+    internal suspend fun requireOutsideGpuBlock() {
+        check(coroutineContext[GpuBlockAdmission] == null) {
+            "a session does not shut down from inside its own GPU block"
         }
     }
 
@@ -223,6 +235,7 @@ public class ToolkitSessionView(
     public suspend fun shutdown() {
         // `EventLoop` sessions have no driver to stop; the extension's own pump keeps running
         // until the instance closes, and the core runs the teardown on the instance's owner.
+        requireOutsideGpuBlock()
         session.shutdown()
     }
 
@@ -262,6 +275,11 @@ public class ToolkitSessionView(
             ),
         ) as DawnTexture
     }
+}
+
+/** Coroutine-context marker for code running inside [ToolkitSessionView.run]. */
+private class GpuBlockAdmission : AbstractCoroutineContextElement(GpuBlockAdmission) {
+    companion object Key : CoroutineContext.Key<GpuBlockAdmission>
 }
 
 /**
