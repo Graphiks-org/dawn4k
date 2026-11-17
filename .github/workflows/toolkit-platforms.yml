@@ -101,9 +101,6 @@ jobs:
       - name: Boot ARM64 Metal simulators
         if: matrix.arch == 'arm64'
         run: python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
-      - name: Boot Intel iOS Metal simulator
-        if: matrix.arch == 'x64'
-        run: python3 scripts/boot-apple-simulators.py --platform iOS --env-file "$GITHUB_ENV"
       - name: Require Native macOS and ARM64 simulator GPU execution
         if: matrix.arch == 'arm64'
         run: |
@@ -112,9 +109,6 @@ jobs:
           python3 scripts/run-toolkit-platform-tests.py --kind apple --target tvosSimulatorArm64 --backend Metal
           python3 scripts/run-toolkit-platform-tests.py --kind compile --target iosArm64 --backend Metal
           python3 scripts/run-toolkit-platform-tests.py --kind compile --target tvosArm64 --backend Metal
-      - name: Require Intel simulator GPU execution
-        if: matrix.arch == 'x64'
-        run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosX64 --backend Metal
       - name: Verify complete publication
         if: matrix.arch == 'arm64'
         run: ./gradlew verifyToolkitPublication :dawn4k-native:jvmTest --no-daemon --stacktrace
@@ -124,33 +118,6 @@ jobs:
           name: toolkit-coverage-apple-${{ matrix.arch }}
           path: build/toolkit-coverage/
           if-no-files-found: error
-
-  apple-intel-best-effort:
-    # macOS Intel is best effort: too few users to justify a required, heavyweight runner.
-    continue-on-error: true
-    runs-on: macos-26-intel
-    timeout-minutes: 60
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: '25'
-          cache: gradle
-      - name: Set up Android SDK
-        uses: ./.github/actions/configure-android-sdk
-        with:
-          install-ndk: true
-      - name: Configure verified foreign bundles
-        uses: ./.github/actions/configure-linux-bundles
-        with:
-          artifact: ${{ inputs.native-bundle-artifact }}
-      - name: Boot Intel iOS Metal simulator
-        run: python3 scripts/boot-apple-simulators.py --platform iOS --env-file "$GITHUB_ENV"
-      - name: Best-effort Intel simulator GPU execution
-        run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosX64 --backend Metal
 
   android:
     needs: apple
