@@ -21,16 +21,16 @@ import java.lang.foreign.ValueLayout.ADDRESS
 import java.lang.foreign.ValueLayout.JAVA_INT
 import java.lang.foreign.ValueLayout.JAVA_LONG
 import kotlinx.coroutines.*
-import org.graphiks.dawn4k.toolkit.*
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 
 class LinuxSurfaceTest {
     @Test fun rejectsNullDisplayOrWindowBeforeCallingNativeCode() {
-        val owner = org.graphiks.dawn4k.toolkit.surface.DawnPlatformOwners.awt()
-        val states = kotlinx.coroutines.flow.MutableStateFlow(org.graphiks.dawn4k.toolkit.surface.DawnTargetState(1,
-            org.graphiks.dawn4k.toolkit.surface.PixelExtent(16, 16), true))
-        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(0L, 1uL, owner, states, CountingTargetRetention()) }
-        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTargets.x11(1L, 0uL, owner, states, CountingTargetRetention()) }
+        val owner = org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPlatformOwners.awt()
+        val states = kotlinx.coroutines.flow.MutableStateFlow(org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetState(1,
+            org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent(16, 16), true))
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTargets.x11(0L, 1uL, owner, states, CountingTargetRetention()) }
+        assertFailsWith<IllegalArgumentException> { org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTargets.x11(1L, 0uL, owner, states, CountingTargetRetention()) }
     }
 
     @Test fun linuxNegotiatesAndPresentsOnAnXlibSurface() = runBlocking {
@@ -60,7 +60,7 @@ class LinuxSurfaceTest {
                     .invokeWithArguments(display, 0)
                 java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { dispatcher ->
                     val states = kotlinx.coroutines.flow.MutableStateFlow(DawnTargetState(1,
-                        org.graphiks.dawn4k.toolkit.surface.PixelExtent(128, 96), true))
+                        org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent(128, 96), true))
                     val retention = CountingTargetRetention()
                     val target = DawnSurfaceTargets.x11(display.address(), window.toULong(),
                         DawnPlatformOwner.fromDispatcher(dispatcher), states, retention)

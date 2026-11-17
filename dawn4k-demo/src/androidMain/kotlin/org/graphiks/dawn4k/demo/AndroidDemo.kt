@@ -8,7 +8,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.*
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceView
 
 /** Packaging activity delegates here; simulation and controls stay in the KMP module. */
 @Composable

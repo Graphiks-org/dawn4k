@@ -3,7 +3,10 @@ package org.graphiks.dawn4k.demo
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
-import org.graphiks.dawn4k.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.SessionConfig
+import org.graphiks.webgpu.toolkit.openSession
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
@@ -13,7 +16,10 @@ import kotlin.test.assertTrue
 
 class AndroidParticleRenderTest {
     @Test fun vulkanParticleDrawProducesNonblackPixelsNotJustSuccessfulPresent() = runBlocking {
-        withDawnSession(DawnSessionOptions(config = DawnConfig(DawnBackend.Vulkan))) { gpu ->
+        val extension = Dawn4kWebGpuToolkitExtension(DawnConfig(DawnBackend.Vulkan))
+        val session = openSession(extension, SessionConfig())
+        try {
+            val gpu = ToolkitSessionView(session, extension)
                     val device = gpu.device
                     device.pushErrorScope(GPUErrorFilter.Validation)
                     device.createTexture(TextureDescriptor(size = Extent3D(64u, 64u),
@@ -45,6 +51,10 @@ class AndroidParticleRenderTest {
                             }
                         }
                     }
+        } finally {
+            // A dawn4k session is `Manual`: its driver ends before the session may shut down.
+            session.manualProgress?.stop()
+            session.shutdown()
         }
     }
 }

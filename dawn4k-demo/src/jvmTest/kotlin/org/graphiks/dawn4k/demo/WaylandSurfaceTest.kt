@@ -8,13 +8,13 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.*
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 
 class WaylandSurfaceTest {
     @Test fun rejectsNullDisplayOrSurfaceBeforeCallingNativeCode() {
         val owner = DawnPlatformOwners.awt()
-        val states = MutableStateFlow(DawnTargetState(1, org.graphiks.dawn4k.toolkit.surface.PixelExtent(16, 16), true))
+        val states = MutableStateFlow(DawnTargetState(1, org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent(16, 16), true))
         assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(0L, 1L, owner, states, CountingTargetRetention()) }
         assertFailsWith<IllegalArgumentException> { DawnSurfaceTargets.wayland(1L, 0L, owner, states, CountingTargetRetention()) }
     }

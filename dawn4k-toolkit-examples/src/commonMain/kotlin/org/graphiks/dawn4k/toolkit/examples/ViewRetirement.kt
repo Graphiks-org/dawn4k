@@ -1,4 +1,4 @@
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.*
 

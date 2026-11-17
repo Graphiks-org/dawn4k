@@ -14,7 +14,7 @@ import org.graphiks.kffi.objc.CGRect
 import org.graphiks.kffi.objc.CGPoint
 import org.graphiks.kffi.objc.CGSize
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.coroutines.CoroutineContext

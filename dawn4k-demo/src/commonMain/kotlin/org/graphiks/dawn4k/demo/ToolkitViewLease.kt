@@ -6,7 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
 
 /**
  * Adapts a toolkit-owned view target (DawnSurfaceView on Android, DawnMetalView on Apple)

@@ -4,8 +4,8 @@ import androidx.compose.ui.awt.ComposeWindow
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.*
 import org.graphiks.dawn4k.*
-import org.graphiks.dawn4k.toolkit.*
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import kotlin.test.*
 
 class DemoToolkitLifecycleTest {

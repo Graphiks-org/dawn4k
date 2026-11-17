@@ -1,5 +1,5 @@
-package org.graphiks.dawn4k.toolkit.examples.compute
+package org.graphiks.dawn4k.webgpu.toolkit.examples.compute
 
-import org.graphiks.dawn4k.toolkit.examples.computeMain
+import org.graphiks.dawn4k.webgpu.toolkit.examples.computeMain
 
 fun main() = computeMain()

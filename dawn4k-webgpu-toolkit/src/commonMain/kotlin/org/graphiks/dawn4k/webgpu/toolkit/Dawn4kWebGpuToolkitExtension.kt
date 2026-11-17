@@ -2,6 +2,7 @@ package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.webgpu.toolkit.internal.Dawn4kToolkitInstance
 import org.graphiks.webgpu.toolkit.Progression
 import org.graphiks.webgpu.toolkit.SessionConfig
@@ -12,11 +13,21 @@ import org.graphiks.webgpu.toolkit.WebGpuToolkitExtension
  * Dawn4k implementation of the [WebGpuToolkitExtension] SPI.
  *
  * The extension fronts dawn4k's own Dawn context, so every toolkit session owns one context,
- * its adapters and its device. The progression is [Progression.Manual]: the toolkit's `Pumped`
- * loop would call [ToolkitInstance.pumpEvents] from a background coroutine, while a dawn4k
- * context processes its events on the thread that created it, which is the caller's.
+ * its adapters and its device.
+ *
+ * The progression is [Progression.Manual], and the instance drives its own pump on a dedicated
+ * thread: a dawn4k context processes its events on the thread that created it, so the toolkit's
+ * `Pumped` loop, which would pump from whatever coroutine it runs on, cannot be used. The
+ * instance owns that thread and pumps from it, which is what dawn4k's own `Managed` execution
+ * does, and what a caller of a surface session expects: frames advance on their own.
  */
-class Dawn4kWebGpuToolkitExtension : WebGpuToolkitExtension {
+class Dawn4kWebGpuToolkitExtension(
+    /**
+     * Backend configuration of the Dawn context each session opens. The default picks the
+     * platform backend; a test or an application chooses another one here.
+     */
+    private val dawnConfig: DawnConfig = DawnConfig(),
+) : WebGpuToolkitExtension {
 
     override val id: String = "dawn4k"
 
@@ -32,11 +43,19 @@ class Dawn4kWebGpuToolkitExtension : WebGpuToolkitExtension {
     private var lastOpened: Dawn4kToolkitInstance? = null
 
     override fun open(config: SessionConfig): ToolkitInstance {
+        // A dawn4k context advances only when its events are processed, and it must be driven
+        // from the thread that created it. The instance therefore owns a pinned thread, creates
+        // its context there and pumps from it: `EventLoop` is the progression that says the
+        // extension drives its own loop, so the toolkit neither pumps nor hands a driver over.
+        val owner = DawnExecutionOwner.dedicated("dawn4k-toolkit")
+        val context = owner.runBlocking { org.graphiks.dawn4k.DawnContext.create(dawnConfig) }
         val instance = Dawn4kToolkitInstance(
-            context = org.graphiks.dawn4k.DawnContext.create(),
-            progression = Progression.Manual,
+            context = context,
+            owner = owner,
+            progression = Progression.EventLoop,
             sessionConfig = config,
         )
+        instance.startPump()
         synchronized(opened) { lastOpened = instance }
         return instance
     }

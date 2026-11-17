@@ -1,0 +1,108 @@
+package org.graphiks.dawn4k.webgpu.toolkit.surface
+
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.DawnSessionState
+import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.*
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+
+/** Uses the GPU session owner. The application continues to own an external window or view. */
+class DawnPresentation internal constructor(
+    private val gpu: ToolkitSessionView,
+    private val controller: PresentationController,
+    private val factory: SurfaceFactory,
+) {
+    val configuration = controller.configuration
+    private val monitoring = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val frames = Mutex()
+    private var watch: Job? = null
+
+    private class FrameUse(val presentation: DawnPresentation) : AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<FrameUse>
+    }
+
+    private suspend fun checkOutsideFrame() {
+        check(currentCoroutineContext()[FrameUse]?.presentation !== this) {
+            "finish the current frame before replacing or detaching its target"
+        }
+    }
+
+    internal fun observe(target: DawnSurfaceTarget) {
+        watch?.cancel()
+        val generation = controller.activeGeneration ?: return
+        watch = monitoring.launch {
+            target.state.collect { state ->
+                if (!state.available || state.generation != generation) runCatching {
+                    withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
+                }
+            }
+        }
+    }
+
+    suspend fun withFrame(block: suspend (DawnFrame) -> Unit): Boolean = gpu.run {
+        checkOutsideFrame()
+        frames.withLock {
+            val frame = controller.acquireFrame() ?: return@withLock false
+            withContext(FrameUse(this@DawnPresentation)) { frame.use { block(it) } }
+            true
+        }
+    }
+
+    /**
+     * Acquires one frame and hands it to the caller, who presents and closes it. The frame is
+     * held until [DawnFrame.close], so the next acquisition waits for it. Returns null when the
+     * target cannot be drawn to right now.
+     */
+    suspend fun acquireFrame(): DawnFrame? = gpu.run {
+        checkOutsideFrame()
+        frames.withLock { controller.acquireFrame() }
+    }
+
+    suspend fun replaceTarget(target: DawnSurfaceTarget) = replaceTargetWithOptions(target, null)
+
+    /** Applies the new policy only after successful attachment, for example to retain an existing pipeline's format. */
+    suspend fun replaceTarget(target: DawnSurfaceTarget, options: DawnPresentationOptions) =
+        replaceTargetWithOptions(target, options)
+
+    private suspend fun replaceTargetWithOptions(target: DawnSurfaceTarget, options: DawnPresentationOptions?) {
+        checkOutsideFrame()
+        check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
+        withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) {
+            frames.withLock {
+                check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
+                val lease = target.retain()
+                var replacement: SurfaceAttachment? = null
+                var transferred = false
+                try {
+                    replacement = factory.create(lease, gpu.context)
+                    replacement.bind(gpu)
+                    transferred = true
+                    controller.replaceTarget(target, replacement, options)
+                    observe(target)
+                } catch (failure: Throwable) {
+                    if (!transferred) withContext(NonCancellable) {
+                        try {
+                            controller.retireRejected {
+                                if (replacement == null) lease.retire() else replacement.retire()
+                            }
+                        } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }
+                    }
+                    throw failure
+                }
+            }
+        }
+    }
+
+    suspend fun detachTarget(generation: Long) {
+        checkOutsideFrame()
+        withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
+    }
+
+    internal suspend fun retire() {
+        monitoring.cancel()
+        frames.withLock { controller.retire() }
+    }
+}

@@ -1,6 +1,6 @@
 package org.graphiks.dawn4k.webgpu.toolkit.target
 
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceView
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 
 /**

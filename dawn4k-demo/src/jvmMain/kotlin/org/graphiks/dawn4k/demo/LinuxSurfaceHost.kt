@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.StateFlow
 

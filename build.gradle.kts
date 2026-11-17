@@ -3,7 +3,7 @@ version = (project.findProperty("releaseVersion") as? String)
     ?.takeIf { it.isNotBlank() }
     ?: "0.1.0-SNAPSHOT"
 
-val toolkitModules = listOf("dawn4k-toolkit-core", "dawn4k-toolkit-surface", "dawn4k-toolkit-glfw")
+val toolkitModules = listOf("dawn4k-webgpu-toolkit")
 val toolkitPublicationVersion = providers.gradleProperty("releaseVersion").filter(String::isNotBlank).orElse("1.0.0-SNAPSHOT")
 
 tasks.register<Exec>("verifyToolkitPublication") {

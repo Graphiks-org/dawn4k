@@ -2,10 +2,10 @@ package org.graphiks.dawn4k.demo
 
 import org.graphiks.dawn4k.DawnBackend
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.graphiks.dawn4k.toolkit.surface.CountingTargetRetention
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.DawnTargetState
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent as ToolkitPixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.CountingTargetRetention
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetState
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent as ToolkitPixelExtent
 
 /** Retains the native target until the controller acknowledges surface cleanup. */
 internal interface DemoSurfaceLease : AutoCloseable {

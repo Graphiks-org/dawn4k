@@ -1,9 +1,22 @@
 package org.graphiks.dawn4k.webgpu.toolkit.internal
 
+import kotlin.time.TimeSource
+import kotlin.time.Duration.Companion.seconds
+
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import org.graphiks.dawn4k.DawnAdapter
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.DawnDevice
+import org.graphiks.dawn4k.webgpu.toolkit.DawnExecutionOwner
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kTargetLease
 import org.graphiks.webgpu.GPUAdapter
 import org.graphiks.webgpu.GPUFeatureLevel
@@ -24,7 +37,12 @@ import org.graphiks.webgpu.toolkit.ToolkitSurfaceHandle
  */
 internal class Dawn4kToolkitInstance(
     private val context: DawnContext,
-    override val progression: Progression = Progression.Pumped,
+    /**
+     * The pinned thread that created [context] and drives it. A dawn4k context processes its
+     * events only on that thread, so every native request and the pump itself come back here.
+     */
+    private val owner: DawnExecutionOwner,
+    override val progression: Progression = Progression.EventLoop,
     /**
      * The session configuration this instance was opened with. A surface handle opens its own
      * dawn4k presentation, so it needs the device descriptor and timeouts to open that
@@ -32,6 +50,14 @@ internal class Dawn4kToolkitInstance(
      */
     private val sessionConfig: SessionConfig = SessionConfig(),
 ) : ToolkitInstance {
+    /** The pinned thread that created [context]; every native call comes back to it. */
+    internal val dawnOwner: DawnExecutionOwner get() = owner
+
+    /**
+     * The dispatcher of the thread this backend is bound to, which the toolkit runs every
+     * device-touching operation on: startup requests, device close, loss await and [close].
+     */
+    override val executionOwner: CoroutineDispatcher get() = owner.dispatcher
 
     /**
      * The Dawn context this instance owns, which is what a caller needs to retain an additional
@@ -56,13 +82,7 @@ internal class Dawn4kToolkitInstance(
 
     override suspend fun requestAdapter(hints: AdapterHints): Result<GPUAdapter> {
         val options = hints.toRequestAdapterOptions()
-        val result = context.requestAdapter(options)
-        result.onSuccess { adapter ->
-            if (adapter is DawnAdapter) {
-                synchronized(adaptersLock) { adapters.add(adapter) }
-            }
-        }
-        return result
+        return requestAdapterProgressing(options)
     }
     
     override suspend fun requestAdapter(
@@ -73,14 +93,7 @@ internal class Dawn4kToolkitInstance(
         // adapter would be bound to a surface this context cannot present to. The surface handle
         // opens its own presentation on the retained target instead, and the adapter is chosen
         // for the device that presentation will use.
-        val result = context.requestAdapter(hints.toRequestAdapterOptions())
-
-        result.onSuccess { adapter ->
-            if (adapter is DawnAdapter) {
-                synchronized(adaptersLock) { adapters.add(adapter) }
-            }
-        }
-        return result
+        return requestAdapterProgressing(hints.toRequestAdapterOptions())
     }
 
     override fun createSurface(adapter: GPUAdapter, lease: TargetLease): ToolkitSurfaceHandle {
@@ -105,19 +118,93 @@ internal class Dawn4kToolkitInstance(
         // Delegate to DawnContext.processEvents()
         context.processEvents()
     }
+
+    /**
+     * Requests an adapter on the owner's thread, where the pump delivers its result.
+     *
+     * The adapter is handed back as dawn4k produced it: the toolkit asks it for the device on
+     * the same thread, and the pump that runs there settles that request too.
+     */
+    private suspend fun requestAdapterProgressing(options: GPURequestAdapterOptions?): Result<GPUAdapter> =
+        progressing { context.requestAdapter(options) }.onSuccess { adapter ->
+            if (adapter is DawnAdapter) synchronized(adaptersLock) { adapters.add(adapter) }
+        }
+
+    /**
+     * Runs one native request to completion on the owner's thread.
+     *
+     * A dawn4k request settles through a callback that only [DawnContext.processEvents]
+     * delivers, and the pump that delivers it runs on the owner. The request therefore goes to
+     * that thread too, where the pump's iterations and the request interleave.
+     */
+    private suspend fun <T> progressing(request: suspend () -> T): T = try {
+        owner.run { request() }
+    } catch (f: Throwable) {
+        throw f
+    }
+
+    /**
+     * Starts the pump that drives this context for the life of the instance.
+     *
+     * `EventLoop` tells the toolkit that this extension drives its own loop, so nothing else
+     * pumps. The loop runs on the owner's dispatcher — the thread that created the context —
+     * and yields between iterations so requests marshalled onto the same thread progress.
+     */
+    internal fun startPump() {
+        if (pumpJob != null) return
+        pumpJob = pumpScope.launch(owner.dispatcher) {
+            while (isActive) {
+                runCatching { context.processEvents() }
+                // Yield to whatever else the owner thread has queued — a marshalled request,
+                // for instance — before pumping again: a tight loop here would starve it.
+                delay(PUMP_INTERVAL_MILLIS)
+            }
+        }
+    }
+
+    /** Stops the pump started by [startPump]. */
+    internal fun stopPump() {
+        pumpJob?.cancel()
+        pumpJob = null
+    }
+
+    private companion object {
+        /** Pause between two pump iterations: long enough for queued work to run, short enough for a frame. */
+        private const val PUMP_INTERVAL_MILLIS = 1L
+
+        /** How long close drains pending native work before giving up. */
+        private val CLOSE_DRAIN_BUDGET = 2.seconds
+    }
+
+    /** The scope of the pump; cancelled with the instance. */
+    private val pumpScope = CoroutineScope(SupervisorJob() + owner.dispatcher)
+    private var pumpJob: Job? = null
     
     override fun close() {
-        // Close all tracked adapters before closing the context
-        val tracked = synchronized(adaptersLock) {
-            adapters.toList().also { adapters.clear() }
+        try {
+            // The toolkit runs this on the owner thread, so the pump and the drain below never
+            // race. The pump is stopped first: what remains pending is the device teardown it
+            // already posted, and the context refuses a reentrant processEvents.
+            stopPump()
+            val clock = TimeSource.Monotonic
+            val deadline = clock.markNow() + CLOSE_DRAIN_BUDGET
+            while (context.hasPendingOperations() && clock.markNow() < deadline) {
+                runCatching { context.processEvents() }
+            }
+            // Close all tracked adapters before closing the context
+            val tracked = synchronized(adaptersLock) {
+                adapters.toList().also { adapters.clear() }
+            }
+            tracked.forEach { adapter ->
+                runCatching { adapter.close() }
+            }
+            context.close()
+        } finally {
+            // The owner thread is released last, and even when the teardown above failed.
+            owner.close()
         }
-        tracked.forEach { adapter ->
-            runCatching { adapter.close() }
-        }
-        context.close()
     }
 }
-
 /**
  * Maps [AdapterHints] to [GPURequestAdapterOptions].
  * Creates an object implementing the GPURequestAdapterOptions interface with

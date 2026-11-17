@@ -3,7 +3,7 @@ package org.graphiks.dawn4k.webgpu.toolkit.window
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.WindowHost

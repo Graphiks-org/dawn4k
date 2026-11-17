@@ -1,17 +1,21 @@
 package org.graphiks.dawn4k.webgpu.toolkit.internal
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import org.graphiks.dawn4k.toolkit.DawnSessionOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnAlphaMode
-import org.graphiks.dawn4k.toolkit.surface.DawnFrame
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentMode
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentedSession
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.openDawnSurface
+import org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnAlphaMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnFrame
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentedSession
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.openDawnSurface
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.webgpu.GPUDeviceDescriptor
 import org.graphiks.webgpu.GPUTextureFormat
@@ -49,6 +53,9 @@ class Dawn4kSurfaceHandle(
     private var configuration: PresentationConfiguration? = null
     private var presented: DawnPresentedSession? = null
     private var isClosed = false
+
+    /** Runs the presentation teardown that [close] cannot await. */
+    private val teardownScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** The frame currently handed out, with the dawn4k frame that backs its view. */
     private var currentFrame: AcquiredFrame? = null
@@ -139,6 +146,11 @@ class Dawn4kSurfaceHandle(
         currentNativeFrame?.close()
         currentNativeFrame = null
         currentFrame = null
+        // The presentation owns a dawn4k session and a retained surface; closing the handle
+        // without it leaks both. `close()` cannot suspend, so the teardown runs on its own.
+        val opened = presented ?: return
+        presented = null
+        teardownScope.launch { opened.shutdown() }
     }
 
     /**
@@ -204,5 +216,5 @@ internal fun AlphaMode.toDawnAlphaMode(): DawnAlphaMode = when (this) {
     AlphaMode.PostMultiplied -> DawnAlphaMode.Unpremultiplied
 }
 
-private fun org.graphiks.dawn4k.toolkit.surface.PixelExtent.toExtent2D(): Extent2D =
+private fun org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent.toExtent2D(): Extent2D =
     Extent2D(width.toUInt(), height.toUInt())

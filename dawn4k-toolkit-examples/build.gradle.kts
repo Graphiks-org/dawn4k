@@ -20,12 +20,16 @@ kotlin {
         }
     }
     sourceSets.commonMain.dependencies {
-        api(project(":dawn4k-toolkit-surface"))
+        api(project(":dawn4k-webgpu-toolkit"))
+        // The examples open sessions through the toolkit's own entry points, which the toolkit
+        // module keeps as an implementation detail of its binding.
+        implementation(libs.webgpu.toolkit.core)
+        implementation(libs.kotlinx.coroutines.core)
         implementation(libs.webgpu.descriptors)
     }
     val desktopMain = sourceSets.create("desktopMain") {
         dependsOn(sourceSets.commonMain.get())
-        dependencies { implementation(project(":dawn4k-toolkit-glfw")) }
+        dependencies { implementation(project(":dawn4k-webgpu-toolkit")) }
     }
     // linuxX64 is only declared on Linux x86_64 hosts or with verified bundles; the
     // desktop sets stay wired for whichever native desktop targets exist.

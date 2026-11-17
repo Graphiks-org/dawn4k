@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindow
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindow
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowEvent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
 import org.graphiks.webgpu.toolkit.Extent2D
@@ -381,23 +381,23 @@ internal suspend fun createGlfwWindow(
     dawnContext: DawnContext,
     main: DawnMainThreadLoop,
 ): GlfwWindow {
-    val dawnWindowOptions = org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions(
+    val dawnWindowOptions = org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowOptions(
         title = config.title,
         width = config.logicalWidth,
         height = config.logicalHeight,
         visible = true,
         resizable = true,
         runtimeOwnership = when (runtime) {
-            WindowRuntime.Owned -> org.graphiks.dawn4k.toolkit.glfw.DawnGlfwRuntimeOwnership.Owned
-            WindowRuntime.Borrowed -> org.graphiks.dawn4k.toolkit.glfw.DawnGlfwRuntimeOwnership.Borrowed
+            WindowRuntime.Owned -> org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnGlfwRuntimeOwnership.Owned
+            WindowRuntime.Borrowed -> org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnGlfwRuntimeOwnership.Borrowed
         }
     )
     
     // Use the default openDawnWindow which uses openDawnSurface
-    val dawnWindow = org.graphiks.dawn4k.toolkit.glfw.openDawnWindow(
+    val dawnWindow = org.graphiks.dawn4k.webgpu.toolkit.glfw.openDawnWindow(
         windowOptions = dawnWindowOptions,
-        sessionOptions = org.graphiks.dawn4k.toolkit.DawnSessionOptions(),
-        presentationOptions = org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions(),
+        sessionOptions = org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions(),
+        presentationOptions = org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions(),
         mainThread = main
     )
     

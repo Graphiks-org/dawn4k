@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- kffi `1.0.0-SNAPSHOT` → `0.1.0`, the first Maven Central release: the artifacts now live under the `org.graphiks.kffi` group (`kffi`, `objc-jvm`, `win32-jvm`, `x11-jvm`), so the kffi filters are dropped from the snapshot repository.
 - Dawn prebuilt archives re-pinned `v8077.0.0` → `v8077.0.1` (same `chromium/8077` revision `5310283…`): the patched Metal backend only calls `setDepthClipMode` when a pipeline requires clamping, so Metal API Validation no longer aborts iOS/tvOS simulator launches (dawn-packer patch mirroring upstream google/dawn#66; verified by launching the sample app with the validation layer forced).
 - Published acid-suite dependencies and execution moved out of the binding into a dedicated desktop validation module; binding-specific tests remain in `:dawn4k`.
 - The Linux demo uses published `kffi-x11` bindings and generated X11 event/window layouts instead of handwritten Xlib downcalls and ABI offsets.

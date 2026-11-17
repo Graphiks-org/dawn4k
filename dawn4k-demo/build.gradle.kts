@@ -40,7 +40,7 @@ kotlin {
     compilerOptions { optIn.add("kotlin.ExperimentalUnsignedTypes") }
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":dawn4k-toolkit-surface"))
+            implementation(project(":dawn4k-webgpu-toolkit"))
             implementation(libs.suite.demos)
             implementation(libs.webgpu.descriptors)
             implementation(libs.kotlinx.coroutines.core)
@@ -53,7 +53,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
-            implementation(project(":dawn4k-toolkit-surface"))
+            implementation(project(":dawn4k-webgpu-toolkit"))
         }
         // Android host tests use SDK stubs, not a Compose UI runtime. Keep
         // pure common tests there; UI tests still run on desktop and the device.

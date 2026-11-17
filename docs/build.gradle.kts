@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.dokka.mkdocs)
 }
 
-val apiModules = listOf("dawn4k-native", "dawn4k", "dawn4k-toolkit-core", "dawn4k-toolkit-surface", "dawn4k-toolkit-glfw")
+val apiModules = listOf("dawn4k-native", "dawn4k", "dawn4k-webgpu-toolkit")
 
 dependencies {
     apiModules.forEach { dokka(project(":$it")) }

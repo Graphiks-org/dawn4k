@@ -1,9 +1,9 @@
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
-import org.graphiks.dawn4k.toolkit.DawnSessionOptions
-import org.graphiks.dawn4k.toolkit.glfw.*
+import org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.*
 import kotlin.time.Duration.Companion.seconds
 
 /** Invoke on process main; the GLFW loop remains there while encoding uses the GPU owner. */

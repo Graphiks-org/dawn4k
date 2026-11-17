@@ -6,10 +6,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
-import org.graphiks.dawn4k.toolkit.surface.DawnTargetState
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent as ToolkitPixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetLease
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetState
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent as ToolkitPixelExtent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

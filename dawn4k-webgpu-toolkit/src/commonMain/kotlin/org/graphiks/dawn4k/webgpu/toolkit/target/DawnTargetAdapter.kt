@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease
@@ -58,5 +58,5 @@ class DawnTargetAdapter(
     fun close() = scope.cancel()
 }
 
-private fun org.graphiks.dawn4k.toolkit.surface.DawnTargetState.toTargetState(): TargetState =
+private fun org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetState.toTargetState(): TargetState =
     TargetState(generation, extent.toExtent2D(), available)
