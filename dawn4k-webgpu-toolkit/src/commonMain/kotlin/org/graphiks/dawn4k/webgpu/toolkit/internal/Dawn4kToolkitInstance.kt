@@ -7,6 +7,7 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -153,6 +154,7 @@ internal class Dawn4kToolkitInstance(
     internal fun startPump() {
         if (pumpJob != null) return
         pumpJob = pumpScope.launch(owner.dispatcher) {
+            var dbg = 0
             while (isActive) {
                 runCatching { context.processEvents() }
                 // Yield to whatever else the owner thread has queued — a marshalled request,
@@ -201,7 +203,9 @@ internal class Dawn4kToolkitInstance(
             context.close()
         } finally {
             // The owner thread is released last, and even when the teardown above failed.
-            owner.close()
+            // On Kotlin/Native the worker's close() waits for its queued coroutines, which
+            // would deadlock here — this very thread is the owner. Terminate from another.
+            CoroutineScope(Dispatchers.Default).launch { owner.close() }
         }
     }
 }
