@@ -23,7 +23,8 @@ serialization-json = "1.11.0"
 
 # Graphiks snapshots (démos + pont ObjC)
 webgpu = "0.1.0-SNAPSHOT"
-kffi = "1.0.0-SNAPSHOT"
+# kffi is released on Maven Central (no snapshot repository needed).
+kffi = "0.1.0"
 
 # Skiko native runtime (managed by the Compose plugin version)
 skiko = "0.144.6"
@@ -66,12 +67,12 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 webgpu-descriptors = { module = "org.graphiks:webgpu-descriptors", version.ref = "webgpu" }
 webgpu-api = { module = "org.graphiks:webgpu-api", version.ref = "webgpu" }
 suite-acid-tests = { module = "org.graphiks:suite-acid-tests", version.ref = "webgpu" }
-kffi = { module = "org.graphiks:kffi", version.ref = "kffi" }
+kffi = { module = "org.graphiks.kffi:kffi", version.ref = "kffi" }
 suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
 suite-demos = { module = "org.graphiks:suite-demos", version.ref = "webgpu" }
-kffi-objc-jvm = { module = "org.graphiks:kffi-objc-jvm", version.ref = "kffi" }
-kffi-win32-jvm = { module = "org.graphiks:kffi-win32-jvm", version.ref = "kffi" }
-kffi-x11-jvm = { module = "org.graphiks:kffi-x11-jvm", version.ref = "kffi" }
+kffi-objc-jvm = { module = "org.graphiks.kffi:objc-jvm", version.ref = "kffi" }
+kffi-win32-jvm = { module = "org.graphiks.kffi:win32-jvm", version.ref = "kffi" }
+kffi-x11-jvm = { module = "org.graphiks.kffi:x11-jvm", version.ref = "kffi" }
 
 # WebGPU toolkit snapshots
 webgpu-toolkit-core = { module = "org.graphiks.webgpu:toolkit-core", version.ref = "webgpu" }
