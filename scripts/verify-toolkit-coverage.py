@@ -165,7 +165,8 @@ def resolve_report_paths(record, base):
 def required_suites():
     requirements = []
     desktop = ["jvm-macosArm64", "jvm-linuxX64", "jvm-linuxArm64", "jvm-mingwX64", "macosArm64", "linuxX64"]
-    mobile = ["android", "iosSimulatorArm64", "iosX64", "tvosSimulatorArm64"]
+    # iosX64 runs best-effort on macOS Intel (see apple-intel-best-effort), not required here.
+    mobile = ["android", "iosSimulatorArm64", "tvosSimulatorArm64"]
     for module in MODULES:
         for target in desktop + mobile:
             surfaces = ["headless"]
