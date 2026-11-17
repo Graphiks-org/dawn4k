@@ -5,8 +5,8 @@ import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlinx.coroutines.*
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceView
-import org.graphiks.dawn4k.toolkit.examples.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceView
+import org.graphiks.dawn4k.webgpu.toolkit.examples.*
 
 class SampleActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

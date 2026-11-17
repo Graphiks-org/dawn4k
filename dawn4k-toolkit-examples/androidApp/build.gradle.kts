@@ -21,3 +21,9 @@ dependencies {
     implementation(project(":dawn4k-toolkit-examples"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:${libs.versions.coroutines.get()}")
 }
+
+// The published toolkit artifacts pull org.graphiks.webgpu:api, whose AAR namespace duplicates
+// org.graphiks:webgpu-api (already on the classpath via :dawn4k); drop the duplicate.
+configurations.all {
+    exclude(group = "org.graphiks.webgpu", module = "api")
+}
