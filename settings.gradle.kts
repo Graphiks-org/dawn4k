@@ -30,12 +30,10 @@ dependencyResolutionManagement {
             name = "GraphiksSnapshots"
             url = uri("https://central.sonatype.com/repository/maven-snapshots/")
             content {
-                includeModuleByRegex("org\\.graphiks", "kffi(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks", "webgpu-(?:api|descriptors)(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks\\.webgpu", ".*")
                 includeModuleByRegex("org\\.graphiks", "suite-(?:core|acid-tests)(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks", "suite-demos(?:-.*)?")
-                includeModuleByRegex("org\\.graphiks", "kffi-objc(?:-.*)?")
             }
         }
     }
