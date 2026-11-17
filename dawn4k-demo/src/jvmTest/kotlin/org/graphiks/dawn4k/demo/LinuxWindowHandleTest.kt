@@ -42,6 +42,8 @@ class LinuxWindowHandleTest {
             assertEquals(0, process.waitFor(), information)
             assertTrue(information.contains("Class: InputOutput"), information)
             println("[test] Compose native handle $handle: $information")
+            // The floating-window assertion only makes sense under sway; CI runs Xvfb/Weston.
+            if (System.getenv("SWAYSOCK") == null) return
             val floatingProbe = """
                 import json, subprocess, sys
                 def find(node, floating=False):
