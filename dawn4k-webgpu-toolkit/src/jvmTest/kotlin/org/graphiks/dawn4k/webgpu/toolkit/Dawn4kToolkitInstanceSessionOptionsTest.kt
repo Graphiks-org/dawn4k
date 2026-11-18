@@ -106,6 +106,8 @@ class Dawn4kToolkitInstanceSessionOptionsTest {
             }.start()
             assertTrue(done.await(15, java.util.concurrent.TimeUnit.SECONDS), "close() never returned")
             failure.get()?.let { throw it }
+            // The second close is a no-op, not a second teardown racing the first.
+            instance.close()
         }
     }
 

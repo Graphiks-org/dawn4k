@@ -192,37 +192,39 @@ internal class Dawn4kToolkitInstance(
         // toolkit core marshals this call onto the execution owner, but the raw extension API
         // does not — marshal here so the contract holds for every caller.
         if (!closeGuard.compareAndSet(false, true)) return
-        if (owner.isOnOwnerThread()) {
-            closeOnOwner()
-        } else {
-            owner.runBlocking { closeOnOwner() }
+        try {
+            if (owner.isOnOwnerThread()) {
+                closeOnOwner()
+            } else {
+                // The owner is released by close() below, never by the marshalled block:
+                // runBlocking re-checks the thread pin after the block returns, and a block
+                // that closes the owner itself races that trailing check on loaded runners
+                // ("execution owner is closed").
+                owner.runBlocking { closeOnOwner() }
+            }
+        } finally {
+            // The owner thread is released last, and even when the teardown above failed.
+            // On Kotlin/Native the worker's close() waits for its queued coroutines, which
+            // would deadlock here — this very thread may be the owner. Terminate from another.
+            CoroutineScope(Dispatchers.Default).launch { owner.close() }
         }
     }
 
     private fun closeOnOwner() {
-        try {
-            // The pump is stopped first: what remains pending is the device teardown it
-            // already posted, and the context refuses a reentrant processEvents.
-            stopPump()
-            val clock = TimeSource.Monotonic
-            val deadline = clock.markNow() + CLOSE_DRAIN_BUDGET
-            while (context.hasPendingOperations() && clock.markNow() < deadline) {
-                runCatching { context.processEvents() }
-            }
-            // Close all tracked adapters before closing the context
-            val tracked = synchronized(adaptersLock) {
-                adapters.toList().also { adapters.clear() }
-            }
-            tracked.forEach { adapter ->
-                runCatching { adapter.close() }
-            }
-            context.close()
-        } finally {
-            // The owner thread is released last, and even when the teardown above failed.
-            // On Kotlin/Native the worker's close() waits for its queued coroutines, which
-            // would deadlock here — this very thread is the owner. Terminate from another.
-            CoroutineScope(Dispatchers.Default).launch { owner.close() }
+        stopPump()
+        val clock = TimeSource.Monotonic
+        val deadline = clock.markNow() + CLOSE_DRAIN_BUDGET
+        while (context.hasPendingOperations() && clock.markNow() < deadline) {
+            runCatching { context.processEvents() }
         }
+        // Close all tracked adapters before closing the context
+        val tracked = synchronized(adaptersLock) {
+            adapters.toList().also { adapters.clear() }
+        }
+        tracked.forEach { adapter ->
+            runCatching { adapter.close() }
+        }
+        context.close()
     }
 }
 /**
