@@ -86,14 +86,6 @@ kotlin {
     sourceSets.getByName("iosMain").dependsOn(appleMobileMain)
     sourceSets.getByName("tvosMain").dependsOn(appleMobileMain)
 
-    // The published toolkit artifacts already carry the webgpu API klib under the
-    // org.graphiks.webgpu group; :dawn4k pulls the same classes from the legacy org.graphiks
-    // group, and ld.lld on Linux rejects the duplicate symbols when both klibs land in a
-    // native test binary. Keep one copy on the Linux native graph only (macOS ld dedups).
-    configurations.matching { it.name.contains("linuxX64", ignoreCase = true) }.all {
-        exclude(group = "org.graphiks", module = "webgpu-api")
-    }
-
     sourceSets.getByName("commonMain").dependencies {
         api(project(":dawn4k"))
         // The toolkit artifacts carry the published webgpu-api klib; the repository's own

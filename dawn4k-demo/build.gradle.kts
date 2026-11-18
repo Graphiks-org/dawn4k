@@ -121,7 +121,7 @@ tasks.register("recordDemoDependencies") {
         val rows = listOf("androidCompileClasspath", "iosArm64CompileKlibraries", "iosSimulatorArm64CompileKlibraries")
             .flatMap { name ->
                 val suite = configurations.getByName(name).incoming.artifactView {
-                    componentFilter { it.displayName.startsWith("org.graphiks:suite-demos") }
+                    componentFilter { it.displayName.startsWith("org.graphiks.webgpu:suite-demos") }
                     if (name == "androidCompileClasspath") attributes {
                         attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "android-classes-jar")
                     }
