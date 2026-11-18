@@ -154,7 +154,8 @@ def verify_coverage(records, required):
         if not any(marker in line and "required=1" in line and f"backend={record['backend']}" in line
                    for marker in ("TOOLKIT_GPU", "TOOLKIT_GLFW") for text in output for line in text.splitlines()):
             raise VerificationError(f"{module}/{target}: missing real adapter execution marker")
-        if presentation != "headless" and not any(f"TOOLKIT_PRESENTATION kind={presentation}" in line for text in output for line in text.splitlines()):
+        # Mobile targets have no window-system presentation; only desktop requires the witness.
+        if presentation != "headless" and not mobile and not any(f"TOOLKIT_PRESENTATION kind={presentation}" in line for text in output for line in text.splitlines()):
             raise VerificationError(f"{module}/{target}: missing actual {presentation} presentation witness")
 
 def resolve_report_paths(record, base):
