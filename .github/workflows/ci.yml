@@ -8,6 +8,11 @@ on:
     branches:
       - '**'
 
+# A superseded commit's run is cancelled instead of burning macOS runners for two hours.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native-bundles:
     uses: ./.github/workflows/toolkit-native-bundles.yml
@@ -61,6 +66,14 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
           cache: 'gradle'
+
+      - name: Cache Kotlin/Native toolchains
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
