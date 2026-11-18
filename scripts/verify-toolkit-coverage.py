@@ -144,7 +144,10 @@ def verify_coverage(records, required):
                 names.add(case.get("name", "").split("[")[0].split("(")[0].rsplit(".", 1)[-1])
             output += [node.text or "" for node in root.iter("system-out")]
         default = {"liveWindowRendersAndCloses" if target.startswith("jvm-") else "nativeWindowUsesSameLifecycleContract"}
-        expected = GPU_TESTS[module] if presentation == "headless" else default
+        # Mobile targets (android/ios/tvos) run only the headless GPU suites; the live window
+        # cases are desktop-only (GLFW), so they cannot appear in a mobile JUnit report.
+        mobile = target == "android" or target.startswith("ios") or target.startswith("tvos")
+        expected = GPU_TESTS[module] if presentation == "headless" or mobile else default
         if not expected <= names:
             raise VerificationError(f"{module}/{target}: missing GPU cases {sorted(expected - names)}")
         output += [Path(path).read_text() for path in record.get("stdout", [])]
