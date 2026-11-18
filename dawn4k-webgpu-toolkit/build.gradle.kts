@@ -39,6 +39,10 @@ extensions.configure<KotlinMultiplatformAndroidComponentsExtension> {
 
 kotlin {
     android {
+        optimization.consumerKeepRules.apply {
+            publish = true
+            file("consumer-rules.pro")
+        }
         withHostTestBuilder { sourceSetTreeName = "test" }.configure {}
         withDeviceTestBuilder { sourceSetTreeName = "test" }.configure {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
