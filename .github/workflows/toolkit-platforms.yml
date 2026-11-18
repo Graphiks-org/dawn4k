@@ -82,8 +82,10 @@ jobs:
           - leg: macos
             run: python3 scripts/run-toolkit-platform-tests.py --kind desktop --target macosArm64 --backend Metal
           - leg: ios-simulator
+            platform: iOS
             run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosSimulatorArm64 --backend Metal
           - leg: tvos-simulator
+            platform: tvOS
             run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target tvosSimulatorArm64 --backend Metal
           - leg: devices
             run: |
@@ -117,7 +119,7 @@ jobs:
           artifact: ${{ inputs.native-bundle-artifact }}
       - name: Boot ARM64 Metal simulators
         if: matrix.leg == 'ios-simulator' || matrix.leg == 'tvos-simulator'
-        run: python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
+        run: python3 scripts/boot-apple-simulators.py --platform ${{ matrix.platform }} --env-file "$GITHUB_ENV"
       - name: Require suite GPU execution
         run: ${{ matrix.run }}
       - uses: actions/upload-artifact@v4
@@ -128,8 +130,9 @@ jobs:
           if-no-files-found: error
 
   # The publication check is platform-independent work (publishToMavenLocal of every
-  # variant plus Maven metadata verification); it needs macOS for the cross-host cinterop
-  # of the Linux targets, but nothing from the GPU suites, so it runs beside them.
+  # variant plus Maven metadata verification); it stays on macOS because dawn4k-native
+  # stages the darwin-aarch64 dylib the published JVM bootstrap loads, but it needs
+  # nothing from the GPU suites, so it runs beside them.
   apple-publication:
     runs-on: macos-26
     timeout-minutes: 60

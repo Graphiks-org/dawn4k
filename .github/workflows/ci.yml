@@ -8,10 +8,11 @@ on:
     branches:
       - '**'
 
-# A superseded commit's run is cancelled instead of burning macOS runners for two hours.
+# A superseded pull request's run is cancelled instead of burning macOS runners for two
+# hours; pushes keep every run so branch protection always sees each commit's checks.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   native-bundles:
