@@ -10,7 +10,7 @@ import javax.swing.SwingUtilities
 import javax.swing.Timer
 import kotlinx.coroutines.CancellationException
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import kotlinx.coroutines.flow.StateFlow
 import org.graphiks.kffi.win32.generated.CreateWindowExW
 import org.graphiks.kffi.win32.generated.DestroyWindow

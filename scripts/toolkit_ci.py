@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-MODULES = ["dawn4k-toolkit-core", "dawn4k-toolkit-surface", "dawn4k-toolkit-glfw"]
+MODULES = ["dawn4k-webgpu-toolkit"]
 COMPUTE_RESULT = "[2, 4, 6, 8]"
 SAMPLE_FRAMES_MARKER = "TOOLKIT_SAMPLE frames=60"
 

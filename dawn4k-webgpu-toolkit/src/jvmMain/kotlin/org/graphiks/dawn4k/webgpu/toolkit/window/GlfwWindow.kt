@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindow
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindow
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowEvent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.target.PlatformSurfaceType
 import org.graphiks.webgpu.toolkit.Extent2D
@@ -30,9 +30,9 @@ import org.graphiks.webgpu.toolkit.surface.PointerState
 import org.graphiks.webgpu.toolkit.surface.WindowRuntime
 
 /**
- * GLFW-based implementation of [Window] that wraps a dawn4k-toolkit-glfw [DawnWindow].
+ * GLFW-based implementation of [Window] that wraps a [DawnWindow].
  * 
- * This implementation adapts the DawnWindow to the webgpu-toolkit-surface contract:
+ * This implementation adapts the DawnWindow to the toolkit surface contract:
  * 
  * **Event Flow:**
  * - Creates a hot flow with `replay=1, extraBufferCapacity=64, onBufferOverflow=DROP_OLDEST`
@@ -58,7 +58,7 @@ import org.graphiks.webgpu.toolkit.surface.WindowRuntime
  * @param config Window configuration (title, logical dimensions)
  * @param runtime Whether this window is owned or borrowed
  * @param surfaceTarget The underlying surface target for this window
- * @param dawnWindow The underlying DawnWindow from dawn4k-toolkit-glfw
+ * @param dawnWindow The underlying [DawnWindow]
  * @param main The DawnMainThreadLoop that owns this window
  */
 internal class GlfwWindow(
@@ -126,7 +126,7 @@ internal class GlfwWindow(
     /**
      * Sets up event forwarding from the DawnWindow to our WindowEvent flow.
      * FIX 4: Uses Unconfined dispatcher to collect on the caller's thread (main thread).
-     * The WindowSurfaceState in dawn4k-toolkit-glfw uses tryEmit which is thread-safe.
+     * The WindowSurfaceState uses tryEmit, which is thread-safe.
      */
     internal fun setupEventForwarding(dawnWindow: DawnWindow, main: DawnMainThreadLoop) {
         // The DawnWindow's events flow uses WindowSurfaceState which uses tryEmit
@@ -381,23 +381,23 @@ internal suspend fun createGlfwWindow(
     dawnContext: DawnContext,
     main: DawnMainThreadLoop,
 ): GlfwWindow {
-    val dawnWindowOptions = org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions(
+    val dawnWindowOptions = org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowOptions(
         title = config.title,
         width = config.logicalWidth,
         height = config.logicalHeight,
         visible = true,
         resizable = true,
         runtimeOwnership = when (runtime) {
-            WindowRuntime.Owned -> org.graphiks.dawn4k.toolkit.glfw.DawnGlfwRuntimeOwnership.Owned
-            WindowRuntime.Borrowed -> org.graphiks.dawn4k.toolkit.glfw.DawnGlfwRuntimeOwnership.Borrowed
+            WindowRuntime.Owned -> org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnGlfwRuntimeOwnership.Owned
+            WindowRuntime.Borrowed -> org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnGlfwRuntimeOwnership.Borrowed
         }
     )
     
     // Use the default openDawnWindow which uses openDawnSurface
-    val dawnWindow = org.graphiks.dawn4k.toolkit.glfw.openDawnWindow(
+    val dawnWindow = org.graphiks.dawn4k.webgpu.toolkit.glfw.openDawnWindow(
         windowOptions = dawnWindowOptions,
-        sessionOptions = org.graphiks.dawn4k.toolkit.DawnSessionOptions(),
-        presentationOptions = org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions(),
+        sessionOptions = org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions(),
+        presentationOptions = org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions(),
         mainThread = main
     )
     

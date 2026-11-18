@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `Dawn4kToolkitInstance.close()` now marshals its teardown onto the execution owner instead of assuming the caller already did: a close from any other thread could race the event-loop pump's `processEvents()` iteration and fail with `cannot close during processEvents()` (seen on loaded CI runners). A second `close()` is now a no-op rather than racing the first.
+
 ### Changed
+- CI: the Apple toolkit GPU suites share one macOS runner with the device-compile and publication checks staggered behind it, staying within the runner pool's variable capacity; Android qualification no longer waits for them, native-heavy macOS jobs cache `~/.konan`, and superseded pull-request runs are cancelled.
+- WebGPU dependencies moved to the current `org.graphiks.webgpu` Maven group (`api`, `descriptors`, `toolkit-*`, `suite-*`), matching WebGPU #152; the legacy `org.graphiks` group coordinates are gone, which also removes the duplicate webgpu-api klib/AAR on native and Android classpaths.
 - kffi `1.0.0-SNAPSHOT` → `0.1.0`, the first Maven Central release: the artifacts now live under the `org.graphiks.kffi` group (`kffi`, `objc-jvm`, `win32-jvm`, `x11-jvm`), so the kffi filters are dropped from the snapshot repository.
 - Dawn prebuilt archives re-pinned `v8077.0.0` → `v8077.0.1` (same `chromium/8077` revision `5310283…`): the patched Metal backend only calls `setDepthClipMode` when a pipeline requires clamping, so Metal API Validation no longer aborts iOS/tvOS simulator launches (dawn-packer patch mirroring upstream google/dawn#66; verified by launching the sample app with the validation layer forced).
 - Published acid-suite dependencies and execution moved out of the binding into a dedicated desktop validation module; binding-specific tests remain in `:dawn4k`.
@@ -22,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Optional `dawn4k-webgpu-toolkit` module (`org.graphiks:dawn4k-webgpu-toolkit`): Dawn (WebGPU) extension providing managed GPU sessions, native surface presentation and desktop GLFW window hosting for the Graphiks toolkit, with contract coverage from the toolkit TCK.
-- Optional `dawn4k-toolkit-core`, `dawn4k-toolkit-surface` and `dawn4k-toolkit-glfw` modules in this repository: managed/headless GPU sessions, caller-owned execution, typed native presentation, cancellation-safe frames and view/window retirement, desktop GLFW windows, and public compute/triangle examples for all existing backend targets.
 - Strict toolkit publication/coverage checks and platform CI for JVM macOS/Windows/Linux x64/ARM64, Native macOS/Linux X11 and Wayland, Android Vulkan, and ARM64/Intel Apple simulators. Physical iOS/tvOS device compilation is reported separately from GPU execution.
 - Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CI integration. Usage and result interpretation are documented in `docs/docs/acid-tests-verification.md` and its French translation.
 - Android Vulkan and iOS Metal demo applications sharing the adaptive Compose UI, native surface ownership, lifecycle controls and mobile tests.
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code of Conduct, CONTRIBUTING, SECURITY, SUPPORT, CHANGELOG
 
 ### Removed
+- Legacy `dawn4k-toolkit-core`, `dawn4k-toolkit-surface` and `dawn4k-toolkit-glfw` modules, folded into `dawn4k-webgpu-toolkit`.
 - Template `shared` module (sample Android/iOS/desktop layers).
 - `:native-smoke` module; functional validation is delegated to the shared acid test suite.
 - Standalone Maven coordinate consumer verification: `scripts/verify-toolkit-consumers.py`, `scripts/run-toolkit-consumer-artifacts.py`, the `toolkit-published-consumers` CI artifact and the `published-linux` job. Publication keeps `verifyToolkitPublication` and the platform GPU coverage.

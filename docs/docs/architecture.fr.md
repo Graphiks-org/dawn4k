@@ -19,13 +19,12 @@ commun.
 
 ### Couche de possession du toolkit
 
-`dawn4k-toolkit-core` → `dawn4k` ajoute la durée de vie GPU, un propriétaire fixé
-à un thread du système et la progression. `dawn4k-toolkit-surface` → core ajoute
-les cibles natives retenues, le choix d’un adapter compatible et les frames à
-portée définie. `dawn4k-toolkit-glfw` → surface ajoute les fenêtres desktop et
-leur boucle sur le thread principal du processus. Core et surface reprennent les
-neuf cibles Kotlin du backend ; GLFW déclare ses trois cibles desktop. Ces modules
-ne dépendent pas de Compose. La démo utilise désormais les factories publiques
+`dawn4k-webgpu-toolkit` → `dawn4k` ajoute la durée de vie GPU, un propriétaire
+fixé à un thread du système et la progression, les cibles natives retenues avec
+choix d’un adapter compatible et les frames à portée définie, ainsi que les
+fenêtres desktop et leur boucle sur le thread principal du processus sur JVM,
+macOS ARM64 et Linux x64. Il reprend les neuf cibles Kotlin du backend et ne
+dépend pas de Compose. La démo utilise désormais les factories publiques
 du toolkit et conserve sa scène, ses contrôles et son redémarrage côté application.
 Voir [Dawn4k toolkit](toolkit.fr.md) pour la possession, la libération des vues
 mobiles, les modes de progression et la couverture réellement exécutée.
@@ -124,8 +123,8 @@ de rendu sont libérées sur end comme sur close.
 ## Mécanique de session du toolkit
 
 Chaque composant du cycle de vie du toolkit garantit un invariant qu'un simple
-ordonnancement ne peut pas assurer. Un contributeur modifiant `dawn4k-toolkit-core`
-ou `dawn4k-toolkit-surface` doit savoir à quoi sert chaque pièce ; les règles
+ordonnancement ne peut pas assurer. Un contributeur modifiant `dawn4k-webgpu-toolkit` doit savoir à quoi sert chaque
+pièce ; les règles
 publiques vivent dans [Dawn4k toolkit](toolkit.fr.md).
 
 **Propriétaire d'exécution fixé à un thread.** Le dispatcher d'une session est

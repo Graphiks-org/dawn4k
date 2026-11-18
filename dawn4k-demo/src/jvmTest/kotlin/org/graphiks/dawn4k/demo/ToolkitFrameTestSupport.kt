@@ -3,12 +3,12 @@ package org.graphiks.dawn4k.demo
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.graphiks.dawn4k.DawnCommandEncoder
-import org.graphiks.dawn4k.toolkit.DawnSession
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentation
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
 
-internal suspend fun presentDemoTestFrame(gpu: DawnSession, presentation: DawnPresentation,
+internal suspend fun presentDemoTestFrame(gpu: ToolkitSessionView, presentation: DawnPresentation,
     beforePresent: suspend () -> Unit = {}): Boolean = presentation.withFrame { frame ->
     (gpu.device.createCommandEncoder() as DawnCommandEncoder).use { encoder ->
         encoder.beginRenderPass(RenderPassDescriptor(colorAttachments = listOf(

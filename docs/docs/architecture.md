@@ -18,12 +18,11 @@ mapped range, and the absence of a common `GPUDevice.lost`.
 
 ### Toolkit ownership layer
 
-`dawn4k-toolkit-core` → `dawn4k` adds GPU-session lifetime, an OS-thread-pinned
-owner and event progression. `dawn4k-toolkit-surface` → core adds retained native
-targets, compatible-adapter bootstrap and frame scopes. `dawn4k-toolkit-glfw` →
-surface adds desktop windows and the process-main-thread loop. Core and surface
-share all nine backend Kotlin targets; GLFW declares only its three desktop
-targets. None of these modules depends on Compose. The particle demo now uses
+`dawn4k-webgpu-toolkit` → `dawn4k` adds GPU-session lifetime, an OS-thread-pinned
+owner and event progression, retained native targets with compatible-adapter
+bootstrap and frame scopes, and desktop windows with the process-main-thread
+loop on JVM, macOS ARM64 and Linux x64. It shares all nine backend Kotlin
+targets and does not depend on Compose. The particle demo now uses
 these public toolkit factories while keeping its scene, controls and restart
 policy application-owned. See [Dawn4k toolkit](toolkit.md) for ownership, mobile
 view retirement, execution modes and the distinction between supported variants
@@ -119,8 +118,8 @@ attachment views are released on both end and close.
 ## Toolkit session machinery
 
 Each toolkit lifecycle component enforces one invariant that plain sequencing
-cannot. A contributor changing `dawn4k-toolkit-core` or
-`dawn4k-toolkit-surface` should know what each piece is for; the public rules
+cannot. A contributor changing `dawn4k-webgpu-toolkit` should know what each piece is
+for; the public rules
 live in [Dawn4k toolkit](toolkit.md).
 
 **Pinned execution owner.** A session's dispatcher is pinned to one OS thread

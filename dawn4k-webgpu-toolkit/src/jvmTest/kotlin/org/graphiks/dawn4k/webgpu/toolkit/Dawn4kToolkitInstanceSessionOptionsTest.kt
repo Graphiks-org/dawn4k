@@ -14,6 +14,7 @@ import org.graphiks.webgpu.toolkit.SessionConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -79,6 +80,33 @@ class Dawn4kToolkitInstanceSessionOptionsTest {
             handle.close()
             target.close()
         } finally {
+            instance.close()
+        }
+    }
+
+    @Test
+    fun `close from a foreign thread tears the instance down without racing the pump`() {
+        // The raw extension API is not marshalled by the toolkit core, so close() must
+        // marshal itself onto the execution owner: the pump there may be mid-iteration
+        // when a foreign thread decides to close, and the context refuses to close
+        // during processEvents().
+        repeat(10) {
+            val extension = Dawn4kWebGpuToolkitExtension()
+            val instance = extension.open(SessionConfig())
+            val done = java.util.concurrent.CountDownLatch(1)
+            val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+            Thread {
+                try {
+                    instance.close()
+                } catch (t: Throwable) {
+                    failure.set(t)
+                } finally {
+                    done.countDown()
+                }
+            }.start()
+            assertTrue(done.await(15, java.util.concurrent.TimeUnit.SECONDS), "close() never returned")
+            failure.get()?.let { throw it }
+            // The second close is a no-op, not a second teardown racing the first.
             instance.close()
         }
     }

@@ -5,10 +5,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.DawnTargetLease
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnTargetLease
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.webgpu.toolkit.Extent2D
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 import org.graphiks.webgpu.toolkit.TargetLease

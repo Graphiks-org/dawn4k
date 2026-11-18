@@ -49,7 +49,7 @@ class PrepareGlfwTaskTest {
     @Test fun crossCinteropDoesNotNeedHostWindowHeaders() {
         val include = File(directory.root, "include/GLFW").apply { mkdirs() }
         File(include, "glfw3.h").writeText("typedef struct GLFWwindow GLFWwindow;\n")
-        val header = File(System.getProperty("test.repo.root"), "dawn4k-toolkit-glfw/src/nativeInterop/cinterop/glfw_native_handles.h")
+        val header = File(System.getProperty("test.repo.root"), "dawn4k-webgpu-toolkit/src/nativeInterop/cinterop/glfw_native_handles.h")
         val compiler = if (System.getProperty("os.name").lowercase().contains("windows")) "clang.exe" else "clang"
         val command = ProcessBuilder(compiler, "-fsyntax-only", "-x", "c", "-I${include.parentFile}", header.absolutePath)
             .redirectErrorStream(true).start()

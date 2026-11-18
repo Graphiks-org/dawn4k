@@ -15,11 +15,12 @@ import toolkit_ci
 
 MODULES = toolkit_ci.MODULES
 COMMON_TARGETS = {"jvm", "android", "macosArm64", "linuxX64", "iosArm64", "iosSimulatorArm64", "iosX64", "tvosArm64", "tvosSimulatorArm64"}
-DECLARED = {MODULES[0]: COMMON_TARGETS, MODULES[1]: COMMON_TARGETS, MODULES[2]: {"jvm", "macosArm64", "linuxX64"}}
+DECLARED = {MODULES[0]: COMMON_TARGETS}
 NATIVE_NAMES = {"macos_arm64": "macosArm64", "linux_x64": "linuxX64", "ios_arm64": "iosArm64", "ios_simulator_arm64": "iosSimulatorArm64", "ios_x64": "iosX64", "tvos_arm64": "tvosArm64", "tvos_simulator_arm64": "tvosSimulatorArm64"}
+# Only the headless presentation runs the headless GPU cases; presentation surfaces
+# (metal/x11/wayland/win32/android) are covered by the live window tests, the old default.
 GPU_TESTS = {
     MODULES[0]: {"headlessComputeReturnsExpectedValues", "offscreenTriangleHasExpectedPixel"},
-    MODULES[1]: {"compatibleSurfaceSelectsPresentingAdapter", "presentationResizePreservesDevice", "frameCancellationReleasesViewThenTexture"},
 }
 
 class VerificationError(ValueError):
@@ -73,7 +74,7 @@ def verify_runtime_archives(root, version):
                 raise VerificationError(f"Missing Windows x64 runtime: {name}")
             if name in manifest and hashlib.sha256(windows).hexdigest() != manifest[name]:
                 raise VerificationError(f"Windows runtime dependency checksum mismatch: {name}")
-    for module, library in (("dawn4k-native-android", "webgpu_dawn"), ("dawn4k-toolkit-surface-android", "dawn4k_toolkit_window")):
+    for module, library in (("dawn4k-native-android", "webgpu_dawn"), ("dawn4k-webgpu-toolkit-android", "dawn4k_toolkit_window")):
         with archive(module, "aar") as aar:
             verify_android_manifest_package(aar.read("AndroidManifest.xml"))
             for abi, machine in (("arm64-v8a", 183), ("x86_64", 62)):
@@ -82,13 +83,13 @@ def verify_runtime_archives(root, version):
             if module == "dawn4k-native-android":
                 if "org.graphiks.dawn4k.native.*Trampoline" not in rules or "public static void dispatch(...);" not in rules:
                     raise VerificationError("Raw AAR does not publish its JNI upcall consumer keep rules")
-            if module == "dawn4k-toolkit-surface-android":
-                if "org.graphiks.dawn4k.toolkit.surface.AndroidNativeWindow" not in rules or "native <methods>" not in rules:
+            if module == "dawn4k-webgpu-toolkit-android":
+                if "org.graphiks.dawn4k.webgpu.toolkit.surface.AndroidNativeWindow" not in rules or "native <methods>" not in rules:
                     raise VerificationError("Surface AAR does not publish its JNI consumer keep rules")
 
 def verify_metadata(metadata):
     if set(metadata) != set(MODULES):
-        raise VerificationError("publication must include exactly core, surface and GLFW")
+        raise VerificationError("publication must include exactly the merged toolkit module")
     for module, expected in DECLARED.items():
         targets = set()
         for variant in metadata[module].get("variants", []):
@@ -142,14 +143,19 @@ def verify_coverage(records, required):
                     raise VerificationError(f"{module}/{target}: failed or skipped test: {case.get('name')}")
                 names.add(case.get("name", "").split("[")[0].split("(")[0].rsplit(".", 1)[-1])
             output += [node.text or "" for node in root.iter("system-out")]
-        expected = GPU_TESTS.get(module, {"liveWindowRendersAndCloses" if target.startswith("jvm-") else "nativeWindowUsesSameLifecycleContract"})
+        default = {"liveWindowRendersAndCloses" if target.startswith("jvm-") else "nativeWindowUsesSameLifecycleContract"}
+        # Mobile targets (android/ios/tvos) run only the headless GPU suites; the live window
+        # cases are desktop-only (GLFW), so they cannot appear in a mobile JUnit report.
+        mobile = target == "android" or target.startswith("ios") or target.startswith("tvos")
+        expected = GPU_TESTS[module] if presentation == "headless" or mobile else default
         if not expected <= names:
             raise VerificationError(f"{module}/{target}: missing GPU cases {sorted(expected - names)}")
         output += [Path(path).read_text() for path in record.get("stdout", [])]
-        marker = "TOOLKIT_GLFW" if module == MODULES[2] else "TOOLKIT_GPU"
-        if not any(marker in line and "required=1" in line and f"backend={record['backend']}" in line for text in output for line in text.splitlines()):
+        if not any(marker in line and "required=1" in line and f"backend={record['backend']}" in line
+                   for marker in ("TOOLKIT_GPU", "TOOLKIT_GLFW") for text in output for line in text.splitlines()):
             raise VerificationError(f"{module}/{target}: missing real adapter execution marker")
-        if module != MODULES[0] and not any(f"TOOLKIT_PRESENTATION kind={presentation}" in line for text in output for line in text.splitlines()):
+        # Mobile targets have no window-system presentation; only desktop requires the witness.
+        if presentation != "headless" and not mobile and not any(f"TOOLKIT_PRESENTATION kind={presentation}" in line for text in output for line in text.splitlines()):
             raise VerificationError(f"{module}/{target}: missing actual {presentation} presentation witness")
 
 def resolve_report_paths(record, base):
@@ -163,16 +169,21 @@ def resolve_report_paths(record, base):
 def required_suites():
     requirements = []
     desktop = ["jvm-macosArm64", "jvm-linuxX64", "jvm-linuxArm64", "jvm-mingwX64", "macosArm64", "linuxX64"]
-    mobile = ["android", "iosSimulatorArm64", "iosX64", "tvosSimulatorArm64"]
+    # iosX64 runs best-effort on macOS Intel (see apple-intel-best-effort), not required here.
+    mobile = ["android", "iosSimulatorArm64", "tvosSimulatorArm64"]
     for module in MODULES:
-        for target in desktop + ([] if module == MODULES[2] else mobile):
-            surfaces = ["headless"] if module == MODULES[0] else (
-                ["x11", "wayland"] if "linux" in target else
-                ["android"] if target == "android" else
-                ["win32"] if "mingw" in target else ["metal"])
+        for target in desktop + mobile:
+            surfaces = ["headless"]
+            if "linux" in target:
+                surfaces += ["x11", "wayland"]
+            elif target == "android":
+                surfaces += ["android"]
+            elif "mingw" in target:
+                surfaces += ["win32"]
+            else:
+                surfaces += ["metal"]
             requirements += [(module, target, surface, "gpu") for surface in surfaces]
-        if module != MODULES[2]:
-            requirements += [(module, target, "none", "compile") for target in ["iosArm64", "tvosArm64"]]
+        requirements += [(module, target, "none", "compile") for target in ["iosArm64", "tvosArm64"]]
     return requirements
 
 def self_test():

@@ -42,26 +42,26 @@ def main():
         subprocess.run(command, check=True, env=env)
 
     if args.kind == "compile":
-        execute(MODULES[:2], "compileKotlin" + args.target[0].upper() + args.target[1:], "none", "compile")
+        execute(MODULES, "compileKotlin" + args.target[0].upper() + args.target[1:], "none", "compile")
     elif args.kind == "android":
         subprocess.run(["adb", "logcat", "-c"], check=True)
-        execute([MODULES[0]], "connectedAndroidDeviceTest", "headless")
-        execute([MODULES[1]], "connectedAndroidDeviceTest", "android")
+        execute(MODULES, "connectedAndroidDeviceTest", "headless")
+        execute(MODULES, "connectedAndroidDeviceTest", "android")
     elif args.kind == "apple":
-        execute([MODULES[0]], args.target + "Test", "headless")
-        execute([MODULES[1]], args.target + "Test", "metal")
+        execute(MODULES, args.target + "Test", "headless")
+        execute(MODULES, args.target + "Test", "metal")
     else:
         suite = "jvmTest" if args.target.startswith("jvm-") else args.target + "Test"
         if "linux" not in args.target:
-            execute([MODULES[0]], suite, "headless")
-            execute(MODULES[1:], suite, "win32" if "mingw" in args.target else "metal")
+            execute(MODULES, suite, "headless")
+            execute(MODULES, suite, "win32" if "mingw" in args.target else "metal")
             return
         env.update(LIBGL_ALWAYS_SOFTWARE="1", LP_NUM_THREADS="2")
         with toolkit_ci.headless_display(env, socket="dawn-toolkit-wayland") as wayland:
-            execute([MODULES[0]], suite, "headless")
-            execute(MODULES[1:], suite, "x11")
+            execute(MODULES, suite, "headless")
+            execute(MODULES, suite, "x11")
             wayland()
-            execute(MODULES[1:], suite, "wayland")
+            execute(MODULES, suite, "wayland")
 
 
 if __name__ == "__main__":

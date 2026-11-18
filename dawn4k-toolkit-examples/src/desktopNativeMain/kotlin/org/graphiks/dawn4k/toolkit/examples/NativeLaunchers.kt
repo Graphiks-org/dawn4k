@@ -1,5 +1,5 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.cinterop.toKString
 import platform.posix.getenv

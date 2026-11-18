@@ -3,7 +3,7 @@ package org.graphiks.dawn4k.webgpu.toolkit.window
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.DawnContext
-import org.graphiks.dawn4k.toolkit.glfw.DawnMainThreadLoop
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.WindowHost
@@ -12,8 +12,8 @@ import org.graphiks.webgpu.toolkit.surface.WindowRuntime
 /**
  * GLFW-based implementation of [WindowHost] that creates native windows using GLFW.
  *
- * This host adapts the dawn4k-toolkit-glfw [DawnWindow] to the webgpu-toolkit-surface
- * [Window] contract, translating between the two event systems and lifecycle models.
+ * This host adapts the [DawnWindow] to the toolkit [Window] contract, translating
+ * between the two event systems and lifecycle models.
  *
  * This implementation is JVM-only as it depends on GLFW through LWJGL.
  *

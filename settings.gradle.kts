@@ -30,10 +30,7 @@ dependencyResolutionManagement {
             name = "GraphiksSnapshots"
             url = uri("https://central.sonatype.com/repository/maven-snapshots/")
             content {
-                includeModuleByRegex("org\\.graphiks", "webgpu-(?:api|descriptors)(?:-.*)?")
                 includeModuleByRegex("org\\.graphiks\\.webgpu", ".*")
-                includeModuleByRegex("org\\.graphiks", "suite-(?:core|acid-tests)(?:-.*)?")
-                includeModuleByRegex("org\\.graphiks", "suite-demos(?:-.*)?")
             }
         }
     }
@@ -43,9 +40,6 @@ rootProject.name = "dawn4k"
 include(":dawn4k-demo-androidApp")
 project(":dawn4k-demo-androidApp").projectDir = file("dawn4k-demo/androidApp")
 include(":dawn4k")
-include(":dawn4k-toolkit-core")
-include(":dawn4k-toolkit-surface")
-include(":dawn4k-toolkit-glfw")
 include(":dawn4k-acid-tests")
 include(":dawn4k-demo")
 include(":dawn4k-native")

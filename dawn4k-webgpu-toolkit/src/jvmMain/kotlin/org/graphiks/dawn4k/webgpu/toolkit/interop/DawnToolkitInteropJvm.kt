@@ -5,18 +5,18 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.graphiks.dawn4k.toolkit.DawnSessionOptions
+import org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions
 import org.graphiks.webgpu.toolkit.AdapterHints
 import org.graphiks.webgpu.toolkit.SessionConfig
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindowEvent
-import org.graphiks.dawn4k.toolkit.glfw.DawnWindowOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentation
-import org.graphiks.dawn4k.toolkit.surface.DawnAlphaMode
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentMode
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceConfiguration
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowEvent
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentation
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnAlphaMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceConfiguration
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindow
 import org.graphiks.dawn4k.webgpu.toolkit.window.GlfwWindowHost
@@ -121,7 +121,7 @@ private fun DawnWindowOptions.toWindowConfig(): WindowConfig {
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
- * **Important:** This is NOT the actual DawnWindow class from dawn4k-toolkit-glfw.
+ * **Important:** This is a view over the toolkit's `Window`, not a legacy `DawnWindow`.
  * It offers the same members so dawn4k-style code keeps compiling.
  */
 public class ToolkitWindowView(
@@ -214,7 +214,7 @@ public class ToolkitWindowView(
  * This wrapper delegates all calls to the underlying new Window and Session.
  * It NEVER closes any handles - the underlying session owns them.
  * 
- * **Important:** This is NOT the actual DawnPresentation class from dawn4k-toolkit-surface.
+ * **Important:** This is a view over the toolkit's presentation, not a legacy `DawnPresentation`.
  * It offers the same members so dawn4k-style code keeps compiling.
  */
 public class ToolkitPresentationView(
@@ -435,24 +435,6 @@ private fun PointerButton.toGlfwButton(): Int = when (this) {
     PointerButton.Middle -> GLFW_MOUSE_BUTTON_MIDDLE
     PointerButton.Back -> 3
     PointerButton.Forward -> 4
-}
-
-/**
- * Maps the dawn4k [DawnSessionOptions] to the toolkit [SessionConfig]: the startup/shutdown
- * timeouts and the device descriptor, which both contracts hand to `requestDevice`.
- *
- * The progression is not carried over: a dawn4k context processes its events on the thread that
- * created it, and the extension reports `Manual` for that reason, so asking for another
- * progression would fail startup.
- *
- * Lives in the JVM source set because the dawn4k toolkit types are only available there.
- */
-internal fun DawnSessionOptions.toSessionConfig(): SessionConfig {
-    return SessionConfig(
-        startupTimeout = startupTimeout,
-        shutdownTimeout = shutdownTimeout,
-        deviceDescriptor = deviceDescriptor,
-    )
 }
 
 /**

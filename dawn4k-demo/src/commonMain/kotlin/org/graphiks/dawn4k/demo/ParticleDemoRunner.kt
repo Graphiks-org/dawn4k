@@ -5,8 +5,9 @@ import kotlinx.coroutines.flow.first
 import kotlin.coroutines.coroutineContext
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
-import org.graphiks.dawn4k.toolkit.*
-import org.graphiks.dawn4k.toolkit.surface.*
+import org.graphiks.dawn4k.webgpu.toolkit.*
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
 import org.graphiks.webgpu.suite.demos.particles.initialParticles
@@ -33,7 +34,7 @@ private class OpenedPresentation(val session: DawnPresentedSession, val backend:
 /** Tracks the live particle scene against the controls state: replaces it when the requested
  *  particle count changes and resets it when a new reset generation arrives. */
 private class ParticleSceneBook(
-    private val gpu: DawnSession,
+    private val gpu: ToolkitSessionView,
     val format: GPUTextureFormat,
     count: Int,
     initialResetGeneration: Long = 0L,
@@ -68,7 +69,7 @@ private class RenderedFrame(val presented: Boolean, val extent: PixelExtent)
 /** Encodes, submits and presents one frame of [scene]; null when no frame slot was acquired.
  *  [shouldPresent] runs after submission and decides whether the frame may still present. */
 private suspend fun renderFrame(
-    gpu: DawnSession,
+    gpu: ToolkitSessionView,
     presentation: DawnPresentation,
     scene: ParticleScene,
     delta: Float,
@@ -100,7 +101,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
         controller.releasePresentation = {
             // The frame lock already excludes rendering. Bypass application admission so
             // target retirement cannot wait behind the long-lived simulation block.
-            active.gpu.executionOwner.run {
+            active.gpu.run {
                 try { active.gpu.queue.onSubmittedWorkDone().getOrThrow() }
                 finally { active.presentation.detachTarget(generation); clock.suspend() }
             }
@@ -224,7 +225,7 @@ private suspend fun openPresentedSession(
     }
 }
 
-private suspend fun renderLoop(gpu: DawnSession, presentation: DawnPresentation,
+private suspend fun renderLoop(gpu: ToolkitSessionView, presentation: DawnPresentation,
     lease: DemoSurfaceLease, controls: ParticleControls) {
     val format = checkNotNull(presentation.configuration.value).format
     val book = ParticleSceneBook(gpu, format, controls.state.value.count, controls.state.value.resetGeneration)
@@ -259,7 +260,7 @@ private suspend fun renderLoop(gpu: DawnSession, presentation: DawnPresentation,
 private fun demoPresentationOptions(format: GPUTextureFormat? = null) =
     DawnPresentationOptions(requiredFormat = format, requiredPresentMode = DawnPresentMode.Fifo)
 
-private fun requireDemoReady(gpu: DawnSession) {
+private fun requireDemoReady(gpu: ToolkitSessionView) {
     when (val state = gpu.state.value) {
         DawnSessionState.Ready -> Unit
         is DawnSessionState.Lost -> error("device lost: ${state.info.message}")

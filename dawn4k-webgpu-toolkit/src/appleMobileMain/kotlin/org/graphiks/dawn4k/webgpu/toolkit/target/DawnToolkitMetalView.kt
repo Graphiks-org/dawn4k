@@ -2,7 +2,7 @@
 
 package org.graphiks.dawn4k.webgpu.toolkit.target
 
-import org.graphiks.dawn4k.toolkit.surface.DawnMetalView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnMetalView
 import org.graphiks.webgpu.toolkit.SurfaceTarget
 
 /**

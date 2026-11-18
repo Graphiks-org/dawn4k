@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 class Dawn4kSurfaceTargetTest {
 
     @Test
-    fun `initial state has generation 1 and provided extent`() = runTest {
+    fun initialStateHasGeneration1AndProvidedExtent() = runTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -34,7 +34,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `initial state with zero extent is not available`() = runTest {
+    fun initialStateWithZeroExtentIsNotAvailable() = runTest {
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
@@ -52,7 +52,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `retain returns lease with current generation`() = runTest {
+    fun retainReturnsLeaseWithCurrentGeneration() = runTest {
         val extent = Extent2D(width = 1024u, height = 768u)
         
         val target = Dawn4kSurfaceTarget(
@@ -70,7 +70,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `retain with zero extent throws`() = runTest {
+    fun retainWithZeroExtentThrows() = runTest {
         val zeroExtent = Extent2D(width = 0u, height = 0u)
         
         val target = Dawn4kSurfaceTarget(
@@ -90,7 +90,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `updateExtent increases generation and updates state`() = runTest {
+    fun updateExtentIncreasesGenerationAndUpdatesState() = runTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -125,7 +125,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `retire with current generation lease marks it retired`() = runTest {
+    fun retireWithCurrentGenerationLeaseMarksItRetired() = runTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -147,7 +147,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `retire with stale lease is no-op`() = runTest {
+    fun retireWithStaleLeaseIsNoOp() = runTest {
         val initialExtent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -169,7 +169,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `retire with foreign lease is no-op`() = runTest {
+    fun retireWithForeignLeaseIsNoOp() = runTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -191,7 +191,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `setAvailable updates availability`() = runTest {
+    fun setAvailableUpdatesAvailability() = runTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -215,7 +215,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `double retain before retire works`() = runTest {
+    fun doubleRetainBeforeRetireWorks() = runTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(
@@ -236,7 +236,7 @@ class Dawn4kSurfaceTargetTest {
     }
 
     @Test
-    fun `platformType is preserved`() = runTest {
+    fun platformTypeIsPreserved() = runTest {
         val extent = Extent2D(width = 800u, height = 600u)
         
         val target = Dawn4kSurfaceTarget(

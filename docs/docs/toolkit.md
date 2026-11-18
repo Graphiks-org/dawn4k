@@ -6,16 +6,14 @@ normal WebGPU calls.
 
 | Dependency | Responsibility | Kotlin targets |
 | --- | --- | --- |
-| `org.graphiks:dawn4k-toolkit-core` | Headless sessions, owner thread, progress, shutdown | JVM, Android, macOS ARM64, Linux x64, iOS ARM64, iOS ARM64 simulator, iOS x64 simulator, tvOS ARM64, tvOS ARM64 simulator |
-| `org.graphiks:dawn4k-toolkit-surface` | External targets, supplied mobile views, frames | Same nine targets |
-| `org.graphiks:dawn4k-toolkit-glfw` | Desktop windows and main loop | JVM, macOS ARM64, Linux x64 |
+| `org.graphiks:dawn4k-webgpu-toolkit` | Managed GPU sessions, owner thread, progression, retained native targets, frames, desktop windows and main loop | JVM, Android, macOS ARM64, Linux x64, iOS ARM64, iOS ARM64 simulator, iOS x64 simulator, tvOS ARM64, tvOS ARM64 simulator |
 
 JVM native runtimes cover macOS ARM64, Linux x64/ARM64 and Windows x64.
 
-Add the smallest dependency that provides the host you need. Surface depends on
-core; GLFW depends on surface. Use the same release version as `dawn4k`. The
-unpublished `dawn4k-toolkit-examples` module contains the complete runnable code.
-Core has no GLFW, AWT, Compose or UI dependency.
+Add `org.graphiks:dawn4k-webgpu-toolkit` at the same release version as `dawn4k`.
+The unpublished `dawn4k-toolkit-examples` module contains the complete runnable
+code. The toolkit has no AWT or Compose dependency; desktop window hosting uses
+GLFW on JVM, macOS ARM64 and Linux x64 only.
 
 ## Compute without a window
 

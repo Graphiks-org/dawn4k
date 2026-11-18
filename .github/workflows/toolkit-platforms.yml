@@ -71,17 +71,14 @@ jobs:
           path: build/toolkit-coverage/
           if-no-files-found: error
 
+  # The three GPU suites share one runner: the macos-26 pool serves this repository
+  # three to five runners at a time and cancels anything queued past fifteen minutes,
+  # so parallel legs starve unpredictably. Serialized they take ~30 minutes — well
+  # under Tests (macos-26), which gates the run anyway — and the compile and
+  # publication jobs then reuse the freed slot.
   apple:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-26
-            arch: arm64
-          - os: macos-26-intel
-            arch: x64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    runs-on: macos-26
+    timeout-minutes: 75
     env:
       # The Intel simulator uses an installed universal iOS 26 runtime.
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -92,6 +89,12 @@ jobs:
           distribution: zulu
           java-version: '25'
           cache: gradle
+      - name: Cache Kotlin/Native toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
       - name: Set up Android SDK
         uses: ./.github/actions/configure-android-sdk
         with:
@@ -101,34 +104,97 @@ jobs:
         with:
           artifact: ${{ inputs.native-bundle-artifact }}
       - name: Boot ARM64 Metal simulators
-        if: matrix.arch == 'arm64'
         run: python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
-      - name: Boot Intel iOS Metal simulator
-        if: matrix.arch == 'x64'
-        run: python3 scripts/boot-apple-simulators.py --platform iOS --env-file "$GITHUB_ENV"
       - name: Require Native macOS and ARM64 simulator GPU execution
-        if: matrix.arch == 'arm64'
         run: |
           python3 scripts/run-toolkit-platform-tests.py --kind desktop --target macosArm64 --backend Metal
           python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosSimulatorArm64 --backend Metal
           python3 scripts/run-toolkit-platform-tests.py --kind apple --target tvosSimulatorArm64 --backend Metal
-          python3 scripts/run-toolkit-platform-tests.py --kind compile --target iosArm64 --backend Metal
-          python3 scripts/run-toolkit-platform-tests.py --kind compile --target tvosArm64 --backend Metal
-      - name: Require Intel simulator GPU execution
-        if: matrix.arch == 'x64'
-        run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosX64 --backend Metal
-      - name: Verify complete publication
-        if: matrix.arch == 'arm64'
-        run: ./gradlew verifyToolkitPublication :dawn4k-native:jvmTest --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: toolkit-coverage-apple-${{ matrix.arch }}
+          name: toolkit-coverage-apple-gpu
           path: build/toolkit-coverage/
           if-no-files-found: error
 
-  android:
+  # Device-target compile checks: the same macOS toolchain work as the GPU suites but
+  # no simulator. Staggered behind apple to cap simultaneous macOS runners — the pool
+  # serves three to five at a time and cancels anything queued past fifteen minutes.
+  apple-compile:
     needs: apple
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '25'
+          cache: gradle
+      - name: Cache Kotlin/Native toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
+        with:
+          install-ndk: true
+      - name: Configure verified foreign bundles
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: ${{ inputs.native-bundle-artifact }}
+      - name: Require device-target compilation
+        run: |
+          python3 scripts/run-toolkit-platform-tests.py --kind compile --target iosArm64 --backend Metal
+          python3 scripts/run-toolkit-platform-tests.py --kind compile --target tvosArm64 --backend Metal
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toolkit-coverage-apple-devices
+          path: build/toolkit-coverage/
+          if-no-files-found: error
+
+  # The publication check is platform-independent work (publishToMavenLocal of every
+  # variant plus Maven metadata verification); it stays on macOS because dawn4k-native
+  # stages the darwin-aarch64 dylib the published JVM bootstrap loads. It also runs
+  # behind apple to keep the simultaneous macOS runner count within the pool.
+  apple-publication:
+    needs: apple
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '25'
+          cache: gradle
+      - name: Cache Kotlin/Native toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
+      - name: Set up Android SDK
+        uses: ./.github/actions/configure-android-sdk
+        with:
+          install-ndk: true
+      - name: Configure verified foreign bundles
+        uses: ./.github/actions/configure-linux-bundles
+        with:
+          artifact: ${{ inputs.native-bundle-artifact }}
+      - name: Verify complete publication
+        run: ./gradlew verifyToolkitPublication --no-daemon --stacktrace
+
+  android:
+    # Parallel to the apple suites: this job emulates an Android GPU and consumes
+    # nothing they produce — only the final coverage gate needs both.
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -164,7 +230,7 @@ jobs:
           if-no-files-found: error
 
   coverage:
-    needs: [desktop, apple, android]
+    needs: [desktop, apple, android, apple-compile, apple-publication]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

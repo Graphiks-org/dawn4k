@@ -1,9 +1,9 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.*
 import kotlinx.cinterop.useContents
-import org.graphiks.dawn4k.toolkit.surface.DawnMetalView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnMetalView
 import platform.CoreGraphics.CGRectMake
 import platform.UIKit.*
 

@@ -92,14 +92,14 @@ class CoverageFixtures(unittest.TestCase):
 
     def test_rejectsX11FallbackReportedAsWayland(self):
         suite = ET.Element("testsuite", tests="3", failures="0", errors="0", skipped="0")
-        for name in sorted(verify.GPU_TESTS[verify.MODULES[1]]): ET.SubElement(suite, "testcase", name=name)
+        for name in sorted({"liveWindowRendersAndCloses"}): ET.SubElement(suite, "testcase", name=name)
         ET.ElementTree(suite).write(self.junit)
         self.stdout.write_text("TOOLKIT_GPU backend=Vulkan required=1\nTOOLKIT_PRESENTATION kind=x11\n")
-        record = dict(self.record, module=verify.MODULES[1], target="jvm-linuxX64", presentation="wayland", backend="Vulkan")
+        record = dict(self.record, module=verify.MODULES[0], target="jvm-linuxX64", presentation="wayland", backend="Vulkan")
         with self.assertRaises(verify.VerificationError):
-            verify.verify_coverage([record], [(verify.MODULES[1], "jvm-linuxX64", "wayland", "gpu")])
+            verify.verify_coverage([record], [(verify.MODULES[0], "jvm-linuxX64", "wayland", "gpu")])
         self.stdout.write_text("TOOLKIT_GPU backend=Vulkan required=1\nTOOLKIT_PRESENTATION kind=wayland\n")
-        verify.verify_coverage([record], [(verify.MODULES[1], "jvm-linuxX64", "wayland", "gpu")])
+        verify.verify_coverage([record], [(verify.MODULES[0], "jvm-linuxX64", "wayland", "gpu")])
 
     def test_publishedMetadataContainsOnlyDeclaredVariants(self):
         def metadata(targets):
@@ -112,9 +112,9 @@ class CoverageFixtures(unittest.TestCase):
             return {"variants": variants}
         documents = {name: metadata(targets) for name, targets in verify.DECLARED.items()}
         verify.verify_metadata(documents)
-        documents[verify.MODULES[2]] = metadata(verify.COMMON_TARGETS)
+        documents["dawn4k-toolkit-glfw"] = metadata(verify.COMMON_TARGETS)
         with self.assertRaises(verify.VerificationError): verify.verify_metadata(documents)
-        documents[verify.MODULES[2]] = metadata(verify.DECLARED[verify.MODULES[2]])
+        del documents["dawn4k-toolkit-glfw"]
         documents[verify.MODULES[0]] = metadata(verify.COMMON_TARGETS - {"tvosSimulatorArm64"})
         with self.assertRaises(verify.VerificationError): verify.verify_metadata(documents)
 
@@ -165,8 +165,8 @@ class WindowsRuntimeArchives(unittest.TestCase):
         self.stage_jvm_jar(dependencies, digests, unmatched_manifest_names, unmanifested_dlls, dawn_dll)
         self.stage_aar("dawn4k-native-android", "webgpu_dawn",
                        "org.graphiks.dawn4k.native.*Trampoline\npublic static void dispatch(...);\n")
-        self.stage_aar("dawn4k-toolkit-surface-android", "dawn4k_toolkit_window",
-                       "org.graphiks.dawn4k.toolkit.surface.AndroidNativeWindow\nnative <methods>\n")
+        self.stage_aar("dawn4k-webgpu-toolkit-android", "dawn4k_toolkit_window",
+                       "org.graphiks.dawn4k.webgpu.toolkit.surface.AndroidNativeWindow\nnative <methods>\n")
 
     def test_consistent_archives_verify(self):
         self.stage_all(("vcruntime140.dll", "msvcp140_atomic_wait.dll"))

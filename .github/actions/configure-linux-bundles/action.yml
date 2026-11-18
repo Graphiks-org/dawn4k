@@ -47,7 +47,7 @@ runs:
         gradle_home.mkdir(parents=True, exist_ok=True)
         with (gradle_home / 'gradle.properties').open('a', encoding='utf-8') as output:
             dawn = (root / 'dawn4k-native/build/dawnCarrier/linuxX64').as_posix()
-            glfw = (root / 'dawn4k-toolkit-glfw/build/glfw/linuxX64').as_posix()
+            glfw = (root / 'dawn4k-webgpu-toolkit/build/glfw/linuxX64').as_posix()
             output.write(f'\ndawn.nativeBundle.linuxX64={dawn}\n')
             output.write(f'glfw.nativeBundle.linuxX64={glfw}\n')
         PYTHON

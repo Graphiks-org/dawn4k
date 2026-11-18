@@ -1,11 +1,13 @@
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import org.graphiks.dawn4k.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.toolkit.withDawnSession
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.openSession
 
 /**
  * The shared compute → triangle sample flow behind the Android activity and the Apple view controller.
@@ -31,7 +33,14 @@ fun CoroutineScope.launchToolkitSample(
     return scope.launch {
         try {
             previousCleanup?.join()
-            val values = withDawnSession { runComputeExample(it) }
+            val extension = Dawn4kWebGpuToolkitExtension()
+            val session = openSession(extension, org.graphiks.webgpu.toolkit.SessionConfig())
+            val values = try {
+                runComputeExample(ToolkitSessionView(session, extension))
+            } finally {
+                session.manualProgress?.stop()
+                session.shutdown()
+            }
             check(values.contentEquals(intArrayOf(2, 4, 6, 8)))
             onStatus("Compute: ${values.contentToString()}")
             runSurfaceTriangleExample(target()) {

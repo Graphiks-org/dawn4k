@@ -1,13 +1,13 @@
-package org.graphiks.dawn4k.toolkit.examples
+package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import org.graphiks.dawn4k.DawnCommandEncoder
-import org.graphiks.dawn4k.toolkit.DawnSession
-import org.graphiks.dawn4k.toolkit.surface.PixelExtent
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
 
 /** Create, render and close inside the same session.run lifetime. The destination view is borrowed. */
-class TriangleRenderer(private val session: DawnSession, format: GPUTextureFormat) : AutoCloseable {
+class TriangleRenderer(private val session: ToolkitSessionView, format: GPUTextureFormat) : AutoCloseable {
     private var closed = false
     private val pipeline = session.device.createShaderModule(ShaderModuleDescriptor("""
         @vertex fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {

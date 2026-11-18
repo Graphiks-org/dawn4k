@@ -7,10 +7,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.TimeSource
-import org.graphiks.dawn4k.toolkit.DawnSession
+import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 
 private val demoTimeOrigin = TimeSource.Monotonic.markNow()
 internal fun demoMonotonicNanos(): Long = demoTimeOrigin.elapsedNow().inWholeNanoseconds
+
+/**
+ * The message of the deepest cause: the toolkit wraps startup failures, and the demo's state
+ * must carry the primary failure, not the wrapper.
+ */
+internal fun Throwable.rootCauseMessage(): String {
+    var root: Throwable = this
+    while (root.cause != null && root.cause !== root) root = root.cause!!
+    return root.message ?: root.toString()
+}
 
 /** Commands serialize on one owner; the frame lock acknowledges native retirement. */
 internal class DemoSessionController(
@@ -22,10 +32,10 @@ internal class DemoSessionController(
     val state = mutableState.asStateFlow()
     private val mutableSurface = MutableStateFlow<DemoSurfaceLease?>(null)
     val surface = mutableSurface.asStateFlow()
-    private val mutableGpuSession = MutableStateFlow<DawnSession?>(null)
+    private val mutableGpuSession = MutableStateFlow<ToolkitSessionView?>(null)
     internal val gpuSession = mutableGpuSession.asStateFlow()
-    internal fun sessionOpened(gpu: DawnSession) { mutableGpuSession.value = gpu }
-    internal fun sessionClosed(gpu: DawnSession) { mutableGpuSession.compareAndSet(gpu, null) }
+    internal fun sessionOpened(gpu: ToolkitSessionView) { mutableGpuSession.value = gpu }
+    internal fun sessionClosed(gpu: ToolkitSessionView) { mutableGpuSession.compareAndSet(gpu, null) }
     val evidence = DemoEvidence(this)
     private val frameLock = Mutex()
     internal val frameClock = ParticleFrameClock()
@@ -56,7 +66,9 @@ internal class DemoSessionController(
         renderer = sessionScope.launch(Dispatchers.Default) {
             try { runParticleDemo(this@DemoSessionController, id) }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Throwable) { failed(id, failure.message ?: failure.toString()) }
+            catch (failure: Throwable) {
+                failed(id, failure.rootCauseMessage())
+            }
         }
     }
 

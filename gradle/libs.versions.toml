@@ -64,12 +64,12 @@ commons-compress = { module = "org.apache.commons:commons-compress", version.ref
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization-json" }
 
 # Graphiks snapshots (démos + pont ObjC)
-webgpu-descriptors = { module = "org.graphiks:webgpu-descriptors", version.ref = "webgpu" }
-webgpu-api = { module = "org.graphiks:webgpu-api", version.ref = "webgpu" }
-suite-acid-tests = { module = "org.graphiks:suite-acid-tests", version.ref = "webgpu" }
+webgpu-descriptors = { module = "org.graphiks.webgpu:descriptors", version.ref = "webgpu" }
+webgpu-api = { module = "org.graphiks.webgpu:api", version.ref = "webgpu" }
+suite-acid-tests = { module = "org.graphiks.webgpu:suite-acid-tests", version.ref = "webgpu" }
 kffi = { module = "org.graphiks.kffi:kffi", version.ref = "kffi" }
-suite-demos-jvm = { module = "org.graphiks:suite-demos-jvm", version.ref = "webgpu" }
-suite-demos = { module = "org.graphiks:suite-demos", version.ref = "webgpu" }
+suite-demos-jvm = { module = "org.graphiks.webgpu:suite-demos-jvm", version.ref = "webgpu" }
+suite-demos = { module = "org.graphiks.webgpu:suite-demos", version.ref = "webgpu" }
 kffi-objc-jvm = { module = "org.graphiks.kffi:objc-jvm", version.ref = "kffi" }
 kffi-win32-jvm = { module = "org.graphiks.kffi:win32-jvm", version.ref = "kffi" }
 kffi-x11-jvm = { module = "org.graphiks.kffi:x11-jvm", version.ref = "kffi" }

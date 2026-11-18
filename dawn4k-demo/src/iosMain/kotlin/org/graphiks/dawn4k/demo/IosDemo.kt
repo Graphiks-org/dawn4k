@@ -13,7 +13,7 @@ import androidx.compose.ui.viewinterop.UIKitView
 import androidx.compose.ui.window.ComposeUIViewController
 import kotlinx.coroutines.*
 import org.graphiks.dawn4k.DawnBackend
-import org.graphiks.dawn4k.toolkit.surface.DawnMetalView
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnMetalView
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager

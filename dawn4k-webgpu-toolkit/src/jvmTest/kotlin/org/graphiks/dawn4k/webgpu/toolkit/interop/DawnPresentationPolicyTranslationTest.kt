@@ -1,8 +1,8 @@
 package org.graphiks.dawn4k.webgpu.toolkit.interop
 
-import org.graphiks.dawn4k.toolkit.surface.DawnAlphaMode
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentMode
-import org.graphiks.dawn4k.toolkit.surface.DawnPresentationOptions
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnAlphaMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentMode
+import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.toolkit.AlphaMode
 import org.graphiks.webgpu.toolkit.PresentMode
