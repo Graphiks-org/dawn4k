@@ -30,6 +30,12 @@ class DawnExecutionOwner private constructor(
         check(thread.value == current) { "execution owner changed OS thread; use a pinned dispatcher" }
     }
 
+    /** Whether the calling thread is the pinned one; a probe never steals the pin. */
+    internal fun isOnOwnerThread(): Boolean {
+        val pinned = thread.value
+        return pinned != 0L && pinned == currentOsThreadId().toLong()
+    }
+
     internal fun requireOutsideProgress() {
         check(!progressing.value || thread.value != currentOsThreadId().toLong()) {
             "session operations cannot reenter event progression; enqueue deferred work instead"

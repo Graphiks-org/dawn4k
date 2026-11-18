@@ -3,6 +3,7 @@ package org.graphiks.dawn4k.webgpu.toolkit.internal
 import kotlin.time.TimeSource
 import kotlin.time.Duration.Companion.seconds
 
+import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CoroutineDispatcher
@@ -181,11 +182,26 @@ internal class Dawn4kToolkitInstance(
     /** The scope of the pump; cancelled with the instance. */
     private val pumpScope = CoroutineScope(SupervisorJob() + owner.dispatcher)
     private var pumpJob: Job? = null
+
+    /** One caller runs the teardown; a second close returns immediately instead of racing it. */
+    private val closeGuard = atomic(false)
     
     override fun close() {
+        // The teardown must run on the owner's thread: the pump lives there and the context
+        // refuses to close while one of its processEvents() iterations is still active. The
+        // toolkit core marshals this call onto the execution owner, but the raw extension API
+        // does not — marshal here so the contract holds for every caller.
+        if (!closeGuard.compareAndSet(false, true)) return
+        if (owner.isOnOwnerThread()) {
+            closeOnOwner()
+        } else {
+            owner.runBlocking { closeOnOwner() }
+        }
+    }
+
+    private fun closeOnOwner() {
         try {
-            // The toolkit runs this on the owner thread, so the pump and the drain below never
-            // race. The pump is stopped first: what remains pending is the device teardown it
+            // The pump is stopped first: what remains pending is the device teardown it
             // already posted, and the context refuses a reentrant processEvents.
             stopPump()
             val clock = TimeSource.Monotonic
