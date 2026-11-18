@@ -29,7 +29,7 @@ class Dawn4kSurfaceHandleTest {
     }
 
     @Test
-    fun `capabilities returns supported formats and alpha modes`() = runTest {
+    fun capabilitiesReturnsSupportedFormatsAndAlphaModes() = runTest {
         val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
@@ -53,7 +53,7 @@ class Dawn4kSurfaceHandleTest {
     }
 
     @Test
-    fun `acquireFrame without configure throws`() = runTest {
+    fun acquireFrameWithoutConfigureThrows() = runTest {
         val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
@@ -69,7 +69,7 @@ class Dawn4kSurfaceHandleTest {
     }
 
     @Test
-    fun `present without acquired frame throws`() = runTest {
+    fun presentWithoutAcquiredFrameThrows() = runTest {
         val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
@@ -91,7 +91,7 @@ class Dawn4kSurfaceHandleTest {
     }
 
     @Test
-    fun `close is idempotent`() = runTest {
+    fun closeIsIdempotent() = runTest {
         val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
         
@@ -110,7 +110,7 @@ class Dawn4kSurfaceHandleTest {
     }
 
     @Test
-    fun `capabilities advertise every present mode dawn4k can configure`() = runTest {
+    fun capabilitiesAdvertiseEveryPresentModeDawn4kCanConfigure() = runTest {
         val target = createSurfaceTarget()
         val handle = Dawn4kSurfaceHandle(target)
 

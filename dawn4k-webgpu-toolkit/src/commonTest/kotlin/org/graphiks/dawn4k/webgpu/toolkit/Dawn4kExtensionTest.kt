@@ -13,13 +13,13 @@ import kotlin.test.assertEquals
 class Dawn4kExtensionTest {
 
     @Test
-    fun `extension id is dawn4k`() {
+    fun extensionIdIsDawn4k() {
         val extension = Dawn4kWebGpuToolkitExtension()
         assertEquals("dawn4k", extension.id)
     }
 
     @Test
-    fun `extension is the WebGPU toolkit SPI entry point`() {
+    fun extensionIsTheWebGPUToolkitSPIEntryPoint() {
         val extension = Dawn4kWebGpuToolkitExtension()
         assertEquals("dawn4k", extension.id)
         assertEquals(Progression.Pumped, Progression.valueOf("Pumped"))
