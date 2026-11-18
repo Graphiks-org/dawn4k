@@ -71,25 +71,14 @@ jobs:
           path: build/toolkit-coverage/
           if-no-files-found: error
 
+  # The three GPU suites share one runner: the macos-26 pool serves this repository
+  # three to five runners at a time and cancels anything queued past fifteen minutes,
+  # so parallel legs starve unpredictably. Serialized they take ~30 minutes — well
+  # under Tests (macos-26), which gates the run anyway — and the compile and
+  # publication jobs then reuse the freed slot.
   apple:
-    strategy:
-      fail-fast: false
-      matrix:
-        # One runner per GPU suite instead of one serializing them all: the suites are
-        # independent Gradle invocations, and the slowest leg — not their sum — sets
-        # the critical path. The macOS runner pool is too small for every Apple job at
-        # once, so the compile and publication jobs below wait for these legs.
-        include:
-          - leg: macos
-            run: python3 scripts/run-toolkit-platform-tests.py --kind desktop --target macosArm64 --backend Metal
-          - leg: ios-simulator
-            platform: iOS
-            run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosSimulatorArm64 --backend Metal
-          - leg: tvos-simulator
-            platform: tvOS
-            run: python3 scripts/run-toolkit-platform-tests.py --kind apple --target tvosSimulatorArm64 --backend Metal
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       # The Intel simulator uses an installed universal iOS 26 runtime.
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -115,21 +104,22 @@ jobs:
         with:
           artifact: ${{ inputs.native-bundle-artifact }}
       - name: Boot ARM64 Metal simulators
-        if: matrix.leg == 'ios-simulator' || matrix.leg == 'tvos-simulator'
-        run: python3 scripts/boot-apple-simulators.py --platform ${{ matrix.platform }} --env-file "$GITHUB_ENV"
-      - name: Require suite GPU execution
-        run: ${{ matrix.run }}
+        run: python3 scripts/boot-apple-simulators.py --env-file "$GITHUB_ENV"
+      - name: Require Native macOS and ARM64 simulator GPU execution
+        run: |
+          python3 scripts/run-toolkit-platform-tests.py --kind desktop --target macosArm64 --backend Metal
+          python3 scripts/run-toolkit-platform-tests.py --kind apple --target iosSimulatorArm64 --backend Metal
+          python3 scripts/run-toolkit-platform-tests.py --kind apple --target tvosSimulatorArm64 --backend Metal
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: toolkit-coverage-apple-${{ matrix.leg }}
+          name: toolkit-coverage-apple-gpu
           path: build/toolkit-coverage/
           if-no-files-found: error
 
-  # Device-target compile checks: the same macOS toolchain work as the GPU legs but no
-  # simulator. Staggered behind the apple matrix to cap simultaneous macOS runners —
-  # the pool is too small for every Apple job at once, and a job queued past 15 minutes
-  # is cancelled outright.
+  # Device-target compile checks: the same macOS toolchain work as the GPU suites but
+  # no simulator. Staggered behind apple to cap simultaneous macOS runners — the pool
+  # serves three to five at a time and cancels anything queued past fifteen minutes.
   apple-compile:
     needs: apple
     runs-on: macos-26
@@ -171,8 +161,7 @@ jobs:
   # The publication check is platform-independent work (publishToMavenLocal of every
   # variant plus Maven metadata verification); it stays on macOS because dawn4k-native
   # stages the darwin-aarch64 dylib the published JVM bootstrap loads. It also runs
-  # behind the apple matrix to keep the simultaneous macOS runner count within the
-  # pool's capacity.
+  # behind apple to keep the simultaneous macOS runner count within the pool.
   apple-publication:
     needs: apple
     runs-on: macos-26
