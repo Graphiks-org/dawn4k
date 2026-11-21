@@ -13,6 +13,7 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
     private val lock = SynchronizedObject()
     private val queue = ArrayDeque<Runnable>()
     private var stopped = false
+    private var stopRequested = false
     private val dispatcher = object : CoroutineDispatcher() {
         override fun dispatch(context: CoroutineContext, block: Runnable) {
             synchronized(lock) { check(!stopped) { "GLFW main loop is stopped" }; queue.addLast(block) }
@@ -55,6 +56,48 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
         }
     }
 
+    /**
+     * Serves the calling thread — the process main thread — until [stopServing]: it drains
+     * dispatched work, polls events, and on a stop shuts every registered window down before
+     * returning, exactly like the session mode does at the end of its block. The loop is
+     * reusable after a serve ends; serving and [run] share the one-loop-per-process gate.
+     */
+    internal fun serve() {
+        requireGlfwMainThread()
+        check(active.compareAndSet(false, true)) { "a GLFW main loop is already running" }
+        try {
+            while (!stopRequested || windows.isNotEmpty() || partialCleanup.isNotEmpty()) {
+                drain()
+                if (runtime.isActive) backend.pollEvents()
+                if (stopRequested) beginRetirement()
+                pauseGlfwMainThread()
+            }
+        } finally {
+            scope.cancel()
+            drain()
+            synchronized(lock) { stopped = true }
+            active.value = false
+        }
+    }
+
+    /** Asks a served loop to end; harmless before and after a serve. */
+    internal fun stopServing() {
+        synchronized(lock) { stopRequested = true }
+    }
+
+    /** Begins the retirement of every registered window; re-launches nothing still retiring. */
+    private fun beginRetirement() {
+        windows.toList().forEach { window ->
+            if (cleanup[window]?.isActive != true) {
+                cleanup[window] = scope.launch(Dispatchers.Default) {
+                    window.gpu.manualProgress?.stop()
+                    runCatching { window.shutdown() }
+                    delay(10)
+                }
+            }
+        }
+    }
+
     companion object {
         private val active = atomic(false)
 
@@ -62,6 +105,14 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
 
         internal fun <T> run(backend: GlfwBackend, block: suspend CoroutineScope.(DawnMainThreadLoop) -> T): T =
             runLoop(backend, block)
+
+        /**
+         * Creates a loop for [serve] on a caller-provided backend. Unlike [run], construction
+         * takes no gate: the gate is taken when the loop actually serves, so a created but
+         * never-served loop leaves the process free for another one.
+         */
+        internal fun createForServing(backend: GlfwBackend? = null): DawnMainThreadLoop =
+            DawnMainThreadLoop(backend)
 
         private fun <T> runLoop(backend: GlfwBackend?, block: suspend CoroutineScope.(DawnMainThreadLoop) -> T): T {
             requireGlfwMainThread()
@@ -72,17 +123,7 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
                 while (!task.isCompleted || main.windows.isNotEmpty() || main.partialCleanup.isNotEmpty()) {
                     main.drain()
                     if (main.runtime.isActive) main.backend.pollEvents()
-                    if (task.isCompleted) {
-                        main.windows.toList().forEach { window ->
-                            if (main.cleanup[window]?.isActive != true) {
-                                main.cleanup[window] = main.scope.launch(Dispatchers.Default) {
-                                    window.gpu.manualProgress?.stop()
-                                    runCatching { window.shutdown() }
-                                    delay(10)
-                                }
-                            }
-                        }
-                    }
+                    if (task.isCompleted) main.beginRetirement()
                     pauseGlfwMainThread()
                 }
                 return runBlocking { task.await() }
