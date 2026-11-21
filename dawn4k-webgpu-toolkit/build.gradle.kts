@@ -94,8 +94,10 @@ kotlin {
         api(project(":dawn4k"))
         // The toolkit artifacts carry the published webgpu-api klib; the repository's own
         // :dawn4k already brings it, so keep the toolkit graph out of the native link.
-        implementation(libs.webgpu.toolkit.core)
-        implementation(libs.webgpu.toolkit.surface)
+        // The toolkit contract types are part of this module's public API surface now that the
+        // dawn4k-shaped views are gone: expose them transitively.
+        api(libs.webgpu.toolkit.core)
+        api(libs.webgpu.toolkit.surface)
         // Offscreen render textures are built from the descriptor types.
         implementation(libs.webgpu.descriptors)
         implementation(libs.kotlinx.coroutines.core)

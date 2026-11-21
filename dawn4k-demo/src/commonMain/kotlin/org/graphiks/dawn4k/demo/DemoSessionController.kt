@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.TimeSource
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 
 private val demoTimeOrigin = TimeSource.Monotonic.markNow()
 internal fun demoMonotonicNanos(): Long = demoTimeOrigin.elapsedNow().inWholeNanoseconds
@@ -32,10 +32,10 @@ internal class DemoSessionController(
     val state = mutableState.asStateFlow()
     private val mutableSurface = MutableStateFlow<DemoSurfaceLease?>(null)
     val surface = mutableSurface.asStateFlow()
-    private val mutableGpuSession = MutableStateFlow<ToolkitSessionView?>(null)
+    private val mutableGpuSession = MutableStateFlow<Session?>(null)
     internal val gpuSession = mutableGpuSession.asStateFlow()
-    internal fun sessionOpened(gpu: ToolkitSessionView) { mutableGpuSession.value = gpu }
-    internal fun sessionClosed(gpu: ToolkitSessionView) { mutableGpuSession.compareAndSet(gpu, null) }
+    internal fun sessionOpened(gpu: Session) { mutableGpuSession.value = gpu }
+    internal fun sessionClosed(gpu: Session) { mutableGpuSession.compareAndSet(gpu, null) }
     val evidence = DemoEvidence(this)
     private val frameLock = Mutex()
     internal val frameClock = ParticleFrameClock()

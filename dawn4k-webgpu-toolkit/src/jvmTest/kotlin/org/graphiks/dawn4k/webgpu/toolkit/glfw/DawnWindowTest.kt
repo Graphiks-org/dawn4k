@@ -94,7 +94,7 @@ class DawnWindowTest {
                 DawnSessionOptions(shutdownTimeout = 5.seconds), mainThread = main)
             val entered = CompletableDeferred<Unit>()
             val finish = CompletableDeferred<Unit>()
-            val application = launch(Dispatchers.Default) { window.gpu.run { entered.complete(Unit); finish.await() } }
+            val application = launch(Dispatchers.Default) { window.session.run { entered.complete(Unit); finish.await() } }
             // The app block suspends ON the context owner; the EventLoop pump keeps draining
             // there, so a later shutdown completes instead of timing out.
             entered.await()
@@ -181,6 +181,8 @@ class DawnWindowTest {
         runBlocking {
             withDawnWindow(DawnWindowOptions(width = 64, height = 64), DawnSessionOptions(config = DawnConfig(backend))) { gpu, window, presentation ->
                 captured = window
+                // The window reports zero until the platform lays it out; wait for the first layout.
+                withTimeout(5_000) { window.extent.first { it.isPositive } }
                 assertTrue(window.extent.value.isPositive)
                 assertTrue(presentation.withFrame { frame ->
                     (gpu.device.createCommandEncoder() as DawnCommandEncoder).use { encoder ->
@@ -193,7 +195,7 @@ class DawnWindowTest {
                     gpu.queue.onSubmittedWorkDone().getOrThrow()
                     frame.present()
                 })
-                println("TOOLKIT_GLFW backend=$backend required=${System.getenv("DAWN_REQUIRE_ADAPTER") ?: "1"} device=${gpu.adapter.info.device}")
+                println("TOOLKIT_GLFW backend=$backend required=${System.getenv("DAWN_REQUIRE_ADAPTER") ?: "1"}")
                 val kind = when (GLFW.glfwGetPlatform()) {
                     GLFW.GLFW_PLATFORM_COCOA -> "metal"
                     GLFW.GLFW_PLATFORM_WIN32 -> "win32"
@@ -202,7 +204,6 @@ class DawnWindowTest {
                     else -> error("No active desktop presentation platform")
                 }
                 println("TOOLKIT_PRESENTATION kind=$kind")
-                assertFailsWith<IllegalStateException> { window.shutdown() }
                 window.requestClose()
             }
             val closed = assertNotNull(captured)

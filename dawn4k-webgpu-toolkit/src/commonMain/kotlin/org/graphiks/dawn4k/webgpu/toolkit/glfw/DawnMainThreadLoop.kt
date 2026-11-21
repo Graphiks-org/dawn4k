@@ -70,6 +70,7 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
                 drain()
                 if (runtime.isActive) backend.pollEvents()
                 if (stopRequested) beginRetirement()
+
                 pauseGlfwMainThread()
             }
         } finally {
@@ -90,7 +91,7 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
         windows.toList().forEach { window ->
             if (cleanup[window]?.isActive != true) {
                 cleanup[window] = scope.launch(Dispatchers.Default) {
-                    window.gpu.manualProgress?.stop()
+                    window.session.manualProgress?.stop()
                     runCatching { window.shutdown() }
                     delay(10)
                 }

@@ -6,47 +6,54 @@ import kotlin.coroutines.coroutineContext
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.webgpu.toolkit.*
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import org.graphiks.webgpu.GPUTextureFormat
 import org.graphiks.webgpu.suite.demos.particles.ParticleScene
 import org.graphiks.webgpu.suite.demos.particles.initialParticles
 import org.graphiks.webgpu.suite.demos.particles.maxParticleCount
+import org.graphiks.webgpu.toolkit.Session
+import org.graphiks.webgpu.toolkit.SessionState
 
 /** Borrows its caller-owned native host until all presentation leases retire. */
 internal suspend fun runParticleDemo(host: SurfaceHost, controls: ParticleControls) {
     val lease = DesktopSurfaceLease(1, host)
     var failure: Throwable? = null
     try {
-        withDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(host.backend)), demoPresentationOptions()) { gpu, presentation ->
-            val info = gpu.adapter.info
+        val extension = Dawn4kWebGpuToolkitExtension()
+        withDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(host.backend)), demoPresentationOptions(), extension) { session, presentation ->
+            val info = extension.dawnAdapter(session).info
             println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
-            controls.initialize(maxParticleCount(gpu.device.limits))
-            renderLoop(gpu, presentation, lease, controls)
+            controls.initialize(maxParticleCount(session.device.limits))
+            renderLoop(session, presentation, lease, controls)
         }
     } catch (caught: Throwable) { failure = caught; throw caught }
     finally { demoCleanup(failure, { lease.awaitRetirement() }) }
 }
 
 /** One opened surface attempt: the session plus what the caller must record about its lease. */
-private class OpenedPresentation(val session: DawnPresentedSession, val backend: DawnBackend, val generation: Long)
+private class OpenedPresentation(
+    val session: DawnPresentedSession,
+    val extension: Dawn4kWebGpuToolkitExtension,
+    val backend: DawnBackend,
+    val generation: Long,
+)
 
 /** Tracks the live particle scene against the controls state: replaces it when the requested
  *  particle count changes and resets it when a new reset generation arrives. */
 private class ParticleSceneBook(
-    private val gpu: ToolkitSessionView,
+    private val session: Session,
     val format: GPUTextureFormat,
     count: Int,
     initialResetGeneration: Long = 0L,
 ) {
-    var scene: ParticleScene = ParticleScene.create(gpu.device, format, initialParticles(count)); private set
+    var scene: ParticleScene = ParticleScene.create(session.device, format, initialParticles(count)); private set
     var resetGeneration: Long = initialResetGeneration; private set
 
     /** Reconciles the scene with [requested] and returns the scene to render. */
     suspend fun reconcile(requested: ParticleControlState): ParticleScene {
         if (requested.count != scene.count) {
-            gpu.queue.onSubmittedWorkDone().getOrThrow()
-            val replacement = ParticleScene.create(gpu.device, format, initialParticles(requested.count))
+            session.queue.onSubmittedWorkDone().getOrThrow()
+            val replacement = ParticleScene.create(session.device, format, initialParticles(requested.count))
             val previous = scene
             scene = replacement
             previous.close()
@@ -69,7 +76,7 @@ private class RenderedFrame(val presented: Boolean, val extent: PixelExtent)
 /** Encodes, submits and presents one frame of [scene]; null when no frame slot was acquired.
  *  [shouldPresent] runs after submission and decides whether the frame may still present. */
 private suspend fun renderFrame(
-    gpu: ToolkitSessionView,
+    session: Session,
     presentation: DawnPresentation,
     scene: ParticleScene,
     delta: Float,
@@ -77,9 +84,9 @@ private suspend fun renderFrame(
 ): RenderedFrame? {
     var outcome: RenderedFrame? = null
     val rendered = presentation.withFrame { frame ->
-        gpu.device.createCommandEncoder().use { encoder ->
+        session.device.createCommandEncoder().use { encoder ->
             scene.encodeFrame(encoder, frame.view, frame.extent.width, frame.extent.height, delta)
-            encoder.finish().use { gpu.queue.submit(listOf(it)) }
+            encoder.finish().use { session.queue.submit(listOf(it)) }
         }
         val presented = shouldPresent()
         if (presented) frame.present()
@@ -92,6 +99,7 @@ private suspend fun renderFrame(
 internal suspend fun runParticleDemo(controller: DemoSessionController, sessionId: Long) {
     val clock = controller.frameClock
     var presented: DawnPresentedSession? = null
+    var extension: Dawn4kWebGpuToolkitExtension? = null
     var backend: DawnBackend? = null
     var generation = -1L
     var surfaceCreations = 0L
@@ -101,8 +109,8 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
         controller.releasePresentation = {
             // The frame lock already excludes rendering. Bypass application admission so
             // target retirement cannot wait behind the long-lived simulation block.
-            active.gpu.run {
-                try { active.gpu.queue.onSubmittedWorkDone().getOrThrow() }
+            active.session.run {
+                try { active.session.queue.onSubmittedWorkDone().getOrThrow() }
                 finally { active.presentation.detachTarget(generation); clock.suspend() }
             }
         }
@@ -112,6 +120,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
         while (presented == null) {
             openPresentedSession(controller) { opened ->
                 presented = opened.session
+                extension = opened.extension
                 backend = opened.backend
                 generation = opened.generation
                 surfaceCreations++
@@ -119,10 +128,11 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
             }
         }
         val active = checkNotNull(presented)
-        val gpu = active.gpu
+        val bound = checkNotNull(extension)
+        val session = active.session
         val presentation = active.presentation
-        gpu.run {
-            val info = gpu.adapter.info
+        session.run {
+            val info = bound.dawnAdapter(session).info
             println("[demo] adapter: ${info.vendor} / ${info.device} (${info.description}, architecture=${info.architecture})")
             var book: ParticleSceneBook? = null
             var frameCount = 0L
@@ -130,7 +140,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
             var applicationFailure: Throwable? = null
             try {
                 while (coroutineContext.isActive) {
-                    requireDemoReady(gpu)
+                    requireDemoReady(session)
                     controller.withSurface { lease ->
                         if (lease == null || !lease.valid || !controller.state.value.lifecycleActive) {
                             clock.suspend(); return@withSurface
@@ -151,8 +161,8 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                             "replacement surface cannot preserve the simulation texture format"
                         }
                         if (sceneBook == null) {
-                            controller.controls.initialize(maxParticleCount(gpu.device.limits), sessionId)
-                            sceneBook = ParticleSceneBook(gpu, selected.format, controller.controls.state.value.count)
+                            controller.controls.initialize(maxParticleCount(session.device.limits), sessionId)
+                            sceneBook = ParticleSceneBook(session, selected.format, controller.controls.state.value.count)
                             book = sceneBook
                             controller.ready(sessionId)
                         }
@@ -164,12 +174,12 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
                             lastExtent = extent
                         }
                         if (!lease.valid) { clock.suspend(); return@withSurface }
-                        val frame = renderFrame(gpu, presentation, current, delta) { lease.valid }
+                        val frame = renderFrame(session, presentation, current, delta) { lease.valid }
                         if (frame == null || !lease.valid) { clock.suspend(); return@withSurface }
                         frameCount++
                         if (frameCount == 1L || frameCount % 120L == 0L)
                             println("[demo] frame $frameCount rendered (${frame.extent.width}x${frame.extent.height}, particles=${current.count}, paused=${requested.paused}, delta=${delta}s)")
-                        val fingerprint = if (controller.evidence.wantsFingerprint) particleFingerprint(gpu.device, current) else null
+                        val fingerprint = if (controller.evidence.wantsFingerprint) particleFingerprint(session.device, current) else null
                         controller.evidence.publish(DemoEvidenceSnapshot(
                             sessionId = sessionId, phase = controller.state.value.phase,
                             backend = checkNotNull(backend).name, adapter = info.description,
@@ -198,7 +208,7 @@ internal suspend fun runParticleDemo(controller: DemoSessionController, sessionI
         // Shutdown begins after application admission and scene cleanup have ended.
         demoCleanup(failure,
             { presented?.shutdown() },
-            { presented?.gpu?.let(controller::sessionClosed) },
+            { presented?.session?.let(controller::sessionClosed) },
         )
     }
 }
@@ -215,9 +225,10 @@ private suspend fun openPresentedSession(
         if (lease == null || !lease.valid) return@withSurface
         lease.pixelExtent()
         try {
-            val opened = openDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(lease.backend)), demoPresentationOptions())
-            controller.sessionOpened(opened.gpu)
-            onOpened(OpenedPresentation(opened, lease.backend, lease.generation))
+            val extension = Dawn4kWebGpuToolkitExtension()
+            val opened = openDawnSurface(lease.target, DawnSessionOptions(config = DawnConfig(lease.backend)), demoPresentationOptions(), extension)
+            controller.sessionOpened(opened.session)
+            onOpened(OpenedPresentation(opened, extension, lease.backend, lease.generation))
         } catch (caught: Throwable) {
             // A disappearing view is normal; its rollback still owns any retained target.
             if (lease.valid || caught is CancellationException) throw caught
@@ -225,10 +236,10 @@ private suspend fun openPresentedSession(
     }
 }
 
-private suspend fun renderLoop(gpu: ToolkitSessionView, presentation: DawnPresentation,
+private suspend fun renderLoop(session: Session, presentation: DawnPresentation,
     lease: DemoSurfaceLease, controls: ParticleControls) {
     val format = checkNotNull(presentation.configuration.value).format
-    val book = ParticleSceneBook(gpu, format, controls.state.value.count, controls.state.value.resetGeneration)
+    val book = ParticleSceneBook(session, format, controls.state.value.count, controls.state.value.resetGeneration)
     println("[demo] scene ready — starting render loop")
     val clock = ParticleFrameClock()
     var frameCount = 0L
@@ -236,7 +247,7 @@ private suspend fun renderLoop(gpu: ToolkitSessionView, presentation: DawnPresen
     var failure: Throwable? = null
     try {
         while (coroutineContext.isActive) {
-            requireDemoReady(gpu)
+            requireDemoReady(session)
             val requested = controls.state.value
             val scene = book.reconcile(requested)
             val extent = lease.pixelExtent()
@@ -246,7 +257,7 @@ private suspend fun renderLoop(gpu: ToolkitSessionView, presentation: DawnPresen
                 println("[demo] configuring surface ${extent.width}x${extent.height}")
                 previousExtent = extent
             }
-            val frame = renderFrame(gpu, presentation, scene, delta) { coroutineContext.ensureActive(); true }
+            val frame = renderFrame(session, presentation, scene, delta) { coroutineContext.ensureActive(); true }
             if (frame == null) { clock.suspend(); delay(16); continue }
             frameCount++
             if (frameCount == 1L || frameCount % 120L == 0L)
@@ -254,18 +265,18 @@ private suspend fun renderLoop(gpu: ToolkitSessionView, presentation: DawnPresen
             delay(1)
         }
     } catch (caught: Throwable) { failure = caught; throw caught }
-    finally { demoCleanup(failure, { gpu.queue.onSubmittedWorkDone().getOrThrow() }, { book.close() }) }
+    finally { demoCleanup(failure, { session.queue.onSubmittedWorkDone().getOrThrow() }, { book.close() }) }
 }
 
 private fun demoPresentationOptions(format: GPUTextureFormat? = null) =
     DawnPresentationOptions(requiredFormat = format, requiredPresentMode = DawnPresentMode.Fifo)
 
-private fun requireDemoReady(gpu: ToolkitSessionView) {
-    when (val state = gpu.state.value) {
-        DawnSessionState.Ready -> Unit
-        is DawnSessionState.Lost -> error("device lost: ${state.info.message}")
-        is DawnSessionState.Failed -> throw state.cause
-        else -> error("GPU session is no longer ready: $state")
+private fun requireDemoReady(session: Session) {
+    when (session.state.value) {
+        SessionState.Ready -> Unit
+        SessionState.Lost -> error("device lost; the admitted work carries the reason")
+        SessionState.Failed -> error("GPU session failed; see the session log")
+        else -> error("GPU session is no longer ready: ${session.state.value}")
     }
 }
 

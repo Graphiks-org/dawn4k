@@ -84,7 +84,7 @@ private fun fakeSurfaceFactory() = SurfaceFactory { lease, _ ->
     SurfaceAttachment(
         lease,
         null,
-        { FakeNativeSurface() },
+        { _, _ -> FakeNativeSurface() },
         {},
     )
 }

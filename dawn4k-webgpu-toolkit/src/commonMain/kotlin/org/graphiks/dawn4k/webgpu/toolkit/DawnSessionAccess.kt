@@ -10,6 +10,7 @@ import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.toolkit.AdapterHints
 import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
+import org.graphiks.webgpu.toolkit.SessionInitialization
 import org.graphiks.webgpu.toolkit.openSession
 
 /**
@@ -25,8 +26,9 @@ suspend fun openDawnSession(
     extension: Dawn4kWebGpuToolkitExtension,
     config: SessionConfig = SessionConfig(),
     hints: AdapterHints = AdapterHints(),
+    initialization: SessionInitialization = SessionInitialization.None,
 ): Session = extension.startupMutex.withLock {
-    val session = openSession(extension, config, hints)
+    val session = openSession(extension, config, hints, initialization)
     val instance = extension.currentInstance()
         ?: error("the extension opened no instance for the session it just started")
     extension.attach(session, instance)

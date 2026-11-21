@@ -1,6 +1,6 @@
 package org.graphiks.dawn4k.webgpu.toolkit.window
 
-import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.internal.GlfwBackend
 import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.SurfaceFactory
@@ -33,23 +33,21 @@ class GlfwWindowHost(
     override val runtime: WindowRuntime = WindowRuntime.Owned,
 ) : WindowHost, AutoCloseable {
 
-    private val contextLock = Any()
-
-    @Volatile
-    private var dawnContext: DawnContext? = null
-
     @Volatile
     private var serving: DawnMainThreadLoop? = null
 
     /** Whether the host is currently serving; [open] requires it. */
     val isServing: Boolean get() = serving != null
 
+    /** The extension every window this host opens binds its session to; one per host. */
+    internal val extension = Dawn4kWebGpuToolkitExtension()
+
     /** The surface factory binding retained targets to native surfaces; tests swap it. */
     internal var surfaceFactory: SurfaceFactory = SurfaceFactory.Native
 
     /**
      * Serves the process main thread until [close]. Blocking: it returns only once the stop
-     * drained every remaining window and released the context.
+     * drained every remaining window.
      */
     fun serve() = serve(null)
 
@@ -60,13 +58,6 @@ class GlfwWindowHost(
             loop.serve()
         } finally {
             serving = null
-            // Serving returned with the windows drained, so releasing here cannot race a shutdown.
-            val context = synchronized(contextLock) {
-                val current = dawnContext
-                dawnContext = null
-                current
-            }
-            context?.let { runCatching { it.close() } }
         }
     }
 
@@ -78,11 +69,8 @@ class GlfwWindowHost(
         val loop = serving ?: throw IllegalStateException(
             "GlfwWindowHost is not serving; call serve() on the process main thread before opening windows",
         )
-        val context = synchronized(contextLock) {
-            dawnContext ?: DawnContext.create().also { dawnContext = it }
-        }
         return loop.owner.onOwner {
-            createGlfwWindow(config, runtime, context, loop, surfaceFactory)
+            createGlfwWindow(config, runtime, loop, surfaceFactory, extension)
         }
     }
 

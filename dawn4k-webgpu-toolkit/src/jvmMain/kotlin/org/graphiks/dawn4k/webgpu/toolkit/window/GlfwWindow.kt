@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindow
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowEvent
@@ -380,9 +381,9 @@ internal class GlfwWindow(
 internal suspend fun createGlfwWindow(
     config: WindowConfig,
     runtime: WindowRuntime,
-    dawnContext: DawnContext,
     main: DawnMainThreadLoop,
     surfaceFactory: SurfaceFactory = SurfaceFactory.Native,
+    extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension(),
 ): GlfwWindow {
     val dawnWindowOptions = org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowOptions(
         title = config.title,
@@ -403,7 +404,7 @@ internal suspend fun createGlfwWindow(
         presentationOptions = org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions(),
         mainThread = main,
         openSurface = { target, sessionOptions, presentationOptions ->
-            org.graphiks.dawn4k.webgpu.toolkit.surface.openDawnSurface(target, sessionOptions, presentationOptions, surfaceFactory)
+            org.graphiks.dawn4k.webgpu.toolkit.surface.openDawnSurface(target, sessionOptions, presentationOptions, surfaceFactory, extension)
         },
     )
     

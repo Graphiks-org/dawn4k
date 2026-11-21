@@ -4,10 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentation
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.toolkit.Session
 import kotlin.test.Test
@@ -64,9 +62,9 @@ class DawnMainThreadLoopServeTest {
     }
 }
 
-/** A window session with no GPU behind it: the stop path only touches [gpu]'s manual progress. */
+/** A window session with no GPU behind it: the stop path only touches [session]'s manual progress. */
 private class FakeWindowSession : WindowSession {
-    override val gpu: ToolkitSessionView = ToolkitSessionView(sessionStub(), Dawn4kWebGpuToolkitExtension())
+    override val session: Session = sessionStub()
     override val presentation: DawnPresentation get() = error("the stop path must not touch the presentation")
     override val surfaceTarget: DawnSurfaceTarget get() = error("the stop path must not touch the target")
     override suspend fun shutdown() {}

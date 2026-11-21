@@ -4,7 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.DawnBackend
 import org.graphiks.dawn4k.DawnConfig
 import org.graphiks.dawn4k.webgpu.toolkit.*
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.openSession
 import org.graphiks.webgpu.*
@@ -19,7 +19,7 @@ class AndroidParticleRenderTest {
         val extension = Dawn4kWebGpuToolkitExtension(DawnConfig(DawnBackend.Vulkan))
         val session = openSession(extension, SessionConfig())
         try {
-            val gpu = ToolkitSessionView(session, extension)
+            val gpu = session
                     val device = gpu.device
                     device.pushErrorScope(GPUErrorFilter.Validation)
                     device.createTexture(TextureDescriptor(size = Extent3D(64u, 64u),
