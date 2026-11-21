@@ -75,7 +75,10 @@ class Dawn4kWebGpuToolkitExtension(
 
     /**
      * Serializes session startups through [openDawnSession], so the instance an attach records
-     * is the one this very startup opened, never a concurrent one's.
+     * is the one this very startup opened, never a concurrent one's. The instance is captured
+     * in the startup's preparation phase; interleaving raw [org.graphiks.webgpu.toolkit.openSession]
+     * startups with [openDawnSession] on the same extension is not supported — keep one startup
+     * style per extension.
      */
     internal val startupMutex = Mutex()
 

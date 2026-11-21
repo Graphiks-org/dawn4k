@@ -85,10 +85,13 @@ surface:
 
 ```kotlin
 fun main() = runBlocking {
+    val extension = Dawn4kWebGpuToolkitExtension()
+    val host = GlfwWindowHost()
     launch(Dispatchers.Default) {
-        withWindow(extension, GlfwWindowHost(), WindowConfig(64, 64)) { session, window, surface ->
+        withWindow(extension, host, WindowConfig(logicalWidth = 64, logicalHeight = 64)) { session, window, surface ->
             // frames: surface.acquireFrame()/withFrame
         }
+        host.close()
     }
     host.serve()
 }

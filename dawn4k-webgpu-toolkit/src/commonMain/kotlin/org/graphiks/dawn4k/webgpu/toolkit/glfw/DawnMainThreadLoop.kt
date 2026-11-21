@@ -59,8 +59,9 @@ class DawnMainThreadLoop private constructor(overrideBackend: GlfwBackend?) {
     /**
      * Serves the calling thread — the process main thread — until [stopServing]: it drains
      * dispatched work, polls events, and on a stop shuts every registered window down before
-     * returning, exactly like the session mode does at the end of its block. The loop is
-     * reusable after a serve ends; serving and [run] share the one-loop-per-process gate.
+     * returning, exactly like the session mode does at the end of its block. A served loop is
+     * spent once serving ends: its dispatcher rejects every later dispatch, so a host creates
+     * a fresh loop per serve. Serving and [run] share the one-loop-per-process gate.
      */
     internal fun serve() {
         requireGlfwMainThread()

@@ -13,7 +13,8 @@ fun computeMain() = runBlocking {
     try {
         println(runComputeExample(session).contentToString())
     } finally {
-        // A dawn4k session is `Manual`: its driver ends before the session may shut down.
+        // The session drives its own pump; stopping manual progress keeps shutdown admissible
+        // for a progression that handed a driver over (none for the EventLoop extension).
         session.manualProgress?.stop()
         session.shutdown()
     }
