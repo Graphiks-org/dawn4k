@@ -87,6 +87,11 @@ class Dawn4kWebGpuToolkitExtension(
         sessions[session] = instance
     }
 
+    /** Releases the binding of a shut-down session, so the map holds only live sessions. */
+    internal fun detach(session: Session) = synchronized(opened) {
+        sessions.remove(session)
+    }
+
     /** The instance [session] was opened with, or a failure naming the fix. */
     internal fun instanceOf(session: Session): Dawn4kToolkitInstance = synchronized(opened) {
         sessions[session]

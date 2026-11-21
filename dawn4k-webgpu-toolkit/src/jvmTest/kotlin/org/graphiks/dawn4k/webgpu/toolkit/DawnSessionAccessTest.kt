@@ -51,6 +51,20 @@ class DawnSessionAccessTest {
         }
     }
 
+    @Test fun detachReleasesTheSessionBinding() {
+        val extension = Dawn4kWebGpuToolkitExtension()
+        val instance = extension.open(SessionConfig()) as Dawn4kToolkitInstance
+        try {
+            val session = sessionStub()
+            extension.attach(session, instance)
+            assertSame(instance.dawnContext, extension.dawnContext(session))
+            extension.detach(session)
+            assertFailsWith<IllegalStateException> { extension.dawnContext(session) }
+        } finally {
+            instance.close()
+        }
+    }
+
     @Test fun createRenderTextureRejectsZeroDimensions() {
         val extension = Dawn4kWebGpuToolkitExtension()
         val session = sessionStub()

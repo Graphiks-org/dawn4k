@@ -195,5 +195,11 @@ suspend fun <T> withDawnWindow(
     withToolkitShutdown(
         stopProgress = { window.session.manualProgress?.stop() },
         shutdown = { window.shutdown() },
-    ) { coroutineScope { block(window.session, window, window.presentation) } }
+    ) {
+        window.session.run {
+            withContext(checkNotNull(window.session.executionOwner) { "the session pins no execution owner" }) {
+                coroutineScope { block(window.session, window, window.presentation) }
+            }
+        }
+    }
 }

@@ -24,6 +24,7 @@ class DawnPresentedSession internal constructor(
     val presentation: DawnPresentation,
     /** The target this session retains and presents to. */
     val surfaceTarget: DawnSurfaceTarget,
+    private val extension: Dawn4kWebGpuToolkitExtension,
 ) {
     /**
      * Acquires one frame and hands it to the caller, who presents and closes it. Returns null
@@ -43,6 +44,8 @@ class DawnPresentedSession internal constructor(
         }
         session.manualProgress?.stop()
         session.shutdown()
+        // The handles are released: drop the binding so the extension holds only live sessions.
+        extension.detach(session)
     }
 }
 
@@ -128,6 +131,7 @@ internal suspend fun openDawnSurface(
             session = session,
             presentation = created,
             surfaceTarget = target,
+            extension = extension,
         )
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
@@ -155,7 +159,13 @@ suspend fun <T> withDawnSurface(
     return withToolkitShutdown(
         stopProgress = { presented.session.manualProgress?.stop() },
         shutdown = { presented.shutdown() },
-    ) { coroutineScope { block(presented.session, presented.presentation) } }
+    ) {
+        presented.session.run {
+            withContext(checkNotNull(presented.session.executionOwner) { "the session pins no execution owner" }) {
+                coroutineScope { block(presented.session, presented.presentation) }
+            }
+        }
+    }
 }
 
 /**
