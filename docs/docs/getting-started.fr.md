@@ -29,7 +29,7 @@ Voir [Binding natif Dawn](native-binding.md) pour la génération et la liaison.
 ## Sessions gérées et présentation
 
 Pour confier au toolkit le bootstrap, un thread GPU, la progression et l’arrêt,
-ajouter `org.graphiks:dawn4k-webgpu-toolkit` à la même version que le backend :
+ajouter `org.graphiks.webgpu:dawn4k-webgpu-toolkit` à la même version que le backend :
 il couvre les sessions sans fenêtre, les vues natives existantes et les fenêtres
 desktop possédées par le toolkit. Utiliser
 `withDawnSession { ... }` depuis une coroutine. Le [guide toolkit](toolkit.fr.md)
