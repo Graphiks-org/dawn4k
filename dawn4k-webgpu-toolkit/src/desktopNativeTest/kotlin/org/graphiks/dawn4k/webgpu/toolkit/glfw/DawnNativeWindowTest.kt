@@ -29,8 +29,8 @@ class DawnNativeWindowTest {
                 first.shutdown()
                 assertEquals(1, backend.liveWindowCount)
                 assertTrue(second.presentation.withFrame { it.present() })
-                second.gpu.run { gpu ->
-                    println("TOOLKIT_GLFW backend=$backendName required=${getenv("DAWN_REQUIRE_ADAPTER")?.toKString() ?: "1"} device=${gpu.adapter.info.device}")
+                second.session.run {
+                    println("TOOLKIT_GLFW backend=$backendName required=${getenv("DAWN_REQUIRE_ADAPTER")?.toKString() ?: "1"}")
                 }
                 val kind = when (backend.targetPlatform(second.nativeHandle)) {
                     GlfwPlatform.Cocoa -> "metal"

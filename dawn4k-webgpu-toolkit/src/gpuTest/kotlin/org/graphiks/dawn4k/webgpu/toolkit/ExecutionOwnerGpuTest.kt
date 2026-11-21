@@ -4,25 +4,22 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.graphiks.dawn4k.webgpu.toolkit.testing.ToolkitGpuEnvironment
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 /**
  * The foundation the whole toolkit rests on: a dawn4k session must publish its dedicated
- * `dawn4k-toolkit` dispatcher as the execution owner, so GPU work dispatched through
- * `session.executionOwner` runs on the thread that owns the Dawn context.
+ * execution owner, and work dispatched through it runs on the thread that owns the Dawn
+ * context — [DawnExecutionOwner.checkThread] passes only on that pinned thread.
  */
 class ExecutionOwnerGpuTest {
     @Test fun dawnSessionPublishesItsDedicatedOwner() = runBlocking {
-        ToolkitGpuEnvironment.withGpuSession { session ->
+        val extension = ToolkitGpuEnvironment.extension()
+        ToolkitGpuEnvironment.withGpuSession(extension) { session ->
             val owner = assertNotNull(session.executionOwner, "a dawn4k session must pin an execution owner")
+            val instance = assertNotNull(extension.currentInstance(), "the extension opened this session's instance")
             withContext(owner) {
-                assertEquals(
-                    true,
-                    Thread.currentThread().name.startsWith("dawn4k-toolkit"),
-                    "the execution owner must be the dedicated dawn dispatcher, not the caller's " +
-                        "(thread: ${Thread.currentThread().name})",
-                )
+                // The pinned-thread check passes only on the thread that created the Dawn context.
+                instance.dawnOwner.checkThread()
             }
         }
     }
