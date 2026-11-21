@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dawn4kToolkitInstance.close()` now marshals its teardown onto the execution owner instead of assuming the caller already did: a close from any other thread could race the event-loop pump's `processEvents()` iteration and fail with `cannot close during processEvents()` (seen on loaded CI runners). A second `close()` is now a no-op rather than racing the first.
 
 ### Changed
+- dawn4k itself joins the `org.graphiks.webgpu` Maven group: the published coordinates are now `org.graphiks.webgpu:dawn4k`, `:dawn4k-native` and `:dawn4k-webgpu-toolkit`. Artifact ids keep their `dawn4k-` prefix (unlike WebGPU's own stripped names) so the Dawn-backed modules stay identifiable inside the WebGPU family; consumer dependency strings must add the `webgpu` segment.
 - CI: the Apple toolkit GPU suites share one macOS runner with the device-compile and publication checks staggered behind it, staying within the runner pool's variable capacity; Android qualification no longer waits for them, native-heavy macOS jobs cache `~/.konan`, and superseded pull-request runs are cancelled.
 - WebGPU dependencies moved to the current `org.graphiks.webgpu` Maven group (`api`, `descriptors`, `toolkit-*`, `suite-*`), matching WebGPU #152; the legacy `org.graphiks` group coordinates are gone, which also removes the duplicate webgpu-api klib/AAR on native and Android classpaths.
 - kffi `1.0.0-SNAPSHOT` → `0.1.0`, the first Maven Central release: the artifacts now live under the `org.graphiks.kffi` group (`kffi`, `objc-jvm`, `win32-jvm`, `x11-jvm`), so the kffi filters are dropped from the snapshot repository.
@@ -26,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed the generated bindings package from `org.graphiks.dawn4k.raw` to `org.graphiks.dawn4k.native`.
 
 ### Added
-- Optional `dawn4k-webgpu-toolkit` module (`org.graphiks:dawn4k-webgpu-toolkit`): Dawn (WebGPU) extension providing managed GPU sessions, native surface presentation and desktop GLFW window hosting for the Graphiks toolkit, with contract coverage from the toolkit TCK.
+- Optional `dawn4k-webgpu-toolkit` module (`org.graphiks.webgpu:dawn4k-webgpu-toolkit`): Dawn (WebGPU) extension providing managed GPU sessions, native surface presentation and desktop GLFW window hosting for the Graphiks toolkit, with contract coverage from the toolkit TCK.
 - Strict toolkit publication/coverage checks and platform CI for JVM macOS/Windows/Linux x64/ARM64, Native macOS/Linux X11 and Wayland, Android Vulkan, and ARM64/Intel Apple simulators. Physical iOS/tvOS device compilation is reported separately from GPU execution.
 - Unpublished `:dawn4k-acid-tests` module running the complete Graphiks foundation registry on JVM, macOS ARM64 and Linux x64, with isolated GPU cases, per-case JSON reports and CI integration. Usage and result interpretation are documented in `docs/docs/acid-tests-verification.md` and its French translation.
 - Android Vulkan and iOS Metal demo applications sharing the adaptive Compose UI, native surface ownership, lifecycle controls and mobile tests.

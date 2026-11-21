@@ -39,7 +39,7 @@ def verify_android_manifest_package(manifest):
 
 def verify_runtime_archives(root, version):
     def archive(module, extension):
-        path = root / "org/graphiks" / module / version / f"{module}-{version}.{extension}"
+        path = root / "org/graphiks/webgpu" / module / version / f"{module}-{version}.{extension}"
         if not path.is_file():
             raise VerificationError(f"Missing published runtime artifact: {path}")
         return zipfile.ZipFile(path)
@@ -211,7 +211,7 @@ def main():
     if args.metadata_root:
         documents = {}
         for module in MODULES:
-            path = args.metadata_root / "org/graphiks" / module / args.version / f"{module}-{args.version}.module"
+            path = args.metadata_root / "org/graphiks/webgpu" / module / args.version / f"{module}-{args.version}.module"
             documents[module] = json.loads(path.read_text())
         verify_metadata(documents)
         verify_runtime_archives(args.metadata_root, args.version)

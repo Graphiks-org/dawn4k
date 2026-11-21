@@ -130,7 +130,7 @@ class WindowsRuntimeArchives(unittest.TestCase):
         self.root = Path(self.temporary.name) / "maven"
 
     def stage_jvm_jar(self, dependencies, digests=None, unmatched_manifest_names=(), unmanifested_dlls=(), dawn_dll=True):
-        path = self.root / "org/graphiks/dawn4k-native-jvm" / self.version / f"dawn4k-native-jvm-{self.version}.jar"
+        path = self.root / "org/graphiks/webgpu/dawn4k-native-jvm" / self.version / f"dawn4k-native-jvm-{self.version}.jar"
         path.parent.mkdir(parents=True)
         contents = {
             "linux-x86-64/libwebgpu_dawn.so": elf(62),
@@ -153,7 +153,7 @@ class WindowsRuntimeArchives(unittest.TestCase):
                 jar.writestr(name, data)
 
     def stage_aar(self, module, library, rules):
-        path = self.root / "org/graphiks" / module / self.version / f"{module}-{self.version}.aar"
+        path = self.root / "org/graphiks/webgpu" / module / self.version / f"{module}-{self.version}.aar"
         path.parent.mkdir(parents=True)
         with zipfile.ZipFile(path, "w") as aar:
             aar.writestr("AndroidManifest.xml", '<manifest package="org.graphiks.dawn4k.dawn"/>')
