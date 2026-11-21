@@ -2,9 +2,16 @@ package org.graphiks.dawn4k.webgpu.toolkit
 
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.sync.Mutex
 import org.graphiks.dawn4k.DawnConfig
+import org.graphiks.dawn4k.DawnTexture
 import org.graphiks.dawn4k.webgpu.toolkit.internal.Dawn4kToolkitInstance
+import org.graphiks.webgpu.GPUTextureFormat
+import org.graphiks.webgpu.GPUTextureUsage
+import org.graphiks.webgpu.descriptors.Extent3D
+import org.graphiks.webgpu.descriptors.TextureDescriptor
 import org.graphiks.webgpu.toolkit.Progression
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.ToolkitInstance
 import org.graphiks.webgpu.toolkit.WebGpuToolkitExtension
@@ -65,4 +72,70 @@ class Dawn4kWebGpuToolkitExtension(
      * has not opened one.
      */
     internal fun currentInstance(): Dawn4kToolkitInstance? = synchronized(opened) { lastOpened }
+
+    /**
+     * Serializes session startups through [openDawnSession], so the instance an attach records
+     * is the one this very startup opened, never a concurrent one's.
+     */
+    internal val startupMutex = Mutex()
+
+    /** The sessions this extension bound to the instances they opened. */
+    private val sessions = mutableMapOf<Session, Dawn4kToolkitInstance>()
+
+    /** Binds [session] to the instance its startup opened. */
+    internal fun attach(session: Session, instance: Dawn4kToolkitInstance) = synchronized(opened) {
+        sessions[session] = instance
+    }
+
+    /** The instance [session] was opened with, or a failure naming the fix. */
+    internal fun instanceOf(session: Session): Dawn4kToolkitInstance = synchronized(opened) {
+        sessions[session]
+    } ?: error("the session was not opened through openDawnSession; the dawn accessors need an attached session")
+
+    /** The dawn context [session]'s instance owns, for retaining additional native surfaces. */
+    fun dawnContext(session: Session): org.graphiks.dawn4k.DawnContext = instanceOf(session).dawnContext
+
+    /**
+     * The adapter [session]'s device was requested from, or a failure before the request.
+     */
+    fun dawnAdapter(session: Session): org.graphiks.dawn4k.DawnAdapter =
+        checkNotNull(instanceOf(session).lastAdapter) { "the session has not requested an adapter yet" }
+
+    /** The session's device as the dawn4k type it is. */
+    fun dawnDevice(session: Session): org.graphiks.dawn4k.DawnDevice {
+        instanceOf(session)
+        return session.device as org.graphiks.dawn4k.DawnDevice
+    }
+
+    /** The session's primary queue as the dawn4k type it is. */
+    fun dawnQueue(session: Session): org.graphiks.dawn4k.DawnQueue {
+        instanceOf(session)
+        return session.queue as org.graphiks.dawn4k.DawnQueue
+    }
+
+    /**
+     * Creates an offscreen render texture owned by the caller, on [session]'s device.
+     *
+     * The texture belongs to the caller and must be closed after use; the session does not
+     * track it. Rendering into it is the ordinary WebGPU path: encode a render pass with
+     * [texture]'s view as the colour attachment, then copy it out if the caller needs the
+     * pixels.
+     */
+    fun createRenderTexture(
+        session: Session,
+        width: UInt,
+        height: UInt,
+        format: GPUTextureFormat,
+        usage: GPUTextureUsage = GPUTextureUsage.RenderAttachment or GPUTextureUsage.CopySrc,
+    ): DawnTexture {
+        require(width > 0u && height > 0u) { "render texture dimensions must be positive" }
+        val device = session.device as org.graphiks.dawn4k.DawnDevice
+        return device.createTexture(
+            TextureDescriptor(
+                size = Extent3D(width, height),
+                format = format,
+                usage = usage,
+            ),
+        ) as DawnTexture
+    }
 }
