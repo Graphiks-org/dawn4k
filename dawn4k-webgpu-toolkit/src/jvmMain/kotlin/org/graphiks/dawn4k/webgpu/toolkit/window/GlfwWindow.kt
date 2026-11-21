@@ -12,6 +12,8 @@ import org.graphiks.dawn4k.DawnContext
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindow
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowEvent
+import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.SurfaceFactory
+import org.graphiks.dawn4k.webgpu.toolkit.surface.openDawnSurface
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.dawn4k.webgpu.toolkit.target.Dawn4kSurfaceTarget
@@ -380,6 +382,7 @@ internal suspend fun createGlfwWindow(
     runtime: WindowRuntime,
     dawnContext: DawnContext,
     main: DawnMainThreadLoop,
+    surfaceFactory: SurfaceFactory = SurfaceFactory.Native,
 ): GlfwWindow {
     val dawnWindowOptions = org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnWindowOptions(
         title = config.title,
@@ -398,7 +401,10 @@ internal suspend fun createGlfwWindow(
         windowOptions = dawnWindowOptions,
         sessionOptions = org.graphiks.dawn4k.webgpu.toolkit.DawnSessionOptions(),
         presentationOptions = org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentationOptions(),
-        mainThread = main
+        mainThread = main,
+        openSurface = { target, sessionOptions, presentationOptions ->
+            org.graphiks.dawn4k.webgpu.toolkit.surface.openDawnSurface(target, sessionOptions, presentationOptions, surfaceFactory)
+        },
     )
     
     // FIX 1: Get the initial physical extent from DawnWindow.extent (PHYSICAL framebuffer size)
