@@ -6,11 +6,11 @@ utilisent toujours les APIs WebGPU ordinaires.
 
 | Dépendance | Responsabilité | Cibles Kotlin |
 | --- | --- | --- |
-| `org.graphiks:dawn4k-webgpu-toolkit` | Sessions GPU gérées, thread propriétaire, progression, cibles natives retenues, frames, fenêtres desktop et boucle principale | JVM, Android, macOS ARM64, Linux x64, iOS ARM64, simulateur iOS ARM64, simulateur iOS x64, tvOS ARM64, simulateur tvOS ARM64 |
+| `org.graphiks.webgpu:dawn4k-webgpu-toolkit` | Sessions GPU gérées, thread propriétaire, progression, cibles natives retenues, frames, fenêtres desktop et boucle principale | JVM, Android, macOS ARM64, Linux x64, iOS ARM64, simulateur iOS ARM64, simulateur iOS x64, tvOS ARM64, simulateur tvOS ARM64 |
 
 Les runtimes natifs JVM couvrent macOS ARM64, Linux x64/ARM64 et Windows x64.
 
-Ajouter `org.graphiks:dawn4k-webgpu-toolkit` à la même version publiée que
+Ajouter `org.graphiks.webgpu:dawn4k-webgpu-toolkit` à la même version publiée que
 `dawn4k`. Le module `dawn4k-toolkit-examples`, non publié, contient les exemples
 complets. Le toolkit ne dépend ni d’AWT ni de Compose ; l’hébergement de fenêtres
 desktop utilise GLFW sur JVM, macOS ARM64 et Linux x64 uniquement.
