@@ -18,28 +18,31 @@ desktop utilise GLFW sur JVM, macOS ARM64 et Linux x64 uniquement.
 ## Compute sans fenêtre
 
 ```kotlin
-withDawnSession { gpu ->
-    val result = runComputeExample(gpu) // module examples : [2, 4, 6, 8]
-    println(result.contentToString())
+val extension = Dawn4kWebGpuToolkitExtension()
+withSession(extension) { session ->
+    session.run { runComputeExample(session) } // module examples : [2, 4, 6, 8]
 }
 ```
 
-Le bloc s’exécute déjà sur le thread GPU de la session. Pour une durée de vie
-explicite, appeler `openDawnSession()`, conserver les ressources et leurs
-utilisateurs dans `gpu.run { ... }`, puis appeler `gpu.shutdown()` après la fin
-de ce bloc. `context`, `adapter`, `device` et `queue` sont des références
-empruntées : ne pas les fermer séparément.
+`session.run` admet le bloc sur le thread GPU de la session. Pour une durée de
+vie explicite, appeler `openDawnSession(extension)`, conserver les ressources et
+leurs utilisateurs dans `session.run { ... }`, puis appeler
+`session.shutdown()` après la fin de ce bloc. `device` et `queue` sont des
+références empruntées : ne pas les fermer indépendamment. Les handles typés dawn
+(`context`, `adapter`, `device`, `queue`) viennent de l’extension :
+`extension.dawnContext(session)` et suivants.
 
 ## Rendu offscreen et readback
 
-`gpu.createRenderTexture(width, height, format)` crée une texture appartenant à
-l’application, utilisable comme render attachment (cible de rendu) et source de
-copie. L’appeler dans `gpu.run`. Créer sa vue dans un bloc `use`, encoder le
-rendu, puis copier dans un staging buffer (buffer intermédiaire) ayant les usages
-`CopyDst | MapRead`. Respecter l’alignement des lignes, soit 256 octets dans
-l’exemple. Attendre `mapAsync`, copier les octets dans un tableau Kotlin, puis
-appeler `unmap` avant de fermer le buffer. Aucune vue de mémoire mappée ne doit
-survivre à `unmap`. Le test de pixels des exemples exécute ce parcours complet.
+`extension.createRenderTexture(session, width, height, format)` crée une texture
+appartenant à l’application, utilisable comme render attachment (cible de rendu)
+et source de copie. L’appeler dans `session.run`. Créer sa vue dans un bloc
+`use`, encoder le rendu, puis copier dans un staging buffer (buffer
+intermédiaire) ayant les usages `CopyDst | MapRead`. Respecter l’alignement des
+lignes, soit 256 octets dans l’exemple. Attendre `mapAsync`, copier les octets
+dans un tableau Kotlin, puis appeler `unmap` avant de fermer le buffer. Aucune
+vue de mémoire mappée ne doit survivre à `unmap`. Le test de pixels des exemples
+exécute ce parcours complet.
 
 Pour redimensionner une texture, attendre ses utilisateurs avant de la remplacer.
 Fermer les ressources de l’application avant de quitter le bloc GPU : la session
@@ -47,32 +50,55 @@ ne recense pas les ressources créées arbitrairement avec `device`.
 
 ## Fenêtre desktop
 
-`withDawnWindow { gpu, window, presentation -> ... }` démarre la boucle GLFW sur
+`withDawnWindow { session, window, presentation -> ... }` démarre la boucle GLFW sur
 le thread principal du processus, crée un GPU compatible et possède sa fenêtre.
 L’appeler depuis `fun main() = runBlocking { ... }`, avec `-XstartOnFirstThread` sur JVM macOS.
 Ne pas déplacer cette boucle vers un worker. La JVM demande Java 25 HotSpot et
 `--enable-native-access=ALL-UNNAMED`.
 
-`gpu` est la session à la forme dawn4k : elle publie `device`, `queue`, `context`,
-`adapter`, `state`, `manualProgress` et `createRenderTexture`, si bien que du code
-écrit contre `DawnSession` continue de fonctionner. `window` publie `extent`,
-`events`, `nativeHandle`, `resize` et `requestClose`.
+`session` est la `Session` canonique du toolkit : elle publie `device`, `queue`,
+`state`, `manualProgress` et `executionOwner`. Les handles typés dawn viennent de
+l’extension qui a ouvert la session : passez-en une à `withDawnWindow` et lisez
+`extension.dawnContext(session)`, `dawnAdapter`, `dawnDevice`, `dawnQueue` et
+`createRenderTexture`. `window` publie `extent`, `events`, `nativeHandle`,
+`resize` et `requestClose`.
 
-L’extension fonctionne en progression `Manual` : un appelant qui pilote ses
-frames lui-même fait avancer les événements via `gpu.manualProgress`, sur le
-propriétaire d’exécution de la session.
+L’extension pilote son propre pump : les frames avancent sans driver côté
+appelant ; le travail GPU passe sous `session.run`.
 
 ```kotlin
-withDawnWindow { gpu, window, presentation ->
-    TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->
+withDawnWindow { session, window, presentation ->
+    TriangleRenderer(session, presentation.configuration.value!!.format).use { triangle ->
         presentation.withFrame { frame ->
             triangle.render(frame.view, frame.extent)
             frame.present()
         }
-        gpu.queue.onSubmittedWorkDone().getOrThrow()
+        session.queue.onSubmittedWorkDone().getOrThrow()
     }
 }
 ```
+
+### Host servé : le chemin du contrat fenêtre
+
+`GlfwWindowHost` satisfait aussi le contrat `WindowHost` agnostique du toolkit.
+Démarrez-le sur le thread principal du processus, puis ouvrez les fenêtres depuis
+n’importe quel autre thread — `open` rend une fenêtre vivante, et le `withWindow`
+canonique compose session, fenêtre et surface :
+
+```kotlin
+fun main() = runBlocking {
+    launch(Dispatchers.Default) {
+        withWindow(extension, GlfwWindowHost(), WindowConfig(64, 64)) { session, window, surface ->
+            // frames : surface.acquireFrame()/withFrame
+        }
+    }
+    host.serve()
+}
+```
+
+`host.close()` arrête le serve ; le thread servé shut down chaque fenêtre
+restante avant de rendre la main. L’extent d’une fenêtre vaut zéro tant que la
+plateforme ne l’a pas posée — attendez le premier layout avant de mesurer.
 
 Le lanceur complet répète les frames et observe `DawnWindowEvent.CloseRequested`.
 La frame possède sa vue et la référence de texture acquise. Présenter au plus une
@@ -136,8 +162,8 @@ atteignent aussi le périphérique propre à la présentation.
 
 Le protocole complet d’une cible — générations, rétention, suspension
 d’acquisition et libération — figure dans la section Cycle de vie. Les appels UI
-restent sur leur propriétaire UI ; l’encodage GPU reste dans `gpu.run`.
-`gpu.executionOwner` est emprunté et réservé aux intégrations avancées qui
+restent sur leur propriétaire UI ; l’encodage GPU reste dans `session.run`.
+`session.executionOwner` est emprunté et réservé aux intégrations avancées qui
 disposent de leur propre protocole d’admission.
 
 ## Android, iOS et tvOS
@@ -159,13 +185,13 @@ indépendante du wrapper Java. Les hôtes d’exemple montrent ce nettoyage asyn
 
 ## Cycle de vie
 
-`gpu.state` publie un `StateFlow<DawnSessionState>` ; les états sont des valeurs
+`session.state` publie un `StateFlow<SessionState>` ; les états sont des valeurs
 distinctes, un observateur sait donc toujours dans quelle phase se trouve une
 session.
 
 | État | Signification | Utilisable dans cet état |
 | --- | --- | --- |
-| `Ready` | Démarrage réussi | `gpu.run`, présentation, arrêt |
+| `Ready` | Démarrage réussi | `session.run`, présentation, arrêt |
 | `ShuttingDown` | Une tentative d’arrêt est en cours | Rien de nouveau ; le travail admis se termine d’abord |
 | `ShutdownTimedOut` | La tentative a dépassé `shutdownTimeout` ; les handles restent vivants | Nouvel appel à `shutdown()` ; le nettoyage continue |
 | `Lost` | Le device a signalé une perte | Nettoyage seul ; créer une nouvelle session pour redémarrer |
@@ -206,15 +232,15 @@ d’événements. Un dispatcher externe fixé à un thread peut être emprunté 
 système. Le propriétaire emprunté doit rester actif jusqu’à la fin du nettoyage.
 
 Pour une progression manuelle, fournir `DawnExecutionMode.Manual(owner)`.
-Le bootstrap progresse jusqu’au transfert vers `gpu.manualProgress`. Appeler
+Le bootstrap progresse jusqu’au transfert vers `session.manualProgress`. Appeler
 `processEvents()` sur le même propriétaire, depuis un seul driver (pilote de
 progression), en cédant régulièrement l’exécution. Le driver s’exécute pendant
 les suspensions du travail GPU. L’annuler et le rejoindre, appeler
-`manualProgress.stop()`, puis arrêter la session hors de `gpu.run`. L’arrêt
+`manualProgress.stop()`, puis arrêter la session hors de `session.run`. L’arrêt
 persistant refuse un driver actif ; les helpers à portée définie le révoquent
 lorsqu’ils terminent.
 
-Observer `gpu.state` (la section Cycle de vie liste tous les états) ou
+Observer `session.state` (la section Cycle de vie liste tous les états) ou
 `awaitLost()`. La perte du device et le manque de mémoire
 arrêtent les nouvelles admissions et déclenchent le nettoyage. Les ressources ne
 sont pas rejouées automatiquement. Annuler et rejoindre les producteurs de
@@ -230,7 +256,7 @@ de force. Un timeout d’arrêt n’autorise jamais à libérer des handles enco
 référencés : le nettoyage réessaie en arrière-plan sur le propriétaire retenu,
 et l’application peut rappeler `shutdown()`. Les erreurs de nettoyage restent
 des exceptions supprimées de l’erreur initiale. Un arrêt réussi est idempotent ;
-l’arrêt depuis son propre `gpu.run` est refusé.
+un bloc admis continue de s’exécuter à travers son propre appel d’arrêt.
 
 Chaque tentative persistante d’arrêt de fenêtre reste bornée tant que sa boucle
 principale tourne. La boucle GLFW à portée définie reste active jusqu’à la

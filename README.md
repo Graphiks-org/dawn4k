@@ -83,8 +83,12 @@ The GitHub Actions pipeline ([ci.yml](file:///.github/workflows/ci.yml)) impleme
 ./gradlew :dawn4k-toolkit-examples:runTriangle
 ```
 
-Use `withDawnSession` for compute/offscreen work, `withDawnSurface` for an existing
+Use `openDawnSession` for compute/offscreen work, `withDawnSurface` for an existing
 window or view, and `withDawnWindow` for a desktop window owned by the toolkit.
+For the toolkit-agnostic window contract, serve a `GlfwWindowHost` on the process
+main thread and use the canonical `withWindow(extension, host, ...)`. GPU work runs
+under `session.run`, and the dawn-typed handles of a session come from its
+extension: `extension.dawnContext(session)`, `dawnAdapter`, `dawnDevice`, `dawnQueue`.
 Application-created resources stay application-owned. The toolkit and sample
 hosts live in this repository.
 
