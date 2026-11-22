@@ -41,6 +41,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":dawn4k-webgpu-toolkit"))
+            implementation(project(":dawn4k-compose"))
             implementation(libs.suite.demos)
             implementation(libs.webgpu.descriptors)
             implementation(libs.kotlinx.coroutines.core)
