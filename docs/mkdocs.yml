@@ -60,6 +60,7 @@ nav:
   - Toolkit: toolkit.md
   - Acid-suite validation: acid-tests-verification.md
   - Demo: demo.md
+  - Compose integration: compose-integration.md
   - Dependency updates: dependency-updates.md
 
 # !!! EMBEDDED DOKKA START, DO NOT COMMIT !!! #
@@ -79,6 +80,7 @@ plugins:
           build: true
           nav_translations:
             Acid-suite validation: Validation par les tests acid
+            Compose integration: Intégration Compose
             Toolkit: Toolkit
           site_name: dawn4k
           site_description: Documentation technique de dawn4k (Dawn/WebGPU Kotlin Multiplatform)

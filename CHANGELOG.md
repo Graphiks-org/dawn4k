@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The toolkit contract artifacts (`toolkit-core`, `toolkit-surface`) are now `api` dependencies of the toolkit module: public signatures name `Session` and `SurfaceTarget`.
 
 ### Added
+- `:dawn4k-compose`, the Compose Multiplatform viewport: `DawnViewport(target, modifier, onHost)`
+  places a toolkit surface target under the Compose UI and reports a `DawnViewportHost`
+  forwarding the target's state. The Android actual hosts the toolkit `DawnSurfaceView`,
+  the iOS actual the toolkit `DawnMetalView`, and the desktop JVM actual accepts any
+  integrator-supplied target (`DawnSurfaceTargets.metalLayer/win32/x11/wayland`). The
+  module holds no Dawn calls and no JNI: surfaces are acquired through the toolkit's
+  `DawnTargetLease`.
 - `openDawnSession(extension, ...)` opens a session with the dawn binding that the accessors resolve, and `GlfwWindowHost.serve()` implements the toolkit-agnostic `WindowHost` contract on the process main thread: `open` returns a live window and the canonical `withWindow(extension, host, ...)` works on desktop.
 
 ### Fixed
