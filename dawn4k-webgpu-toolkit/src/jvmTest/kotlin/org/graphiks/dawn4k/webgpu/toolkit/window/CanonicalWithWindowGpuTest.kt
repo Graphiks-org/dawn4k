@@ -19,10 +19,15 @@ import kotlin.test.assertTrue
  * live window, presents to it, and closes it on exit. This is the regression test for the
  * upstream break of 2026-11-21, where a window opened through the host was shut down by the
  * loop before the caller ever saw it ("GLFW main loop is stopped").
+ *
+ * Gates on [DAWN_REAL_WINDOW_TESTS] rather than [DAWN_DESKTOP_TESTS]: a JVM must hold at most
+ * one real-window GPU session, and CI's gated suites give that slot to
+ * `DawnWindowTest.liveWindowRendersAndCloses`. Run locally with
+ * `DAWN_DESKTOP_TESTS=1 DAWN_REAL_WINDOW_TESTS=1` in a dedicated Gradle invocation.
  */
 class CanonicalWithWindowGpuTest {
     @Test fun canonicalWithWindowPresentsOnAServedHost() {
-        assumeTrue(System.getenv("DAWN_DESKTOP_TESTS") == "1")
+        assumeTrue(System.getenv("DAWN_REAL_WINDOW_TESTS") == "1")
         val backend = DawnBackend.valueOf(System.getenv("DAWN_TEST_BACKEND") ?: "Metal")
         val extension = Dawn4kWebGpuToolkitExtension(DawnConfig(backend))
         val host = GlfwWindowHost()

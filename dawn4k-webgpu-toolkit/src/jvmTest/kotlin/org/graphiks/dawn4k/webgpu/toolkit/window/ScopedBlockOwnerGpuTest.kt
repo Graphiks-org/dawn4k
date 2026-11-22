@@ -12,12 +12,15 @@ import kotlin.test.assertTrue
 /**
  * The scoped entries hand their block to the caller already admitted on the session's GPU
  * owner: native calls made directly inside the block must not leave the dawn4k context
- * thread. Lives in its own class because two real-window GPU sessions in one JVM hang
- * (see the ledger's sequential-flake finding); run gated suites one GPU class per invocation.
+ * thread. Lives in its own class and gates on [DAWN_REAL_WINDOW_TESTS] rather than
+ * [DAWN_DESKTOP_TESTS]: a JVM must hold at most one real-window GPU session, and CI's
+ * gated suites already give that slot to `DawnWindowTest.liveWindowRendersAndCloses`.
+ * Run locally with `DAWN_DESKTOP_TESTS=1 DAWN_REAL_WINDOW_TESTS=1` in a dedicated
+ * Gradle invocation.
  */
 class ScopedBlockOwnerGpuTest {
     @Test fun scopedBlockRunsAdmittedOnTheOwner() {
-        assumeTrue(System.getenv("DAWN_DESKTOP_TESTS") == "1")
+        assumeTrue(System.getenv("DAWN_REAL_WINDOW_TESTS") == "1")
         val extension = Dawn4kWebGpuToolkitExtension(DawnConfig(DawnBackend.Metal))
         runBlocking {
             withDawnWindow(
