@@ -5,7 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.internal.GlfwWindowTarget
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentation
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
@@ -47,7 +47,7 @@ class WindowEventTest {
                 val runtime = main.runtime.acquire(DawnGlfwRuntimeOwnership.Owned)
                 val lease = NativeWindowLease(backend, backend.createWindow(DawnWindowOptions()), runtime)
                 lease to DawnWindow(main, lease, object : WindowSession {
-                    override val gpu: ToolkitSessionView get() = error("close-contract test does not access a GPU")
+                    override val session: Session get() = error("close-contract test does not access a GPU")
                     override val presentation: DawnPresentation get() = error("close-contract test does not access a surface")
                     override val surfaceTarget: DawnSurfaceTarget get() = error("close-contract test does not access a surface")
                     override suspend fun shutdown() {}

@@ -3,15 +3,17 @@ package org.graphiks.dawn4k.webgpu.toolkit.surface
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
-import org.graphiks.dawn4k.webgpu.toolkit.DawnSessionState
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.*
+import org.graphiks.webgpu.toolkit.Session
+import org.graphiks.webgpu.toolkit.SessionState
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 
 /** Uses the GPU session owner. The application continues to own an external window or view. */
 class DawnPresentation internal constructor(
-    private val gpu: ToolkitSessionView,
+    private val extension: Dawn4kWebGpuToolkitExtension,
+    private val session: Session,
     private val controller: PresentationController,
     private val factory: SurfaceFactory,
 ) {
@@ -30,19 +32,26 @@ class DawnPresentation internal constructor(
         }
     }
 
+    /** Admits [block] as the session's work, on the thread that owns the Dawn context. */
+    private suspend fun <T> admittedOnOwner(block: suspend () -> T): T = session.run {
+        withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) {
+            block()
+        }
+    }
+
     internal fun observe(target: DawnSurfaceTarget) {
         watch?.cancel()
         val generation = controller.activeGeneration ?: return
         watch = monitoring.launch {
             target.state.collect { state ->
                 if (!state.available || state.generation != generation) runCatching {
-                    withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
+                    withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
                 }
             }
         }
     }
 
-    suspend fun withFrame(block: suspend (DawnFrame) -> Unit): Boolean = gpu.run {
+    suspend fun withFrame(block: suspend (DawnFrame) -> Unit): Boolean = admittedOnOwner {
         checkOutsideFrame()
         frames.withLock {
             val frame = controller.acquireFrame() ?: return@withLock false
@@ -56,7 +65,7 @@ class DawnPresentation internal constructor(
      * held until [DawnFrame.close], so the next acquisition waits for it. Returns null when the
      * target cannot be drawn to right now.
      */
-    suspend fun acquireFrame(): DawnFrame? = gpu.run {
+    suspend fun acquireFrame(): DawnFrame? = admittedOnOwner {
         checkOutsideFrame()
         frames.withLock { controller.acquireFrame() }
     }
@@ -69,16 +78,16 @@ class DawnPresentation internal constructor(
 
     private suspend fun replaceTargetWithOptions(target: DawnSurfaceTarget, options: DawnPresentationOptions?) {
         checkOutsideFrame()
-        check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
-        withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) {
+        check(session.state.value == SessionState.Ready) { "GPU session is not ready" }
+        withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) {
             frames.withLock {
-                check(gpu.state.value == DawnSessionState.Ready) { "GPU session is not ready" }
+                check(session.state.value == SessionState.Ready) { "GPU session is not ready" }
                 val lease = target.retain()
                 var replacement: SurfaceAttachment? = null
                 var transferred = false
                 try {
-                    replacement = factory.create(lease, gpu.context)
-                    replacement.bind(gpu)
+                    replacement = factory.create(lease, extension.dawnContext(session))
+                    replacement.bind(extension, session)
                     transferred = true
                     controller.replaceTarget(target, replacement, options)
                     observe(target)
@@ -98,7 +107,7 @@ class DawnPresentation internal constructor(
 
     suspend fun detachTarget(generation: Long) {
         checkOutsideFrame()
-        withContext(checkNotNull(gpu.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
+        withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) { frames.withLock { controller.detachTarget(generation) } }
     }
 
     internal suspend fun retire() {

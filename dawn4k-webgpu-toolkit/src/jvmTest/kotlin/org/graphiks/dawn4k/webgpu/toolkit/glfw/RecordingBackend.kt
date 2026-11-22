@@ -6,7 +6,7 @@ import org.graphiks.dawn4k.DawnSurfaceReference
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.internal.*
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 
-internal class RecordingBackend : GlfwBackend {
+internal open class RecordingBackend : GlfwBackend {
     var initialized = false
     var initializations = 0
     var terminations = 0

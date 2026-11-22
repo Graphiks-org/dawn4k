@@ -2,7 +2,6 @@ package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.runBlocking
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.openSession
 import kotlin.time.Duration.Companion.seconds
@@ -12,9 +11,10 @@ fun computeMain() = runBlocking {
     val extension = Dawn4kWebGpuToolkitExtension()
     val session = openSession(extension, SessionConfig(startupTimeout = 60.seconds))
     try {
-        println(runComputeExample(ToolkitSessionView(session, extension)).contentToString())
+        println(runComputeExample(session).contentToString())
     } finally {
-        // A dawn4k session is `Manual`: its driver ends before the session may shut down.
+        // The session drives its own pump; stopping manual progress keeps shutdown admissible
+        // for a progression that handed a driver over (none for the EventLoop extension).
         session.manualProgress?.stop()
         session.shutdown()
     }

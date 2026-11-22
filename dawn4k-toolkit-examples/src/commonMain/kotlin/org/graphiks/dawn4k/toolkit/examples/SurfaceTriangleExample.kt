@@ -2,7 +2,7 @@ package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 
 /** The caller owns this job and the UI target; cancel/join it before awaiting view retirement. */
@@ -14,7 +14,7 @@ suspend fun runSurfaceTriangleExample(target: DawnSurfaceTarget, onFrame: () -> 
 }
 
 internal suspend fun renderTriangleFrames(
-    gpu: ToolkitSessionView,
+    gpu: Session,
     presentation: DawnPresentation,
     frameLimit: Int = 0,
     keepRendering: () -> Boolean = { true },

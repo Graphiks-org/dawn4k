@@ -18,21 +18,24 @@ GLFW on JVM, macOS ARM64 and Linux x64 only.
 ## Compute without a window
 
 ```kotlin
-withDawnSession { gpu ->
-    val result = runComputeExample(gpu) // examples module: [2, 4, 6, 8]
-    println(result.contentToString())
+val extension = Dawn4kWebGpuToolkitExtension()
+withSession(extension) { session ->
+    session.run { runComputeExample(session) } // examples module: [2, 4, 6, 8]
 }
 ```
 
-The scoped block already runs on the session's GPU owner. Persistent applications
-use `openDawnSession()`, call `gpu.run { ... }` for their resource lifetime, and
-invoke `gpu.shutdown()` after that block ends. `context`, `adapter`, `device` and
-`queue` are borrowed handles: do not close them independently.
+`session.run` admits the block on the session's GPU owner. Persistent applications
+use `openDawnSession(extension)`, call `session.run { ... }` for their resource
+lifetime, and invoke `session.shutdown()` after that block ends. `device` and
+`queue` are borrowed handles: do not close them independently. The dawn-typed
+handles (`context`, `adapter`, `device`, `queue`) come from the extension:
+`extension.dawnContext(session)` and friends.
 
 ## Offscreen textures and readback
 
-`gpu.createRenderTexture(width, height, format)` creates an application-owned
-texture with render-attachment and copy-source usage. Call it inside `gpu.run`.
+`extension.createRenderTexture(session, width, height, format)` creates an
+application-owned texture with render-attachment and copy-source usage. Call it
+inside `session.run`.
 Use `texture.createView().use { ... }`, render with ordinary WebGPU commands, then
 copy into a `CopyDst | MapRead` staging buffer. Texture-to-buffer copies require
 aligned rows (256 bytes in the example). Await `mapAsync`, copy mapped bytes into
@@ -45,31 +48,58 @@ track arbitrary resources created through `device`.
 
 ## Desktop window
 
-`withDawnWindow { gpu, window, presentation -> ... }` starts a process-main-thread
+`withDawnWindow { session, window, presentation -> ... }` starts a process-main-thread
 GLFW loop, creates a compatible GPU and owns its window. Call it from
 `fun main() = runBlocking { ... }`, with `-XstartOnFirstThread` on macOS JVM. Do not wrap it in a dispatcher
 that moves process-main-thread work to a worker. JVM requires Java 25 HotSpot and
 `--enable-native-access=ALL-UNNAMED`.
 
-`gpu` is the dawn4k-shaped session: it publishes `device`, `queue`, `context`,
-`adapter`, `state`, `manualProgress` and `createRenderTexture`, so code written
-against `DawnSession` keeps working. `window` publishes `extent`, `events`,
+`session` is the canonical toolkit `Session`: it publishes `device`, `queue`,
+`state`, `manualProgress` and `executionOwner`. The dawn-typed handles come from
+the extension that opened the session: pass one to `withDawnWindow` and read
+`extension.dawnContext(session)`, `dawnAdapter`, `dawnDevice`, `dawnQueue`, and
+`createRenderTexture`. `window` publishes `extent`, `events`,
 `nativeHandle`, `resize` and `requestClose`.
 
-The extension runs `Manual` progression, so a caller that drives frames itself
-pumps events through `gpu.manualProgress` on the session's execution owner.
+The extension drives its own pump, so frames advance without a caller-side driver;
+GPU work runs under `session.run`.
 
 ```kotlin
-withDawnWindow { gpu, window, presentation ->
-    TriangleRenderer(gpu, presentation.configuration.value!!.format).use { triangle ->
+withDawnWindow { session, window, presentation ->
+    TriangleRenderer(session, presentation.configuration.value!!.format).use { triangle ->
         presentation.withFrame { frame ->
             triangle.render(frame.view, frame.extent)
             frame.present()
         }
-        gpu.queue.onSubmittedWorkDone().getOrThrow()
+        session.queue.onSubmittedWorkDone().getOrThrow()
     }
 }
 ```
+
+### Served host: the window-contract path
+
+`GlfwWindowHost` also satisfies the toolkit-agnostic `WindowHost` contract. Start
+it on the process main thread, then open windows from any other thread — `open`
+returns a live window, and the canonical `withWindow` composes session, window and
+surface:
+
+```kotlin
+fun main() = runBlocking {
+    val extension = Dawn4kWebGpuToolkitExtension()
+    val host = GlfwWindowHost()
+    launch(Dispatchers.Default) {
+        withWindow(extension, host, WindowConfig(logicalWidth = 64, logicalHeight = 64)) { session, window, surface ->
+            // frames: surface.acquireFrame()/withFrame
+        }
+        host.close()
+    }
+    host.serve()
+}
+```
+
+`host.close()` stops the serve; the served thread shuts every remaining window
+down before serving returns. A window's extent is zero until the platform lays it
+out — await the first layout before measuring.
 
 The full launcher repeats frames and observes `DawnWindowEvent.CloseRequested`.
 A frame owns its view and acquired texture reference. Present at most once; do
@@ -129,7 +159,7 @@ swap chain is actually configured with. The device descriptor and timeouts of
 
 The full target protocol — generations, retention, acquisition suspension and
 retirement — is listed in the lifecycle section. Native UI calls stay on the
-supplied UI owner; GPU encoding stays in `gpu.run`. `gpu.executionOwner` is
+supplied UI owner; GPU encoding stays in `session.run`. `session.executionOwner` is
 borrowed and intended for advanced platform integrations with their own
 admission protocol.
 
@@ -153,12 +183,12 @@ The sample hosts demonstrate asynchronous view teardown.
 
 ## Lifecycle
 
-`gpu.state` publishes a `StateFlow<DawnSessionState>`; the states are distinct
+`session.state` publishes a `StateFlow<SessionState>`; the states are distinct
 values, so an observer always knows which phase a session is in.
 
 | State | Meaning | Usable in this state |
 | --- | --- | --- |
-| `Ready` | Startup succeeded | `gpu.run`, presentation, shutdown |
+| `Ready` | Startup succeeded | `session.run`, presentation, shutdown |
 | `ShuttingDown` | A shutdown attempt is in flight | Nothing new; admitted work finishes first |
 | `ShutdownTimedOut` | The attempt exceeded `shutdownTimeout`; handles stay alive | `shutdown()` retry; cleanup continues |
 | `Lost` | The device reported loss | Cleanup only; create a new session to restart |
@@ -199,13 +229,13 @@ A caller-owned pinned dispatcher can be borrowed with `DawnExecutionOwner.borrow
 caller-owned and must outlive native cleanup.
 
 For manual progression, supply `DawnExecutionMode.Manual(owner)`. Bootstrap pumps
-until ownership transfers to `gpu.manualProgress`. Call `processEvents()` only
+until ownership transfers to `session.manualProgress`. Call `processEvents()` only
 on that same owner, from exactly one driver, yielding between bounded iterations.
 Run that driver alongside suspended GPU work. Cancel/join the driver, call
-`manualProgress.stop()`, then invoke shutdown outside `gpu.run`. A persistent
+`manualProgress.stop()`, then invoke shutdown outside `session.run`. A persistent
 shutdown rejects an active manual driver; scoped helpers revoke it on scope exit.
 
-Observe `gpu.state` (the lifecycle section lists every state) or `awaitLost()`.
+Observe `session.state` (the lifecycle section lists every state) or `awaitLost()`.
 Device loss and out-of-memory stop new
 admissions and trigger cleanup; buffers and pipelines are not replayed. Cancel
 and join application producers and close their resources inside the admitted GPU
@@ -218,7 +248,7 @@ for rollback. Native calls cannot be forcibly preempted. A shutdown timeout neve
 authorizes freeing handles that remain referenced: cleanup retries in the
 background on the retained owner, and the application may retry `shutdown()`.
 Primary errors keep cleanup errors as suppressed exceptions. Successful shutdown
-is idempotent; shutdown inside its own `gpu.run` is rejected.
+is idempotent; an admitted block keeps running through its own shutdown call.
 
 Each persistent window shutdown attempt is finite while its main loop runs. A
 scoped GLFW main loop stays runnable until every full or partial window lease

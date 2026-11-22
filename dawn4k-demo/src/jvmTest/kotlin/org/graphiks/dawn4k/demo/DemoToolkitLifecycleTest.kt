@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import org.graphiks.dawn4k.*
 import org.graphiks.dawn4k.webgpu.toolkit.*
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
+import org.graphiks.webgpu.toolkit.SessionState
 import kotlin.test.*
 
 class DemoToolkitLifecycleTest {
@@ -45,7 +46,7 @@ class DemoToolkitLifecycleTest {
         await(controller) { controller.evidence.snapshot().frameCount > 0 }
         val first = assertNotNull(controller.gpuSession.value)
         controller.stop()
-        assertEquals(DawnSessionState.Closed, first.state.value)
+        assertEquals(SessionState.Closed, first.state.value)
         controller.restart()
         controller.attach(DesktopSurfaceLease(2, awaitMetalLayerHost(window)))
         await(controller) {
@@ -85,12 +86,12 @@ class DemoToolkitLifecycleTest {
                 withTimeout(5_000) { entered.await() }
                 assertFalse(stopped.isCompleted)
                 assertTrue(original.valid)
-                assertNotEquals(DawnSessionState.Closed, gpu.state.value)
+                assertNotEquals(SessionState.Closed, gpu.state.value)
             } finally { release.complete(Unit) }
             stopped.await()
         }
         assertFalse(original.valid)
-        assertEquals(DawnSessionState.Closed, gpu.state.value)
+        assertEquals(SessionState.Closed, gpu.state.value)
         assertEquals(DemoPhase.Stopped, controller.state.value.phase)
     }
 

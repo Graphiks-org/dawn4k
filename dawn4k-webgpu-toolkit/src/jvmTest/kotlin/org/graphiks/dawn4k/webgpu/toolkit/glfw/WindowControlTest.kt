@@ -1,6 +1,6 @@
 package org.graphiks.dawn4k.webgpu.toolkit.glfw
 
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnPresentation
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
 import kotlin.test.*
@@ -13,7 +13,7 @@ class WindowControlTest {
                 val runtime = main.runtime.acquire(DawnGlfwRuntimeOwnership.Owned)
                 val native = NativeWindowLease(backend, backend.createWindow(DawnWindowOptions()), runtime)
                 DawnWindow(main, native, object : WindowSession {
-                    override val gpu: ToolkitSessionView get() = error("control tests do not access a GPU")
+                    override val session: Session get() = error("control tests do not access a GPU")
                     override val presentation: DawnPresentation get() = error("control tests do not access a surface")
                     override val surfaceTarget: DawnSurfaceTarget get() = error("control tests do not access a surface")
                     override suspend fun shutdown() {}

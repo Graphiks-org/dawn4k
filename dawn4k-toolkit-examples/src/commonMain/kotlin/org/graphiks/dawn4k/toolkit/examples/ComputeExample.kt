@@ -1,12 +1,12 @@
 package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import org.graphiks.dawn4k.DawnCommandEncoder
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
 
 /** Runs through the session owner and returns a copy independent of mapped GPU memory. */
-suspend fun runComputeExample(session: ToolkitSessionView): IntArray = session.run { gpu ->
+suspend fun runComputeExample(session: Session): IntArray = session.run { gpu ->
     gpu.device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.Storage or GPUBufferUsage.CopySrc or GPUBufferUsage.CopyDst)).use { storage ->
         gpu.device.createBuffer(BufferDescriptor(16uL, GPUBufferUsage.CopyDst or GPUBufferUsage.MapRead)).use { readback ->
             gpu.queue.writeBuffer(storage, 0uL, ArrayBuffer.of(intArrayOf(1, 2, 3, 4)))

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- The dawn4k-shaped compatibility surface of `dawn4k-webgpu-toolkit` is gone: `DawnToolkitInterop`, `DawnToolkitInteropJvm`, `ToolkitSessionView`, `ToolkitWindowView`, `ToolkitPresentationView` and `DawnSessionState` are deleted. The facade had no production callers and its window path was broken upstream. The canonical toolkit contract (`org.graphiks.webgpu:toolkit-*`) is the public API.
+
+### Changed
+- `withDawnWindow`/`withDawnSurface` blocks now receive the canonical toolkit `Session`, admitted on the session's GPU owner; the dawn-typed handles come from per-session accessors on `Dawn4kWebGpuToolkitExtension` (`dawnContext`, `dawnAdapter`, `dawnDevice`, `dawnQueue`, `createRenderTexture`), bound at startup and detached at shutdown. Keep one startup style per extension: interleaving raw `openSession` startups with `openDawnSession` is not supported.
+- The toolkit contract artifacts (`toolkit-core`, `toolkit-surface`) are now `api` dependencies of the toolkit module: public signatures name `Session` and `SurfaceTarget`.
+
+### Added
+- `openDawnSession(extension, ...)` opens a session with the dawn binding that the accessors resolve, and `GlfwWindowHost.serve()` implements the toolkit-agnostic `WindowHost` contract on the process main thread: `open` returns a live window and the canonical `withWindow(extension, host, ...)` works on desktop.
+
+### Fixed
+- `GlfwWindowHost.open` no longer destroys the window it just opened: the served loop keeps registered windows alive until an explicit stop, so opening through the host and presenting afterwards works (the upstream break behind `GLFW main loop is stopped`).
+
 ### Fixed
 - `Dawn4kToolkitInstance.close()` now marshals its teardown onto the execution owner instead of assuming the caller already did: a close from any other thread could race the event-loop pump's `processEvents()` iteration and fail with `cannot close during processEvents()` (seen on loaded CI runners). A second `close()` is now a no-op rather than racing the first.
 

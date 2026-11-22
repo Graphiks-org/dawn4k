@@ -4,6 +4,7 @@ import org.gradle.api.tasks.testing.AbstractTestTask
 import org.gradle.api.tasks.testing.Test
 import org.graphiks.dawn4k.build.BuildGlfwTask
 import org.graphiks.dawn4k.build.PrepareGlfwTask
+import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeHostTest
 
@@ -94,8 +95,10 @@ kotlin {
         api(project(":dawn4k"))
         // The toolkit artifacts carry the published webgpu-api klib; the repository's own
         // :dawn4k already brings it, so keep the toolkit graph out of the native link.
-        implementation(libs.webgpu.toolkit.core)
-        implementation(libs.webgpu.toolkit.surface)
+        // The toolkit contract types are part of this module's public API surface now that the
+        // dawn4k-shaped views are gone: expose them transitively.
+        api(libs.webgpu.toolkit.core)
+        api(libs.webgpu.toolkit.surface)
         // Offscreen render textures are built from the descriptor types.
         implementation(libs.webgpu.descriptors)
         implementation(libs.kotlinx.coroutines.core)
@@ -126,6 +129,44 @@ kotlin {
     }
     sourceSets.getByName("jvmTest").dependencies {
         implementation(libs.webgpu.toolkit.tck)
+    }
+
+    // Real-window GPU suites open live GLFW windows: two of them in one JVM hang (serve spins
+    // with an undrained window; see the canonical dissolution review). They live outside jvmTest
+    // so CI's qualification run never combines them — run ONE class per invocation, locally:
+    //   ./gradlew :dawn4k-webgpu-toolkit:realWindowTest --tests '<class FQN>'
+    //
+    // The convention plugin creates the JVM target during plugin application, so it is
+    // resolvable here; a direct object access keeps the `compilations` var calls out of the
+    // Kotlin DSL's implicit-receiver restriction inside configureEach.
+    val jvmTarget = targets.withType<KotlinJvmTarget>().firstOrNull()
+        ?: throw GradleException("the JVM target is required for the real-window GPU suites")
+    // A custom jvm-target compilation maps to the source set `jvmRealWindowTest`, which the
+    // compilation creation registers; wire its parents and dependencies afterwards.
+    val realWindowCompilation = jvmTarget.compilations.create("realWindowTest") {
+        associateWith(jvmTarget.compilations.getByName("test"))
+    }
+    sourceSets.getByName("jvmRealWindowTest") {
+        dependsOn(sourceSets.getByName("commonTest"))
+        dependsOn(sourceSets.getByName("jvmTest"))
+        dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.webgpu.descriptors)
+        }
+    }
+    tasks.register<Test>("realWindowTest") {
+        group = "verification"
+        description = "Real-window GPU suites; one class per invocation (two live sessions in one JVM hang)."
+        val testCompilation = jvmTarget.compilations.getByName("test")
+        testClassesDirs = realWindowCompilation.output.classesDirs + testCompilation.output.classesDirs
+        // The associated compilation wires compile-time; execution needs the test compilation's
+        // full runtime set (tck, kotlin-test engine, LWJGL natives) on top.
+        classpath = realWindowCompilation.output.classesDirs +
+            realWindowCompilation.runtimeDependencyFiles +
+            testCompilation.output.classesDirs +
+            testCompilation.runtimeDependencyFiles
+        environment("DAWN_DESKTOP_TESTS", "1")
+        environment("DAWN_REAL_WINDOW_TESTS", "1")
     }
 
     // Each native target links GLFW built from the pinned source; the cinterop needs the

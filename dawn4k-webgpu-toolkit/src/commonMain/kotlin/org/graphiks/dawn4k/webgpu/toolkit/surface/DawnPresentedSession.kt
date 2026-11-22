@@ -3,7 +3,6 @@ package org.graphiks.dawn4k.webgpu.toolkit.surface
 import kotlinx.coroutines.*
 import org.graphiks.dawn4k.*
 import org.graphiks.dawn4k.webgpu.toolkit.*
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.*
 import org.graphiks.webgpu.GPUDevice
 import org.graphiks.webgpu.toolkit.PreparedInitialization
@@ -11,21 +10,21 @@ import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
 import org.graphiks.webgpu.toolkit.SessionInitialization
 import org.graphiks.webgpu.toolkit.SurfaceReference
-import org.graphiks.webgpu.toolkit.openSession
 
 /**
- * A GPU session presenting to one external target: [gpu] owns the Dawn handles and
- * [presentation] owns its surface lease, while the application keeps owning the
+ * A GPU session presenting to one external target: [session] owns the device the presentation
+ * runs on, and [presentation] owns the surface lease, while the application keeps owning the
  * native window or view behind the target.
  *
  * The session stays live until [shutdown]; the caller owns that call.
  */
 class DawnPresentedSession internal constructor(
-    val gpu: ToolkitSessionView,
+    /** The canonical session whose device presents; owned by the caller through [shutdown]. */
+    val session: Session,
     val presentation: DawnPresentation,
     /** The target this session retains and presents to. */
     val surfaceTarget: DawnSurfaceTarget,
-    private val session: Session,
+    private val extension: Dawn4kWebGpuToolkitExtension,
 ) {
     /**
      * Acquires one frame and hands it to the caller, who presents and closes it. Returns null
@@ -38,12 +37,15 @@ class DawnPresentedSession internal constructor(
      * a second call is a no-op.
      */
     suspend fun shutdown() {
-        gpu.requireOutsideGpuBlock()
         // Retire on the context owner: the caller's thread may be mid-processEvents, where a
         // native close is rejected.
-        gpu.run { presentation.retire() }
-        gpu.manualProgress?.stop()
+        withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) {
+            presentation.retire()
+        }
+        session.manualProgress?.stop()
         session.shutdown()
+        // The handles are released: drop the binding so the extension holds only live sessions.
+        extension.detach(session)
     }
 }
 
@@ -60,17 +62,18 @@ suspend fun openDawnSurface(
     target: DawnSurfaceTarget,
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
     presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
-): DawnPresentedSession = openDawnSurface(target, sessionOptions, presentationOptions, SurfaceFactory.Native)
+    extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension(),
+): DawnPresentedSession = openDawnSurface(target, sessionOptions, presentationOptions, SurfaceFactory.Native, extension)
 
 internal suspend fun openDawnSurface(
     target: DawnSurfaceTarget,
     sessionOptions: DawnSessionOptions,
     presentationOptions: DawnPresentationOptions,
     factory: SurfaceFactory,
+    extension: Dawn4kWebGpuToolkitExtension,
 ): DawnPresentedSession {
-    val extension = Dawn4kWebGpuToolkitExtension()
     var presentation: DawnPresentation? = null
-    var view: ToolkitSessionView? = null
+    var binding: SurfaceAttachment? = null
 
     // The surface is retained inside prepare(), against the context the extension just opened,
     // so the adapter request that follows is checked for compatibility with it.
@@ -79,7 +82,7 @@ internal suspend fun openDawnSurface(
             "the extension did not open an instance"
         }.dawnContext
         val retained = target.retain()
-        val binding = try {
+        val created = try {
             factory.create(retained, context)
         } catch (failure: Throwable) {
             // The session's rollback only retires a prepared initialization; a prepare that
@@ -87,31 +90,18 @@ internal suspend fun openDawnSurface(
             withContext(NonCancellable) { runCatching { retained.retire() } }
             throw failure
         }
+        binding = created
         object : PreparedInitialization {
             override val compatibleSurface: SurfaceReference?
-                get() = binding.compatibleSurface?.let(::DawnSurfaceReferenceAdapter)
+                get() = created.compatibleSurface?.let(::DawnSurfaceReferenceAdapter)
 
-            override suspend fun initialize(device: GPUDevice) {
-                // The view is built here from the device the session just started: `initialize`
-                // runs inside `openSession`, before the returned session exists.
-                val sessionView = checkNotNull(view) { "the toolkit session is not available yet" }
-                sessionView.bindDevice(device)
-                binding.bind(sessionView)
-                lateinit var controller: PresentationController
-                controller = PresentationController(binding, presentationOptions) {
-                    val active = checkNotNull(controller.currentAttachment)
-                    val reference = active.lease.createSurface(sessionView.context)
-                    DawnNativeSurface(reference, sessionView.adapter, sessionView.device)
-                }
-                val created = DawnPresentation(sessionView, controller, factory)
-                presentation = created
-                controller.initialize()
-                created.observe(target)
-            }
+            override suspend fun initialize(device: GPUDevice) {}
 
             override suspend fun retire() {
+                // A startup failure after the presentation was built retires it; before that,
+                // the prepared binding is what startup acquired.
                 val configured = presentation
-                if (configured != null) configured.retire() else binding.retire()
+                if (configured != null) configured.retire() else created.retire()
             }
         }
     }
@@ -121,21 +111,31 @@ internal suspend fun openDawnSurface(
         shutdownTimeout = sessionOptions.shutdownTimeout,
         deviceDescriptor = sessionOptions.deviceDescriptor,
     )
-    // `initialize` runs inside `openSession`, before the returned session exists, so the view is
-    // created first and bound to the session once startup returns.
-    val sessionView = ToolkitSessionView(extension)
-    view = sessionView
-    val session = openSession(extension, config, initialization = initialization)
+    // `initialize` runs inside `openDawnSession`, before the returned session exists; the
+    // binding needs the session, so it completes right after startup returns.
+    val session = openDawnSession(extension, config, initialization = initialization)
     try {
-        sessionView.bind(session)
+        val attached = checkNotNull(binding) { "startup prepared no surface binding" }
+        attached.bind(extension, session)
+        lateinit var controller: PresentationController
+        controller = PresentationController(attached, presentationOptions) {
+            val active = checkNotNull(controller.currentAttachment)
+            val reference = active.lease.createSurface(extension.dawnContext(session))
+            DawnNativeSurface(reference, extension.dawnAdapter(session), extension.dawnDevice(session))
+        }
+        val created = DawnPresentation(extension, session, controller, factory)
+        presentation = created
+        controller.initialize()
+        created.observe(target)
         return DawnPresentedSession(
-            gpu = sessionView,
-            presentation = checkNotNull(presentation) { "the presentation was not created" },
-            surfaceTarget = target,
             session = session,
+            presentation = created,
+            surfaceTarget = target,
+            extension = extension,
         )
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
+            presentation?.let { created -> runCatching { created.retire() } }
             session.manualProgress?.stop()
             runCatching { session.shutdown() }
         }
@@ -152,13 +152,20 @@ suspend fun <T> withDawnSurface(
     target: DawnSurfaceTarget,
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
     presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
-    block: suspend CoroutineScope.(ToolkitSessionView, DawnPresentation) -> T,
+    extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension(),
+    block: suspend CoroutineScope.(Session, DawnPresentation) -> T,
 ): T {
-    val presented = openDawnSurface(target, sessionOptions, presentationOptions)
+    val presented = openDawnSurface(target, sessionOptions, presentationOptions, extension)
     return withToolkitShutdown(
-        stopProgress = { presented.gpu.manualProgress?.stop() },
+        stopProgress = { presented.session.manualProgress?.stop() },
         shutdown = { presented.shutdown() },
-    ) { presented.gpu.run { block(it, presented.presentation) } }
+    ) {
+        presented.session.run {
+            withContext(checkNotNull(presented.session.executionOwner) { "the session pins no execution owner" }) {
+                coroutineScope { block(presented.session, presented.presentation) }
+            }
+        }
+    }
 }
 
 /**

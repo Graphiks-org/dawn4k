@@ -1,9 +1,9 @@
 package org.graphiks.dawn4k.webgpu.toolkit.window
 
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import org.graphiks.dawn4k.DawnContext
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.DawnMainThreadLoop
+import org.graphiks.dawn4k.webgpu.toolkit.glfw.internal.GlfwBackend
+import org.graphiks.dawn4k.webgpu.toolkit.surface.internal.SurfaceFactory
 import org.graphiks.webgpu.toolkit.surface.Window
 import org.graphiks.webgpu.toolkit.surface.WindowConfig
 import org.graphiks.webgpu.toolkit.surface.WindowHost
@@ -18,7 +18,13 @@ import org.graphiks.webgpu.toolkit.surface.WindowRuntime
  * This implementation is JVM-only as it depends on GLFW through LWJGL.
  *
  * The [DawnContext] backing the windows this host opens is created lazily on the first
- * [open] and released by [close]; a host that never opened a window never creates one.
+ * [open] and released when [serve] returns; a host that never opened a window never creates one.
+ *
+ * The host serves: [serve] runs the GLFW loop on the process main thread — macOS JVM launchers
+ * need `-XstartOnFirstThread` — and [open] returns live windows only while a serve is running.
+ * Serving and [DawnMainThreadLoop.run] share the one-loop-per-process gate. [close] asks a
+ * running serve to end; the served thread shuts every remaining window down, releases the
+ * context, and then serving returns.
  *
  * @param runtime Whether this host owns the windows it creates ([WindowRuntime.Owned]) or
  *                borrows them from an embedder ([WindowRuntime.Borrowed]).
@@ -27,31 +33,50 @@ class GlfwWindowHost(
     override val runtime: WindowRuntime = WindowRuntime.Owned,
 ) : WindowHost, AutoCloseable {
 
-    private val contextMutex = Mutex()
-
     @Volatile
-    private var dawnContext: DawnContext? = null
+    private var serving: DawnMainThreadLoop? = null
 
-    override suspend fun open(config: WindowConfig): Window {
-        val context = contextMutex.withLock {
-            dawnContext ?: DawnContext.create().also { dawnContext = it }
-        }
-        return DawnMainThreadLoop.run { main ->
-            createGlfwWindow(config, runtime, context, main)
+    /** Whether the host is currently serving; [open] requires it. */
+    val isServing: Boolean get() = serving != null
+
+    /** The extension every window this host opens binds its session to; one per host. */
+    internal val extension = Dawn4kWebGpuToolkitExtension()
+
+    /** The surface factory binding retained targets to native surfaces; tests swap it. */
+    internal var surfaceFactory: SurfaceFactory = SurfaceFactory.Native
+
+    /**
+     * Serves the process main thread until [close]. Blocking: it returns only once the stop
+     * drained every remaining window.
+     */
+    fun serve() = serve(null)
+
+    internal fun serve(backend: GlfwBackend?) {
+        val loop = DawnMainThreadLoop.createForServing(backend)
+        serving = loop
+        try {
+            loop.serve()
+        } finally {
+            serving = null
         }
     }
 
     /**
-     * Releases the [DawnContext] this host created for its windows.
-     *
-     * Must not be called while a window opened by this host is still in use — the
-     * window's surface target borrows that context. Idempotent: closing a host that
-     * never opened a window is a no-op.
+     * Opens a live window on the served loop, or fails when the host is not serving — a loop
+     * without a serve would shut the window down before the caller could use it.
      */
+    override suspend fun open(config: WindowConfig): Window {
+        val loop = serving ?: throw IllegalStateException(
+            "GlfwWindowHost is not serving; call serve() on the process main thread before opening windows",
+        )
+        return loop.owner.onOwner {
+            createGlfwWindow(config, runtime, loop, surfaceFactory, extension)
+        }
+    }
+
+    /** Asks a running serve to end; harmless when the host never served. Idempotent. */
     override fun close() {
-        val context = dawnContext ?: return
-        dawnContext = null
-        runCatching { context.close() }
+        serving?.stopServing()
     }
 }
 

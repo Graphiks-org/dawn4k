@@ -1,11 +1,12 @@
 package org.graphiks.dawn4k.webgpu.toolkit.examples
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.graphiks.dawn4k.DawnCommandEncoder
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.openDawnSession
+import org.graphiks.webgpu.toolkit.Session
 import org.graphiks.webgpu.toolkit.SessionConfig
-import org.graphiks.webgpu.toolkit.openSession
 import org.graphiks.dawn4k.webgpu.toolkit.surface.PixelExtent
 import org.graphiks.webgpu.*
 import org.graphiks.webgpu.descriptors.*
@@ -14,14 +15,18 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runs [block] on a dawn4k session. The extension drives `EventLoop`, so its own pump settles
- * submitted work; the block itself runs through [ToolkitSessionView.run], on the thread that
- * owns the Dawn context, because native calls must not leave it.
+ * submitted work; the block itself runs through the session's owner admission, on the thread
+ * that owns the Dawn context, because native calls must not leave it.
  */
-private suspend fun <T> withExampleSession(block: suspend (ToolkitSessionView) -> T): T {
+private suspend fun <T> withExampleSession(block: suspend (Dawn4kWebGpuToolkitExtension, Session) -> T): T {
     val extension = Dawn4kWebGpuToolkitExtension()
-    val session = openSession(extension, SessionConfig(startupTimeout = 60.seconds))
+    val session = openDawnSession(extension, SessionConfig(startupTimeout = 60.seconds))
     return try {
-        ToolkitSessionView(session, extension).run { view -> block(view) }
+        session.run {
+            withContext(checkNotNull(session.executionOwner) { "the session pins no execution owner" }) {
+                block(extension, session)
+            }
+        }
     } finally {
         session.shutdown()
     }
@@ -29,24 +34,24 @@ private suspend fun <T> withExampleSession(block: suspend (ToolkitSessionView) -
 
 class ExamplesGpuTest {
     @Test fun computeExampleReturnsDoubledValues() = runBlocking {
-        withExampleSession { gpu ->
-            assertContentEquals(intArrayOf(2, 4, 6, 8), runComputeExample(gpu))
-            println("TOOLKIT_SAMPLE compute=passed adapter=${gpu.adapter.info.description}")
+        withExampleSession { extension, session ->
+            assertContentEquals(intArrayOf(2, 4, 6, 8), runComputeExample(session))
+            println("TOOLKIT_SAMPLE compute=passed adapter=${extension.dawnAdapter(session).info.description}")
         }
     }
     @Test fun triangleExampleRendersExpectedPixels() = runBlocking {
-        withExampleSession { gpu ->
+        withExampleSession { extension, session ->
             val errors = mutableListOf<GPUError>()
-            val observation = gpu.device.observeUncapturedErrors { errors += it }
+            val observation = (session.device as org.graphiks.dawn4k.DawnDevice).observeUncapturedErrors { errors += it }
             try {
-                gpu.createRenderTexture(16u, 16u, GPUTextureFormat.RGBA8Unorm).use { texture ->
-                    TriangleRenderer(gpu, GPUTextureFormat.RGBA8Unorm).use { renderer ->
+                extension.createRenderTexture(session, 16u, 16u, GPUTextureFormat.RGBA8Unorm).use { texture ->
+                    TriangleRenderer(session, GPUTextureFormat.RGBA8Unorm).use { renderer ->
                         texture.createView().use { renderer.render(it, PixelExtent(16, 16)) }
-                        gpu.device.createBuffer(BufferDescriptor(4096uL, GPUBufferUsage.CopyDst or GPUBufferUsage.MapRead)).use { buffer ->
-                            (gpu.device.createCommandEncoder() as DawnCommandEncoder).use { encoder ->
+                        session.device.createBuffer(BufferDescriptor(4096uL, GPUBufferUsage.CopyDst or GPUBufferUsage.MapRead)).use { buffer ->
+                            (session.device.createCommandEncoder() as DawnCommandEncoder).use { encoder ->
                                 encoder.copyTextureToBuffer(TexelCopyTextureInfo(texture),
                                     TexelCopyBufferInfo(buffer, bytesPerRow = 256u, rowsPerImage = 16u), Extent3D(16u, 16u))
-                                encoder.finish().use { gpu.queue.submit(listOf(it)) }
+                                encoder.finish().use { session.queue.submit(listOf(it)) }
                             }
                             buffer.mapAsync(GPUMapMode.Read).getOrThrow()
                             val bytes = try { buffer.getMappedRange().toByteArray() } finally { buffer.unmap() }
@@ -56,10 +61,10 @@ class ExamplesGpuTest {
                         }
                     }
                 }
-                gpu.queue.onSubmittedWorkDone().getOrThrow()
-                gpu.context.processEvents()
+                session.queue.onSubmittedWorkDone().getOrThrow()
+                extension.dawnContext(session).processEvents()
                 assertTrue(errors.isEmpty(), errors.joinToString { it.message })
-                println("TOOLKIT_SAMPLE triangle=passed adapter=${gpu.adapter.info.description}")
+                println("TOOLKIT_SAMPLE triangle=passed adapter=${extension.dawnAdapter(session).info.description}")
             } finally { observation.close() }
         }
     }

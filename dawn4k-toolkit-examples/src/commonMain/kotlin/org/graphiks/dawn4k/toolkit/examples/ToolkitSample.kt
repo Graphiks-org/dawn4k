@@ -6,7 +6,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.graphiks.dawn4k.webgpu.toolkit.surface.DawnSurfaceTarget
 import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.webgpu.toolkit.openSession
 
 /**
@@ -36,7 +35,7 @@ fun CoroutineScope.launchToolkitSample(
             val extension = Dawn4kWebGpuToolkitExtension()
             val session = openSession(extension, org.graphiks.webgpu.toolkit.SessionConfig())
             val values = try {
-                runComputeExample(ToolkitSessionView(session, extension))
+                runComputeExample(session)
             } finally {
                 session.manualProgress?.stop()
                 session.shutdown()

@@ -1,8 +1,9 @@
 package org.graphiks.dawn4k.webgpu.toolkit.surface.internal
 
 import org.graphiks.dawn4k.*
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
+import org.graphiks.dawn4k.webgpu.toolkit.Dawn4kWebGpuToolkitExtension
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
+import org.graphiks.webgpu.toolkit.Session
 
 internal fun interface SurfaceFactory {
     fun create(lease: DawnTargetLease, context: DawnContext): SurfaceAttachment
@@ -10,7 +11,12 @@ internal fun interface SurfaceFactory {
     companion object {
         val Native = SurfaceFactory { lease, context ->
             val reference = lease.createSurface(context)
-            SurfaceAttachment(lease, reference, { DawnNativeSurface(reference, it.adapter, it.device) }, reference::close)
+            SurfaceAttachment(
+                lease,
+                reference,
+                { extension, session -> DawnNativeSurface(reference, extension.dawnAdapter(session), extension.dawnDevice(session)) },
+                reference::close,
+            )
         }
     }
 }
@@ -19,7 +25,7 @@ internal fun interface SurfaceFactory {
 internal class SurfaceAttachment(
     val lease: DawnTargetLease,
     val compatibleSurface: DawnSurfaceReference?,
-    private val bindNative: (ToolkitSessionView) -> NativeSurface,
+    private val bindNative: (Dawn4kWebGpuToolkitExtension, Session) -> NativeSurface,
     private val releaseBinding: () -> Unit,
     native: NativeSurface? = null,
 ) {
@@ -29,7 +35,7 @@ internal class SurfaceAttachment(
     private var leaseRetired = false
 
     val surface: NativeSurface get() = checkNotNull(bound) { "surface is not bound to a device" }
-    fun bind(gpu: ToolkitSessionView) { if (bound == null) bound = bindNative(gpu) }
+    fun bind(extension: Dawn4kWebGpuToolkitExtension, session: Session) { if (bound == null) bound = bindNative(extension, session) }
     fun replaceNative(replacement: NativeSurface) {
         check(!surfaceRetired)
         surface.close()

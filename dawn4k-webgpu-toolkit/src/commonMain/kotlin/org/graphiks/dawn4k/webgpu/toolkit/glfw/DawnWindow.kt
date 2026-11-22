@@ -7,22 +7,22 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.graphiks.dawn4k.webgpu.toolkit.*
-import org.graphiks.dawn4k.webgpu.toolkit.interop.ToolkitSessionView
 import org.graphiks.dawn4k.webgpu.toolkit.surface.*
 import org.graphiks.dawn4k.webgpu.toolkit.glfw.internal.*
+import org.graphiks.webgpu.toolkit.Session
 
 internal interface WindowSession {
-    val gpu: ToolkitSessionView
+    val session: Session
     val presentation: DawnPresentation
     val surfaceTarget: DawnSurfaceTarget
     suspend fun shutdown()
 }
 
-private class PresentedWindowSession(private val session: DawnPresentedSession) : WindowSession {
-    override val gpu get() = session.gpu
-    override val presentation get() = session.presentation
-    override val surfaceTarget get() = session.surfaceTarget
-    override suspend fun shutdown() = session.shutdown()
+private class PresentedWindowSession(private val presented: DawnPresentedSession) : WindowSession {
+    override val session get() = presented.session
+    override val presentation get() = presented.presentation
+    override val surfaceTarget get() = presented.surfaceTarget
+    override suspend fun shutdown() = presented.shutdown()
 }
 
 class DawnWindow internal constructor(
@@ -32,7 +32,8 @@ class DawnWindow internal constructor(
 ) {
     private val closed = atomic(false)
     private val closing = Mutex()
-    val gpu: ToolkitSessionView get() = presented.gpu
+    /** The canonical session this window presents through; GPU work runs under `session.run`. */
+    val session: Session get() = presented.session
     val presentation: DawnPresentation get() = presented.presentation
     val extent = native.state.extent
     val events = native.state.events
@@ -129,7 +130,10 @@ suspend fun openDawnWindow(
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
     presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
     mainThread: DawnMainThreadLoop,
-): DawnWindow = openDawnWindow(windowOptions, sessionOptions, presentationOptions, mainThread, ::openDawnSurface)
+    extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension(),
+): DawnWindow = openDawnWindow(windowOptions, sessionOptions, presentationOptions, mainThread) { target, sessionOptions, presentationOptions ->
+    openDawnSurface(target, sessionOptions, presentationOptions, extension)
+}
 
 internal suspend fun openDawnWindow(
     windowOptions: DawnWindowOptions,
@@ -163,7 +167,7 @@ internal suspend fun openDawnWindow(
     } catch (failure: Throwable) {
         withContext(NonCancellable) {
             mainThread.retireFailedStartup {
-                presented?.gpu?.manualProgress?.stop()
+                presented?.session?.manualProgress?.stop()
                 presented?.shutdown()
                 val acquired = lease
                 if (acquired != null) acquired.retire() else {
@@ -184,11 +188,18 @@ suspend fun <T> withDawnWindow(
     windowOptions: DawnWindowOptions = DawnWindowOptions(),
     sessionOptions: DawnSessionOptions = DawnSessionOptions(),
     presentationOptions: DawnPresentationOptions = DawnPresentationOptions(),
-    block: suspend CoroutineScope.(ToolkitSessionView, DawnWindow, DawnPresentation) -> T,
+    extension: Dawn4kWebGpuToolkitExtension = Dawn4kWebGpuToolkitExtension(),
+    block: suspend CoroutineScope.(Session, DawnWindow, DawnPresentation) -> T,
 ): T = DawnMainThreadLoop.run { main ->
-    val window = openDawnWindow(windowOptions, sessionOptions, presentationOptions, main)
+    val window = openDawnWindow(windowOptions, sessionOptions, presentationOptions, main, extension)
     withToolkitShutdown(
-        stopProgress = { window.gpu.manualProgress?.stop() },
+        stopProgress = { window.session.manualProgress?.stop() },
         shutdown = { window.shutdown() },
-    ) { window.gpu.run { block(it, window, window.presentation) } }
+    ) {
+        window.session.run {
+            withContext(checkNotNull(window.session.executionOwner) { "the session pins no execution owner" }) {
+                coroutineScope { block(window.session, window, window.presentation) }
+            }
+        }
+    }
 }
