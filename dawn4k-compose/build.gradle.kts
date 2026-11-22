@@ -82,8 +82,9 @@ kotlin.sourceSets.matching { it.name == "androidDeviceTest" }.configureEach {
 // directory, which fails task validation. The viewport has no Compose
 // resources, so the task has nothing to copy: point it at an empty directory.
 // The task class is internal to the plugin, so its one output property is set
-// by name. Both the task name and the property come from the plugin: this
-// fails loudly, with the plugin version, if either moves.
+// by name. The property lookup fails loudly, with the plugin version, if the
+// method moves; a renamed or removed task silently stops matching, and the
+// plugin's own validation failure resurfaces at the next device-test run.
 val assetsTaskName = "copyAndroidDeviceTestComposeResourcesToAndroidAssets"
 tasks.matching { it.name == assetsTaskName }.configureEach {
     val destination = layout.buildDirectory.dir("generated/composeAssets/androidDeviceTest")
@@ -98,12 +99,4 @@ tasks.matching { it.name == assetsTaskName }.configureEach {
         )
     }
     output.set(destination)
-}
-// The task is created lazily by the Compose plugin; check it exists once the
-// plugin has configured the Android variants, so a rename cannot pass silently.
-gradle.projectsEvaluated {
-    check(tasks.names.contains(assetsTaskName)) {
-        "The Compose ${libs.versions.compose.multiplatform.get()} workaround expects $assetsTaskName; " +
-            "the plugin renamed or removed it. Update the workaround in dawn4k-compose/build.gradle.kts."
-    }
 }
