@@ -3,6 +3,19 @@ version = (project.findProperty("releaseVersion") as? String)
     ?.takeIf { it.isNotBlank() }
     ?: "0.1.0-SNAPSHOT"
 
+// The Compose viewport module declares only the targets Compose 1.11.1 can
+// compile for it: it has no tvOS host, no macOS native target (the desktop JVM
+// actual covers macOS), it publishes no ui/foundation for Kotlin/Native Linux,
+// and Compose 1.11 removed the Apple x64 targets. It asks the shared
+// kmp-library convention to skip those targets. The property must be
+// set before the module's plugins block runs, which is why it is set here rather
+// than in the module script.
+findProject(":dawn4k-compose")?.extensions?.extraProperties?.set(
+    "kmp.skipTargets",
+    "tvosArm64,tvosSimulatorArm64,linuxX64,iosX64,macosArm64",
+)
+
+
 val toolkitModules = listOf("dawn4k-webgpu-toolkit")
 val toolkitPublicationVersion = providers.gradleProperty("releaseVersion").filter(String::isNotBlank).orElse("1.0.0-SNAPSHOT")
 
