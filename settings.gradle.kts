@@ -18,7 +18,7 @@ dependencyResolutionManagement {
         google {
             // Only Android artifacts live here. Without this filter Gradle also asks Google for
             // every other group, and a DNS failure on dl.google.com disables the repository for
-            // all of them, including the Graphiks snapshots.
+            // everything else.
             content {
                 includeGroupByRegex("com\\.android.*")
                 includeGroupByRegex("com\\.google.*")
@@ -26,13 +26,6 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven {
-            name = "GraphiksSnapshots"
-            url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-            content {
-                includeModuleByRegex("org\\.graphiks\\.webgpu", ".*")
-            }
-        }
     }
 }
 
