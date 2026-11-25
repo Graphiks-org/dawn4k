@@ -1,6 +1,6 @@
 # Dependency updates
 
-How to move `:dawn4k` when the WebGPU contract snapshot or the Dawn native
+How to move `:dawn4k` when the WebGPU contract release or the Dawn native
 release evolves. Two pinned input sides must stay coherent: the Kotlin WebGPU
 contract (`webgpu-api` / `webgpu-descriptors`) and the generated Dawn bindings
 (`:dawn4k-native`).
@@ -12,12 +12,12 @@ contract (`webgpu-api` / `webgpu-descriptors`) and the generated Dawn bindings
 | `bindings/dawn.lock.json` | the Dawn release (`v8077.0.0`, tag `chromium/8077`, revision and per-archive SHA-256) served to both kextract and the prebuilt libraries |
 | `bindings/kextract.version` | the kextract commit that generated `org.graphiks.dawn4k.native` |
 | `bindings/callback-bindings.yml` | the validated callback contracts kextract emits |
-| Gradle | `org.graphiks:webgpu-api:0.1.0-SNAPSHOT`, `org.graphiks:webgpu-descriptors:0.1.0-SNAPSHOT` (the contract), `org.graphiks:suite-acid-tests:0.1.0-SNAPSHOT` (test scope) |
+| Gradle | `org.graphiks.webgpu:api:0.1.0`, `org.graphiks.webgpu:descriptors:0.1.0` (the contract), `org.graphiks.webgpu:suite-acid-tests:0.1.0` (test scope) |
 
-The resolved snapshot is what the backend compiles against — the sources jars
+The resolved release is what the backend compiles against — the jars
 in the Gradle cache, not a master clone.
 
-## Coordinating a snapshot evolution
+## Coordinating a contract evolution
 
 When the contract artifacts or the generated bindings move:
 
@@ -26,7 +26,7 @@ When the contract artifacts or the generated bindings move:
 DAWN_REQUIRE_ADAPTER=1 ./gradlew :dawn4k:jvmTest
 ```
 
-The first command re-resolves the snapshots and runs unit and adapter-dependent
+The first command re-resolves the contract and runs unit and adapter-dependent
 tests. The second requires an adapter: GPU tests must execute rather than report
 unavailability. Finish with the other targets:
 
@@ -40,19 +40,19 @@ the achievable Linux gate elsewhere — see `dawn4k/build.gradle.kts`.)
 
 ## When a symbol gap appears
 
-A resolved snapshot can name a member the pinned Dawn release does not serve —
+A resolved release can name a member the pinned Dawn release does not serve —
 or the generated bindings can expose a native symbol the contract does not
 model. **A symbol gap is an upstream increment, never a local stub:**
 
-1. open the increment upstream — the WebGPU contract snapshot (webgpu-api /
+1. open the increment upstream — the WebGPU contract release (webgpu-api /
    webgpu-descriptors) and/or the Dawn prebuild (`dawn.lock.json`,
    `kextract.version` through the dawn-packer pipeline);
-2. regenerate the bindings and consume the new snapshot/release;
+2. regenerate the bindings and consume the new release;
 3. re-run the gates above.
 
 No mandatory method of the resolved contract may be postponed as
 "unsupported" to keep a report green: the backend implements every member the
-snapshot defines, and a member that cannot be served is a coordination bug to
+contract defines, and a member that cannot be served is a coordination bug to
 fix upstream, not a local decision. The accepted-and-ignored fields (documented
 in the mappers, e.g. the spec-deprecated `xrCompatible` hint or the
 compilation hints with no Dawn counterpart) are exactly that — documented

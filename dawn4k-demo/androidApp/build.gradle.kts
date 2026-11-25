@@ -29,8 +29,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
 }
 
-// The published toolkit artifacts pull org.graphiks.webgpu:api, whose AAR namespace duplicates
-// org.graphiks:webgpu-api (already on the classpath via :dawn4k); drop the duplicate.
+// The published toolkit artifacts pull org.graphiks.webgpu:api, already on the
+// classpath via :dawn4k; drop the duplicate.
 configurations.all {
     exclude(group = "org.graphiks.webgpu", module = "api")
 }

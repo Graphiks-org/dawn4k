@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The dawn4k-shaped compatibility surface of `dawn4k-webgpu-toolkit` is gone: `DawnToolkitInterop`, `DawnToolkitInteropJvm`, `ToolkitSessionView`, `ToolkitWindowView`, `ToolkitPresentationView` and `DawnSessionState` are deleted. The facade had no production callers and its window path was broken upstream. The canonical toolkit contract (`org.graphiks.webgpu:toolkit-*`) is the public API.
 
 ### Changed
+- WebGPU dependencies `0.1.0-SNAPSHOT` → `0.1.0`, the first Maven Central release of the `org.graphiks.webgpu` contract artifacts (`api`, `descriptors`, `suite-*`, `toolkit-*`); the Graphiks snapshot repository is dropped from the settings.
 - `withDawnWindow`/`withDawnSurface` blocks now receive the canonical toolkit `Session`, admitted on the session's GPU owner; the dawn-typed handles come from per-session accessors on `Dawn4kWebGpuToolkitExtension` (`dawnContext`, `dawnAdapter`, `dawnDevice`, `dawnQueue`, `createRenderTexture`), bound at startup and detached at shutdown. Keep one startup style per extension: interleaving raw `openSession` startups with `openDawnSession` is not supported.
 - The toolkit contract artifacts (`toolkit-core`, `toolkit-surface`) are now `api` dependencies of the toolkit module: public signatures name `Session` and `SurfaceTarget`.
 
